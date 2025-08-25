@@ -1,0 +1,278 @@
+<!-- templates/signup.html -->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>회원가입</title>
+
+    <!-- CSRF (세션 기반 Security 사용 시) -->
+<!--    <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />-->
+<!--    <meta name="_csrf_header" th:content="${_csrf.headerName}" />-->
+<!--    <meta name="_csrf" th:content="${_csrf.token}" />-->
+
+    <style>
+        :root{
+            --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
+            --card:#fffaf5; --ink:#443c33; --muted:#7a6f66;
+            --accent1:#f4a261; --accent2:#e76f51;
+            --ring:rgba(244,162,97,.35);
+            --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{
+            margin:0; color:var(--ink);
+            font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
+            background:
+                    radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
+                    radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
+                    linear-gradient(180deg, var(--bg1), #fff);
+            display:grid; place-items:center; padding:28px;
+        }
+        .card{
+            width:min(94vw,680px); background:var(--card);
+            border-radius:var(--radius); box-shadow:var(--shadow);
+            padding:28px 26px; position:relative; overflow:hidden;
+            animation:fadeIn .35s ease;
+        }
+        .card:before{
+            content:""; position:absolute; inset:-40% -50% auto auto;
+            width:320px; height:320px; border-radius:50%;
+            background:radial-gradient(closest-side, rgba(231,111,81,.12), transparent 70%);
+            filter:blur(6px);
+        }
+        @keyframes fadeIn{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+
+        .brand{display:flex; gap:12px; align-items:center; margin-bottom:12px}
+        .badge{
+            width:44px; height:44px; border-radius:14px; flex:none;
+            background:conic-gradient(from 210deg, #ffd7ba, #f7b267, #e76f51, #ffd7ba);
+            display:grid; place-items:center; color:#fff; font-weight:800; letter-spacing:.5px;
+            box-shadow:0 10px 20px rgba(231,111,81,.28);
+        }
+        h1{margin:0; font-size:22px; letter-spacing:-.2px}
+        .sub{margin:6px 0 18px; color:var(--muted); font-size:13px}
+
+        form{display:grid; gap:16px; margin-top:6px}
+        .row{display:grid; grid-template-columns:160px 1fr; gap:14px; align-items:center}
+        label{font-size:13px; color:#5a5148}
+        .control{position:relative}
+        .input{
+            width:100%; padding:12px 44px 12px 42px;
+            border-radius:14px; border:1px solid #e8ded5; background:#fff;
+            color:var(--ink); outline:none; transition:border-color .15s, box-shadow .15s;
+        }
+        .input::placeholder{color:#b5a9a0}
+        .input:focus{border-color:#f4a261; box-shadow:0 0 0 6px var(--ring)}
+        .icon{
+            position:absolute; left:12px; top:50%; transform:translateY(-50%);
+            width:18px; height:18px; color:#b08d7f; opacity:.9;
+        }
+        .hint{color:var(--muted); font-size:12px}
+        .error{
+            margin:4px 0 0; padding:8px 10px; border-radius:10px;
+            background:#fff1f0; border:1px solid #ffd6d2; color:#c24130; font-size:12px;
+        }
+        .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+        .actions{display:flex; gap:10px; justify-content:flex-end; margin-top:6px}
+        .btn{
+            appearance:none; border:0; cursor:pointer;
+            padding:12px 16px; border-radius:14px; color:white; font-weight:700;
+            background:linear-gradient(135deg, var(--accent1), var(--accent2));
+            box-shadow:0 14px 28px rgba(231,111,81,.35), 0 2px 6px rgba(0,0,0,.06);
+            transition:transform .05s ease, filter .2s ease, box-shadow .2s ease;
+        }
+        .btn:hover{filter:saturate(1.05) brightness(1.02)}
+        .btn:active{transform:translateY(1px)}
+        .foot{margin-top:8px; text-align:center; font-size:13px; color:var(--muted)}
+        .foot a{color:#c26245; text-decoration:none}
+        .foot a:hover{text-decoration:underline}
+
+        .pw-toggle{
+            position:absolute; right:12px; top:50%; transform:translateY(-50%);
+            border:0; background:transparent; color:#8b766a; cursor:pointer; font-size:12px;
+        }
+
+        @media (max-width:640px){
+            .row{grid-template-columns:1fr; gap:8px}
+        }
+        @media (prefers-color-scheme: dark){
+            body{background:linear-gradient(180deg,#1b1917,#26211d)}
+            .card{background:#201d1a; color:#f1eee9}
+            .input{background:#161412; border-color:#39322c; color:#f1eee9}
+            .input::placeholder{color:#7e756e}
+            label{color:#d6cfc7}
+            .sub,.hint{color:#a79a8f}
+        }
+    </style>
+</head>
+<body>
+<main class="card">
+    <div class="brand">
+        <div class="badge">GM</div>
+        <div>
+            <h1>회원가입</h1>
+            <p class="sub">따뜻한 공간에서 새로운 시작을 만들어 보세요.</p>
+        </div>
+    </div>
+
+    <!-- 서버에서 모델에 signUpForm 바인딩 가정 -->
+    <form th:action="@{/signup}" th:object="${signUpForm}" method="post" id="signupForm" novalidate>
+<!--        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />-->
+
+        <!-- 이메일 -->
+        <div class="row">
+            <label for="email">이메일</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 6h16v12H4z" stroke="currentColor" stroke-width="1.5" />
+                    <path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <input id="email" class="input" type="email" th:field="*{email}" placeholder="you@example.com" required />
+                <div class="error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+            </div>
+        </div>
+
+        <!-- 비밀번호 -->
+        <div class="row">
+            <label for="password">비밀번호</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <input id="password" class="input" type="password" th:field="*{password}" minlength="8"
+                       pattern="^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])\S{8,}$"
+                       placeholder="대/소문자·숫자·특수문자 포함 8자 이상" required />
+                <button class="pw-toggle" type="button" id="pwToggle">보기</button>
+                <div class="hint">대/소문자, 숫자, 특수문자 각 1자 이상 포함</div>
+                <div class="error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+            </div>
+        </div>
+
+        <!-- 비밀번호 확인 -->
+        <div class="row">
+            <label for="passwordConfirm">비밀번호 확인</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 12.5l5 5 11-11" stroke="currentColor" stroke-width="1.6" fill="none"/>
+                </svg>
+                <input id="passwordConfirm" class="input" type="password" th:field="*{passwordConfirm}" required />
+                <div class="error" id="pwMismatch" style="display:none;">비밀번호가 일치하지 않습니다.</div>
+                <div class="error" th:if="${#fields.hasErrors('passwordConfirm')}" th:errors="*{passwordConfirm}"></div>
+            </div>
+        </div>
+
+        <!-- 이름 -->
+        <div class="row">
+            <label for="name">이름</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="8" r="3.2" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M4.5 19c1.8-3 5-4.5 7.5-4.5S17.7 16 19.5 19" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <input id="name" class="input" type="text" th:field="*{name}" maxlength="50" placeholder="홍길동" required />
+                <div class="error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}"></div>
+            </div>
+        </div>
+
+        <!-- 전화번호 -->
+        <div class="row">
+            <label for="phone">전화번호</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M6 3h6l1 4-3 2a14 14 0 0 0 5 5l2-3 4 1v6a2 2 0 0 1-2 2A17 17 0 0 1 3 8a2 2 0 0 1 2-2h1z" stroke="currentColor" stroke-width="1.4"/>
+                </svg>
+                <input id="phone" class="input" type="tel" th:field="*{phone}"
+                       pattern="^0\d{1,2}-\d{3,4}-\d{4}$" placeholder="010-1234-5678" />
+                <div class="error" th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></div>
+            </div>
+        </div>
+
+        <!-- 주소 -->
+        <div class="row">
+            <label>주소</label>
+            <div class="grid-2">
+                <div class="control">
+                    <input class="input" type="text" th:field="*{zipcode}" placeholder="우편번호" />
+                </div>
+                <div class="control">
+                    <input class="input" type="text" th:field="*{city}" placeholder="도시" />
+                </div>
+                <div class="control" style="grid-column:1 / -1;">
+                    <input class="input" type="text" th:field="*{street}" placeholder="도로명/번지" />
+                </div>
+            </div>
+        </div>
+
+        <div class="actions">
+            <a class="btn" th:href="@{/login}" style="background:linear-gradient(135deg,#b8b8b8,#7d7d7d)">로그인으로</a>
+            <button type="submit" class="btn" id="submitBtn">가입하기</button>
+        </div>
+
+        <p class="foot">
+            이미 계정이 있으신가요? <a th:href="@{/login}" href="/login">로그인</a>
+        </p>
+    </form>
+</main>
+
+<script>
+    // 비밀번호 보기/숨기기
+    (function(){
+        const pw = document.getElementById('password');
+        const btn = document.getElementById('pwToggle');
+        btn.addEventListener('click', () => {
+            const show = pw.type === 'password';
+            pw.type = show ? 'text' : 'password';
+            btn.textContent = show ? '숨김' : '보기';
+        });
+    })();
+
+    // 비밀번호 일치 체크 + 브라우저 기본 유효성 검사 트리거
+    (function(){
+        const pw = document.getElementById('password');
+        const pwc = document.getElementById('passwordConfirm');
+        const msg = document.getElementById('pwMismatch');
+        const btn = document.getElementById('submitBtn');
+        const form = document.getElementById('signupForm');
+
+        function checkPw(){
+            const mismatch = pw.value && pwc.value && pw.value !== pwc.value;
+            msg.style.display = mismatch ? 'block' : 'none';
+            btn.disabled = mismatch;
+        }
+        pw.addEventListener('input', checkPw);
+        pwc.addEventListener('input', checkPw);
+
+        form.addEventListener('submit', function(e){
+            if(!this.checkValidity()){
+                e.preventDefault();
+                this.reportValidity();
+            } else {
+                checkPw();
+                if(btn.disabled) e.preventDefault();
+            }
+        });
+    })();
+
+    // (선택) 전화번호 입력 시 자동 하이픈
+    (function(){
+        const el = document.getElementById('phone');
+        if(!el) return;
+        el.addEventListener('input', e => {
+            let v = e.target.value.replace(/[^\d]/g, '').slice(0, 11);
+            let out = v;
+            if (v.startsWith('02')) {
+                if (v.length > 2 && v.length <= 5) out = `${v.slice(0,2)}-${v.slice(2)}`;
+                else if (v.length > 5)           out = `${v.slice(0,2)}-${v.slice(2,6)}-${v.slice(6)}`;
+            } else {
+                if (v.length > 3 && v.length <= 7) out = `${v.slice(0,3)}-${v.slice(3)}`;
+                else if (v.length > 7)             out = `${v.slice(0,3)}-${v.slice(3,7)}-${v.slice(7)}`;
+            }
+            e.target.value = out;
+        });
+    })();
+</script>
+</body>
+</html>

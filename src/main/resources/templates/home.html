@@ -1,0 +1,218 @@
+<!-- templates/login.html -->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>로그인</title>
+
+    <!-- CSRF (세션 기반 Security 사용 시 자동 주입) -->
+<!--    <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />-->
+<!--    <meta name="_csrf_header" th:content="${_csrf.headerName}" />-->
+<!--    <meta name="_csrf" th:content="${_csrf.token}" />-->
+
+    <style>
+        :root{
+            /* 따뜻한 팔레트 */
+            --bg1:#fff7ed;   /* warm cream */
+            --bg2:#fde7d8;   /* peach */
+            --bg3:#fae8ff;   /* lilac hint */
+            --card:#fffaf5;
+            --ink:#443c33;   /* 잉크 브라운 */
+            --muted:#7a6f66; /* 부드러운 회갈색 */
+            --accent1:#f4a261; /* apricot */
+            --accent2:#e76f51; /* coral */
+            --ring:rgba(244,162,97,.35);
+            --radius:18px;
+            --shadow:0 20px 45px rgba(68,60,51,.18);
+        }
+        *{box-sizing:border-box}
+        html,body{height:100%}
+        body{
+            margin:0; color:var(--ink);
+            font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
+            background:
+                    radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
+                    radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
+                    linear-gradient(180deg, var(--bg1), #fff);
+            display:grid; place-items:center; padding:28px;
+        }
+        .card{
+            width:min(94vw,480px);
+            background:var(--card);
+            border-radius:var(--radius);
+            box-shadow:var(--shadow);
+            padding:28px 26px;
+            position:relative;
+            overflow:hidden;
+            animation:fadeIn .35s ease;
+        }
+        .card:before{
+            content:""; position:absolute; inset:-40% -50% auto auto;
+            width:280px; height:280px; border-radius:50%;
+            background:radial-gradient(closest-side, rgba(231,111,81,.13), transparent 70%);
+            filter:blur(6px);
+        }
+        @keyframes fadeIn{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:translateY(0)}}
+
+        .brand{display:flex; gap:12px; align-items:center; margin-bottom:12px}
+        .badge{
+            width:44px; height:44px; border-radius:14px; flex:none;
+            background:conic-gradient(from 210deg, #ffd7ba, #f7b267, #e76f51, #ffd7ba);
+            display:grid; place-items:center; color:#fff; font-weight:800; letter-spacing:.5px;
+            box-shadow:0 10px 20px rgba(231,111,81,.28);
+        }
+        h1{margin:0; font-size:22px; letter-spacing:-.2px}
+        .sub{margin:6px 0 18px; color:var(--muted); font-size:13px}
+
+        form{display:grid; gap:14px}
+        label{font-size:13px; color:#5a5148}
+        .field{display:grid; gap:8px}
+        .control{position:relative}
+        .input{
+            width:100%; padding:12px 44px 12px 42px;
+            border-radius:14px; border:1px solid #e8ded5; background:#fff;
+            color:var(--ink); outline:none; transition:border-color .15s, box-shadow .15s, transform .06s;
+        }
+        .input::placeholder{color:#b5a9a0}
+        .input:focus{
+            border-color:#f4a261;
+            box-shadow:0 0 0 6px var(--ring);
+        }
+        .icon{
+            position:absolute; left:12px; top:50%; transform:translateY(-50%);
+            width:18px; height:18px; color:#b08d7f; opacity:.9;
+        }
+        .toggle{
+            position:absolute; right:12px; top:50%; transform:translateY(-50%);
+            border:0; background:transparent; color:#8b766a; cursor:pointer; font-size:12px;
+        }
+        .meta{
+            display:flex; justify-content:space-between; align-items:center; margin-top:-4px;
+            font-size:13px; color:var(--muted)
+        }
+        .meta a{color:#c26245; text-decoration:none}
+        .meta a:hover{text-decoration:underline}
+
+        .error{
+            margin:4px 0 6px; padding:10px 12px; border-radius:12px;
+            background:#fff1f0; border:1px solid #ffd6d2; color:#c24130; font-size:13px;
+        }
+
+        .actions{display:grid; gap:10px; margin-top:6px}
+        .btn{
+            appearance:none; border:0; cursor:pointer;
+            padding:12px 16px; border-radius:14px; color:white; font-weight:700;
+            background:linear-gradient(135deg, var(--accent1), var(--accent2));
+            box-shadow:0 14px 28px rgba(231,111,81,.35), 0 2px 6px rgba(0,0,0,.06);
+            transition:transform .05s ease, filter .2s ease, box-shadow .2s ease;
+        }
+        .btn:hover{filter:saturate(1.05) brightness(1.02)}
+        .btn:active{transform:translateY(1px)}
+        .foot{margin-top:8px; text-align:center; font-size:13px; color:var(--muted)}
+        .foot a{color:#c26245; text-decoration:none}
+        .foot a:hover{text-decoration:underline}
+
+        /* 접근성 향상 */
+        .input:focus-visible, .toggle:focus-visible, .btn:focus-visible{
+            outline:2px solid #f4a261; outline-offset:2px;
+        }
+
+        /* 다크 배경 환경 대비 */
+        @media (prefers-color-scheme: dark){
+            body{background:linear-gradient(180deg,#1b1917,#26211d)}
+            .card{background:#201d1a; color:#f1eee9}
+            .input{background:#161412; border-color:#39322c; color:#f1eee9}
+            .input::placeholder{color:#7e756e}
+            label{color:#d6cfc7}
+            .muted,.sub{color:#a79a8f}
+        }
+    </style>
+</head>
+<body>
+<main class="card">
+    <div class="brand">
+        <div class="badge">GM</div>
+        <div>
+            <h1>그니 마켓에 로그인</h1>
+            <p class="sub">따뜻한 공간에서 주문하고, 내역을 확인하세요.</p>
+        </div>
+    </div>
+
+    <!-- 스프링 시큐리티 에러 표시 (/login?error) -->
+    <div th:if="${param.error}" class="error"
+         th:text="${session.SPRING_SECURITY_LAST_EXCEPTION?.message} ?: '아이디 또는 비밀번호를 확인해주세요.'">
+        아이디 또는 비밀번호를 확인해주세요.
+    </div>
+    <!-- 로그아웃 메시지 (/login?logout) -->
+    <div th:if="${param.logout}" class="sub" style="margin:6px 0 12px;">정상적으로 로그아웃되었습니다.</div>
+
+    <!-- 이메일을 아이디로 쓰면 SecurityConfig에 .usernameParameter("email") 설정 -->
+    <form th:action="@{/login}" method="post" id="loginForm" novalidate>
+<!--        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />-->
+
+        <div class="field">
+            <label for="email">이메일</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 6h16v12H4z" stroke="currentColor" stroke-width="1.5" />
+                    <path d="M4 7l8 6 8-6" stroke="currentColor" stroke-width="1.5" />
+                </svg>
+                <input id="email" class="input" type="email" name="email"
+                       placeholder="you@example.com" autocomplete="username" required />
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="password">비밀번호</label>
+            <div class="control">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M8 11V8a4 4 0 1 1 8 0v3" stroke="currentColor" stroke-width="1.5"/>
+                </svg>
+                <input id="password" class="input" type="password" name="password"
+                       placeholder="비밀번호" autocomplete="current-password" required />
+                <button class="toggle" type="button" id="pwToggle" aria-label="비밀번호 보기">보기</button>
+            </div>
+        </div>
+
+        <div class="meta">
+            <label style="display:flex;align-items:center;gap:8px">
+                <input type="checkbox" name="remember-me" />
+                <span>자동 로그인</span>
+            </label>
+            <a href="#" aria-disabled="true">비밀번호 찾기</a>
+        </div>
+
+        <div class="actions">
+            <button type="submit" class="btn">로그인</button>
+        </div>
+    </form>
+
+    <p class="foot">
+        처음이신가요? <a th:href="@{/signup}" href="/signup">회원가입</a>
+    </p>
+</main>
+
+<script>
+    // 비밀번호 보기/숨기기
+    (function(){
+        const pw = document.getElementById('password');
+        const btn = document.getElementById('pwToggle');
+        btn.addEventListener('click', () => {
+            const show = pw.type === 'password';
+            pw.type = show ? 'text' : 'password';
+            btn.textContent = show ? '숨김' : '보기';
+        });
+    })();
+
+    // 브라우저 기본 유효성 검사 트리거
+    document.getElementById('loginForm').addEventListener('submit', function(e){
+        if(!this.checkValidity()){
+            e.preventDefault();
+            this.reportValidity();
+        }
+    });
+</script>
+</body>
+</html>
