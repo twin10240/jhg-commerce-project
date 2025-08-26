@@ -29,4 +29,10 @@ public class Account {
         this.password = password;
         this.member = member;
     }
+
+    public void setRole(String role) {
+        if (role.equals(Role.ADMIN.toString())) {
+            this.role = Role.ADMIN;
+        }
+    }
 }

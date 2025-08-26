@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller;
+package com.jhg.hgpage.controller.auth;
 
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Getter;

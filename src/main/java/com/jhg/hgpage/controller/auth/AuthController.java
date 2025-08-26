@@ -1,11 +1,12 @@
 package com.jhg.hgpage.controller.auth;
 
-import com.jhg.hgpage.controller.SignUpForm;
 import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.service.AccountService;
 import com.jhg.hgpage.service.MemberService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
