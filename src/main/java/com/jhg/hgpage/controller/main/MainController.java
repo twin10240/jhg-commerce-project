@@ -1,15 +1,17 @@
 package com.jhg.hgpage.controller.main;
 
 import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.service.MemberService;
+import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.service.ProductService;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 
 import java.util.List;
 
@@ -18,20 +20,22 @@ import java.util.List;
 public class MainController {
     private final MemberService memberService;
     private final ProductService productService;
+    private final OrderService orderService;
 
-    @PostMapping("/login")
-    public String logIn(HttpServletRequest request, Model model) {
-        Member member = memberService.findMemberByEmail(request.getParameter("email"));
+    @GetMapping("/main")
+    public String logIn(@AuthenticationPrincipal UserPrincipal userPrincipal, Model model) {
+//        Member member = memberService.findMemberByEmail(userPrincipal.getUsername());
+        Member member = memberService.findMemberByEmailWithQueryDsl(userPrincipal.getUsername());
         model.addAttribute("member", member);
 
         List<Product> products = productService.findAll();
         model.addAttribute("products", products);
 
-        return "/main";
-    }
+        List<Order> orders = orderService.findOrders();
+        model.addAttribute("orders", products);
 
-    @GetMapping("/logout")
-    public String logOut() {
-        return "/";
+        model.addAttribute("role", userPrincipal.getAuthorities());
+
+        return "main";
     }
 }

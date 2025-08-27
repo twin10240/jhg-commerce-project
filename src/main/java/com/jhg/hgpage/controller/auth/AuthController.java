@@ -3,10 +3,8 @@ package com.jhg.hgpage.controller.auth;
 import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.service.AccountService;
 import com.jhg.hgpage.service.MemberService;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,10 +37,18 @@ public class AuthController {
         Member member = new Member(form.getName(), form.getPhone(), new Address(form.getCity(), form.getStreet(), form.getZipcode()));
         memberService.join(member);
 
-        Account account = new Account();
-        account.createAccount(form.getEmail(), passwordEncoder.encode(form.getPassword()), member);
-        accountService.signUp(account);
+        accountService.signUp(new Account(form.getEmail(), passwordEncoder.encode(form.getPassword()), member));
 
         return "redirect:/";
+    }
+
+    @GetMapping("/login")
+    public String login() {
+        return "home";
+    }
+
+    @GetMapping("/logout")
+    public String logOut() {
+        return "redirect:/?logout";
     }
 }

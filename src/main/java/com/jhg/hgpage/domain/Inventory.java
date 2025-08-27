@@ -18,4 +18,7 @@ public class Inventory {
     @JoinColumn(name = "product_id")
     private Product product;
 
+    public void addOnHandQty(int quantity) {
+        this.onHandQty += quantity;
+    }
 }

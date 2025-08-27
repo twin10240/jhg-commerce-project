@@ -7,9 +7,9 @@
     <title>그니 마켓</title>
 
     <!-- CSRF (세션 기반 Security) -->
-    <!--    <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />-->
-    <!--    <meta name="_csrf_header" th:content="${_csrf.headerName}" />-->
-    <!--    <meta name="_csrf" th:content="${_csrf.token}" />-->
+    <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+    <meta name="_csrf" th:content="${_csrf.token}" />
 
     <style>
         :root{
@@ -84,24 +84,76 @@
         table{width:100%; border-collapse:separate; border-spacing:0 8px}
         th,td{padding:10px 12px; text-align:left; font-size:14px}
         thead th{color:#7a6f66; font-weight:700}
-        tbody tr{background:#fff; border:1px solid #eadfd6; border-radius:12px}
+        /*tbody tr{background:#fff; border:1px solid #eadfd6; border-radius:12px}*/
+        tbody tr{background: var(--card); border:1px solid #eadfd6; border-radius:12px}
         tbody tr td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
         tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
 
         /* 상품 그리드 */
-        .grid{
-            display:grid; gap:14px;
-            grid-template-columns: repeat(3, minmax(0,1fr));
-        }
+        /* 상품 카드 간 간격을 조금 더 */
+        .grid{ gap:20px; }
+
+        /* 카드 대비/분리감 강화 */
         .product{
-            background:#fff; border:1px solid #eadfd6; border-radius:14px; padding:12px;
-            display:grid; gap:10px;
+            position:relative;
+            /*background:linear-gradient(180deg, #fff, #fffdf8); !* 배경 살짝 틴트 *!*/
+            background: var(--card);
+            border:1.5px solid #eadfd6;            /* 테두리 두께 ↑ */
+            border-radius:14px;
+            padding:16px;                          /* 내부 여백 ↑ */
+            box-shadow:0 8px 18px rgba(68,60,51,.08);
+            transition:transform .12s ease, box-shadow .2s ease, border-color .2s ease;
         }
-        .product h3{margin:0; font-size:16px}
+
+        /* 카드 호버 시 미세 리프트 + 강조 */
+        .product:hover{
+            transform:translateY(-2px);
+            box-shadow:0 14px 30px rgba(68,60,51,.14);
+            border-color:#f1c7a1;                  /* accent 톤으로 살짝 강조 */
+        }
+
+        /* 제목이 길어도 자연스럽게 줄바꿈 */
+        .product h3{ overflow-wrap:anywhere; }
+
+        /* 가격 아래에 은은한 구분선 */
+        .price{ position:relative; padding-bottom:6px; margin-bottom:10px; }
+        .price::after{
+            content:""; position:absolute; left:0; right:0; bottom:-6px; height:1px;
+            background:linear-gradient(90deg, transparent, #eadfd6, transparent);
+        }
+
+        /* 액션 줄(수량/버튼) 여유 */
+        .product-actions{
+            display:grid;
+            grid-template-columns: 1fr auto auto;
+            gap:12px; align-items:center;
+        }
+        .product-actions .btn{ white-space:nowrap; min-width:118px; }
+        .product-actions .qty input{ width:100px; text-align:right; }
+
+        /* (옵션) 왼쪽 얇은 색 띠로 더 또렷하게 구분하고 싶으면 주석 해제
+        .product::before{
+          content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+          background:linear-gradient(180deg, var(--accent1), var(--accent2));
+          opacity:.5; border-top-left-radius:14px; border-bottom-left-radius:14px;
+        }
+        */
+
         .price{font-weight:800}
-        .row{display:grid; grid-template-columns: 1fr 110px 110px; gap:10px; align-items:center}
-        .qty{display:flex; gap:8px; align-items:center}
-        .qty input{width:76px; text-align:right}
+        /* 1) 검색창 + 로그아웃 툴바 */
+        .toolbar{display:flex; gap:10px; align-items:center; margin:8px 0 14px;}
+        .toolbar .input{flex:1; width:auto; min-width:0;} /* flex에서 100% 대신 flex:1 */
+        /* 2) 상품 카드 액션 행 */
+        /*.row{display:grid; grid-template-columns: 1fr 110px 110px; gap:10px; align-items:center}*/
+        /*.qty{display:flex; gap:8px; align-items:center}*/
+        /*.qty input{width:76px; text-align:right}*/
+        .row{
+            display:grid;
+            grid-template-columns: minmax(150px,1fr) 128px 128px; /* 버튼 칼럼 여유 ↑ */
+            gap:10px; align-items:center;
+        }
+        .row .btn{width:100%; white-space:nowrap;}  /* 글자 줄바꿈 방지 + 칼럼 가득 */
+        .qty input{width:100%; text-align:right;}   /* qty 필드 칼럼 꽉 차게 */
 
         /* 레이아웃 */
         .section{display:none; margin-top:12px}
@@ -121,10 +173,12 @@
         @media (prefers-color-scheme: dark){
             body{background:linear-gradient(180deg,#1b1917,#26211d)}
             .card{background:#201d1a; color:#f1eee9}
+            .product{ background:#201d1a; }
             .input, select{background:#161412; border-color:#39322c; color:#f1eee9}
             .tab{background:#161412; border-color:#39322c; color:#d9d4cf}
             thead th{color:#bfb4a9}
-            tbody tr{background:#161412; border-color:#39322c}
+            /*tbody tr{background:#161412; border-color:#39322c}*/
+            tbody tr{ background:#161412; }
         }
     </style>
 </head>
@@ -140,8 +194,8 @@
                 </div>
             </div>
             <div>
-                <!--                <span class="pill" sec:authorize="hasRole('USER')">ROLE_USER</span>-->
-                <!--                <span class="pill" sec:authorize="hasRole('ADMIN')">ROLE_ADMIN</span>-->
+                <span class="pill" sec:authorize="hasRole('USER')">ROLE_USER</span>
+                <span class="pill" sec:authorize="hasRole('ADMIN')">ROLE_ADMIN</span>
             </div>
         </header>
 
@@ -154,26 +208,37 @@
 
         <!-- 상품 섹션 -->
         <section id="products" class="section active">
-            <div style="display:flex; gap:10px; align-items:center; margin:8px 0 14px;">
+            <div class="toolbar">
                 <input class="input" placeholder="상품 검색..." id="searchInput" oninput="filterProducts()" />
-                <a class="btn muted" th:href="@{/logout}">로그아웃</a>
+                <!-- 로그아웃: POST 권장 -->
+                <form th:action="@{/logout}" method="post" style="margin:0;">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                    <button class="btn muted" type="submit">로그아웃</button>
+                </form>
             </div>
 
             <div class="grid" id="productGrid">
-                <!-- 서버에서 products: List<ProductSummary> 제공 가정 -->
                 <article class="product" th:each="p : ${products}">
                     <h3 th:text="${p.name}">허니 라떼</h3>
-                    <div class="price"><span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">6,500</span>원</div>
-                    <form th:action="@{/orders}" method="post" class="row">
-                        <!--                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />-->
-                        <!-- 간단히 단일 품목 즉시 구매: items[0].productId / items[0].qty -->
+                    <div class="price">
+                        <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="items[0].price>6,500</span>원
+                    </div>
+
+                    <form th:action="@{/orders}" method="post" class="product-actions">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+                        <!-- 단일 품목 즉시 구매 -->
                         <input type="hidden" name="items[0].productId" th:value="${p.id}" />
+
                         <div class="qty">
-                            <label class="hint" for="qty-[[${p.id}]]">수량</label>
-                            <input id="qty-[[${p.id}]]" class="input" type="number" name="items[0].qty" min="1" value="1" />
+                            <label class="hint" th:for="|qty-${p.id}|">수량</label>
+                            <input th:id="|qty-${p.id}|" class="input" type="number"
+                                   name="items[0].qty" min="1" value="1" />
                         </div>
+
                         <button class="btn" type="submit">바로 구매</button>
-                        <button class="btn muted" type="button" onclick="addToCart(this)" th:attr="data-id=${p.id}" >장바구니</button>
+                        <button class="btn muted" type="button"
+                                onclick="addToCart(this)" th:attr="data-id=${p.id}">장바구니</button>
                     </form>
                 </article>
             </div>

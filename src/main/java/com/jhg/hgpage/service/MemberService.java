@@ -1,10 +1,9 @@
 package com.jhg.hgpage.service;
 
-import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.repositoey.AccountRepository;
 import com.jhg.hgpage.repositoey.MemberRepository;
 import com.jhg.hgpage.repositoey.MemberRepositoryQuery;
+import jakarta.persistence.NoResultException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +26,15 @@ public class MemberService {
         return memberRepository.findById(id).get();
     }
 
-    public Member findMemberByEmail(String email) {
+    public Member findMemberByEmail(String email) throws NoResultException {
         return memberRepositoryQuery.findMemberByEmail(email);
+    }
+
+    public Member findMemberByEmailWithQueryDsl(String email) throws NoResultException {
+        return memberRepositoryQuery.findMemberByEmailWithQueryDsl(email);
+    }
+
+    public Member findById(Long id) {
+        return memberRepository.findById(id).get();
     }
 }

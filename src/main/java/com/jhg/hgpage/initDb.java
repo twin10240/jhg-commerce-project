@@ -4,6 +4,7 @@ import com.jhg.hgpage.domain.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,18 +29,13 @@ public class initDb {
             Member admin = new Member("관리자", "010-1111-2222", new Address("500", "서울", "관악구"));
             em.persist(admin);
 
-            Account adminAccount = new Account();
-            adminAccount.createAccount("admin@admin.com", "1111", admin);
-            adminAccount.setRole("ADMIN");
-
+            Account adminAccount = Account.createAdminAccount("admin@admin.com",  new BCryptPasswordEncoder(12).encode("1111"), admin);
             em.persist(adminAccount);
 
             Member member = new Member("조형근", "010-6797-5587", new Address("500", "서울", "관악구"));
             em.persist(member);
 
-            Account account = new Account();
-            account.createAccount("twin10240@naver.com", "1111", member);
-
+            Account account = new Account("twin10240@naver.com", new BCryptPasswordEncoder(12).encode("1111"), member);
             em.persist(account);
         }
 
