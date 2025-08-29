@@ -2,7 +2,6 @@ package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.enums.OrderStatus;
-import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
@@ -14,6 +13,7 @@ import java.util.List;
 
 import static com.jhg.hgpage.domain.QMember.member;
 import static com.jhg.hgpage.domain.QOrder.order;
+import static com.jhg.hgpage.domain.QOrderItem.orderItem;
 
 @Repository
 @RequiredArgsConstructor
@@ -23,9 +23,20 @@ public class OrderRepositoryQuery {
 
     private final JPAQueryFactory jpaQueryFactory;
 
-    public List<Order> findOrders(SearchOption searchOption) {
-        return jpaQueryFactory.select(order).from(order).where(statusEq(searchOption.getOrderStatus()), nameLike(searchOption.getUserName())).limit(100).fetch();
+    public List<Order> findOrders(Long memberId) {
+        return jpaQueryFactory.select(order)
+                .from(order)
+                .join(order.orderItems, orderItem).fetchJoin()
+                .where(order.member.id.eq(memberId))
+                .limit(100)
+                .fetch();
     }
+
+//    public List<Order> findOrders(SearchOption searchOption, Long memberId) {
+//        return jpaQueryFactory.select(order)
+//                              .from(order)
+//                              .where(statusEq(searchOption.getOrderStatus()), productLike(searchOption.getProductName()) ,order.member.id.eq(memberId)).limit(100).fetch();
+//    }
 
     private BooleanExpression statusEq(OrderStatus orderStatus) {
         if(orderStatus == null){
@@ -35,11 +46,11 @@ public class OrderRepositoryQuery {
         return order.status.eq(orderStatus);
     }
 
-    private BooleanExpression nameLike(String userName) {
-        if(!StringUtils.hasText(userName)) {
+    private BooleanExpression productLike(String productName) {
+        if(!StringUtils.hasText(productName)) {
             return null;
         }
 
-        return member.name.contains(userName);
+        return member.name.contains(productName);
     }
 }

@@ -26,15 +26,13 @@ class AccountServiceTest {
         Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
         memberService.join(member);
 
-        Account account = new Account();
-        account.createAccount("twin10240@naver.com", "1111", member);
+        Account account = new Account("twin10240@naver.com", "1111", member);
         accountService.signUp(account);
 
         Member member2 = new Member("이동호", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
         memberService.join(member2);
 
-        Account account2 = new Account();
-        account2.createAccount("twin1024@naver.com", "1111", member2);
+        Account account2 = new Account("twin1024@naver.com", "1111", member2);
         accountService.signUp(account2);
     }
 

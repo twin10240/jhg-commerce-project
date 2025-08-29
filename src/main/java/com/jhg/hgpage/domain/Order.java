@@ -43,7 +43,7 @@ public class Order {
     }
 
     public void addOrderItem(OrderItem orderItem) {
-        this.orderItems = orderItems;
+        this.orderItems.add(orderItem);
         orderItem.setOrder(this);
     }
 
@@ -59,7 +59,7 @@ public class Order {
         order.setDelivery(delivery);
 
         for (OrderItem orderItem: orderItems) {
-            order.getOrderItems().add(orderItem);
+            order.addOrderItem(orderItem);
         }
         order.setStatus(OrderStatus.ORDER);
         order.setOrderDate(LocalDateTime.now());
@@ -81,4 +81,6 @@ public class Order {
     public int getTotalPrice() {
         return orderItems.stream().mapToInt(OrderItem::getTotalPice).sum();
     }
+
+
 }

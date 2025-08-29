@@ -38,6 +38,6 @@ public class AccountService implements UserDetailsService {
         Account account = accountRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("존재하지 않는 이메일입니다."));
         Member member = memberService.findMember(account.getId());
 
-        return UserPrincipal.from(account);
+        return UserPrincipal.from(account, member);
     }
 }

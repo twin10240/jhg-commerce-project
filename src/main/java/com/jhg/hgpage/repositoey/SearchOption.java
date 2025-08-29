@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Getter @Setter
 public class SearchOption {
-    private String userName;
+    private String productName;
 
     private OrderStatus orderStatus;
 }

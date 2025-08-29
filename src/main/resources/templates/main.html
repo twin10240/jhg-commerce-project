@@ -155,6 +155,33 @@
         .row .btn{width:100%; white-space:nowrap;}  /* 글자 줄바꿈 방지 + 칼럼 가득 */
         .qty input{width:100%; text-align:right;}   /* qty 필드 칼럼 꽉 차게 */
 
+        /*주문내역*/
+        .toolbar .form-inline{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            flex-wrap:nowrap; /* 항상 일렬 유지(모바일에선 wrap으로 바꾸고 싶으면 wrap으로) */
+        }
+
+        /* 인풋은 가변폭으로 */
+        .toolbar .form-inline .input{
+            flex: 1 1 320px;
+            min-width: 240px;
+        }
+
+        /* 셀렉트 최소폭 */
+        .toolbar select.form-control{
+            min-width: 140px;
+        }
+
+        /* 버튼 높이/줄바꿈 방지 */
+        .toolbar .form-inline .btn{
+            white-space: nowrap;
+            height: 36px;
+            line-height: 36px;
+            padding: 0 12px;
+        }
+
         /* 레이아웃 */
         .section{display:none; margin-top:12px}
         .section.active{display:block}
@@ -221,19 +248,19 @@
                 <article class="product" th:each="p : ${products}">
                     <h3 th:text="${p.name}">허니 라떼</h3>
                     <div class="price">
-                        <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="items[0].price>6,500</span>원
+                        <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
                     </div>
 
                     <form th:action="@{/orders}" method="post" class="product-actions">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
                         <!-- 단일 품목 즉시 구매 -->
-                        <input type="hidden" name="items[0].productId" th:value="${p.id}" />
+                        <input type="hidden" name="productId" th:value="${p.id}" />
 
                         <div class="qty">
                             <label class="hint" th:for="|qty-${p.id}|">수량</label>
                             <input th:id="|qty-${p.id}|" class="input" type="number"
-                                   name="items[0].qty" min="1" value="1" />
+                                   name="qty" min="1" value="1" />
                         </div>
 
                         <button class="btn" type="submit">바로 구매</button>
@@ -248,9 +275,21 @@
         <section id="orders" class="section">
             <div style="display:flex; align-items:center; justify-content:space-between; margin:6px 2px 12px;">
                 <div class="hint">최근 주문 내역입니다.</div>
-                <form th:action="@{/orders/me}" method="get">
-                    <button class="btn muted" type="submit">새로고침</button>
-                </form>
+
+                <div class="toolbar">
+                    <form th:action="@{/orders/me}" th:object="${searchOption}" method="get" class="form-inline">
+                        <input class="input" id="productName" th:field="*{productName}" placeholder="상품 검색..." />
+
+                        <select id="orderStatus" th:field="*{orderStatus}" class="form-control">
+                            <option value="">주문상태</option>
+                            <option th:each="status : ${T(com.jhg.hgpage.domain.enums.OrderStatus).values()}"
+                                    th:value="${status}"
+                                    th:text="${status}">option</option>
+                        </select>
+
+                        <button class="btn muted" type="submit">새로고침</button>
+                    </form>
+                </div>
             </div>
 
             <div style="overflow:auto;">
@@ -261,7 +300,7 @@
                         <th>상태</th>
                         <th>주문금액</th>
                         <th>주문일시</th>
-                        <th style="width:140px">액션</th>
+                        <th style="width:140px">더보기</th>
                     </tr>
                     </thead>
                     <tbody>

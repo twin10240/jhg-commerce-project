@@ -31,7 +31,7 @@ public class AuthController {
     @PostMapping("/signup")
     public String signUp(@Valid SignUpForm form, BindingResult result) {
         if(result.hasErrors()){
-            return "/signup";
+            return "signup";
         }
 
         Member member = new Member(form.getName(), form.getPhone(), new Address(form.getCity(), form.getStreet(), form.getZipcode()));

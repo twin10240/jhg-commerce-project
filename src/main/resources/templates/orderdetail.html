@@ -210,9 +210,9 @@
   <div class="hint">회원정보·배송지·결제수단을 확인한 뒤 주문을 완료하세요.</div>
 
   <!-- 하나의 폼에서 회원/배송/주문/결제 모두 전송 -->
-  <form method="post">
+  <form th:action="@{/orders/checkout}" th:object="${checkout}" method="post">
     <!-- CSRF -->
-    <input type="hidden"/>
+    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
 
     <div class="grid grid-2 section-gap">
       <!-- 좌측: 정보/아이템 -->
@@ -224,15 +224,17 @@
             <div class="row">
               <div class="field">
                 <label class="label">이름</label>
-                <input class="input" placeholder="이름" />
+                <input class="input" th:field="*{member.name}" placeholder="이름" disabled/>
               </div>
+
               <div class="field">
                 <label class="label">이메일</label>
-                <input class="input" placeholder="you@example.com" />
+                <input class="input" th:field="*{member.email}" placeholder="you@example.com" disabled/>
               </div>
+
               <div class="field">
                 <label class="label">연락처</label>
-                <input class="input" placeholder="010-0000-0000" />
+                <input class="input" th:field="*{member.phone}" placeholder="010-0000-0000" />
               </div>
             </div>
           </div>
@@ -245,21 +247,23 @@
             <div class="row">
               <div class="field">
                 <label class="label">도시 (City)</label>
-                <input class="input" placeholder="예) 서울특별시" />
+                <input class="input" th:field="*{delivery.city}" placeholder="예) 서울특별시" />
               </div>
+
               <div class="field">
                 <label class="label">도로명 주소 (Street)</label>
-                <input class="input" placeholder="예) 테헤란로 123" />
+                <input class="input" th:field="*{delivery.street}" placeholder="예) 테헤란로 123" />
               </div>
+
               <div class="field">
                 <label class="label">우편번호 (Zipcode)</label>
-                <input class="input" placeholder="예) 06234" />
+                <input class="input" th:field="*{delivery.zipcode}" placeholder="예) 06234" />
               </div>
             </div>
 
             <div style="margin-top:8px">
               <label style="display:flex; align-items:center; gap:8px; font-size:14px">
-                <input type="checkbox"/>
+                <input type="checkbox" th:field="*{delivery.saveAsDefault}"/>
                 기본 배송지로 저장
               </label>
             </div>

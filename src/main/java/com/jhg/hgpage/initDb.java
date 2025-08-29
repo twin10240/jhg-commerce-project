@@ -26,13 +26,13 @@ public class initDb {
         private final EntityManager em;
 
         public void initAccount() {
-            Member admin = new Member("관리자", "010-1111-2222", new Address("500", "서울", "관악구"));
+            Member admin = new Member("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));
             em.persist(admin);
 
             Account adminAccount = Account.createAdminAccount("admin@admin.com",  new BCryptPasswordEncoder(12).encode("1111"), admin);
             em.persist(adminAccount);
 
-            Member member = new Member("조형근", "010-6797-5587", new Address("500", "서울", "관악구"));
+            Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "500"));
             em.persist(member);
 
             Account account = new Account("twin10240@naver.com", new BCryptPasswordEncoder(12).encode("1111"), member);

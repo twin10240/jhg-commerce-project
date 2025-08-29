@@ -1,6 +1,7 @@
 package com.jhg.hgpage.domain.dto;
 
 import com.jhg.hgpage.domain.Account;
+import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -12,12 +13,16 @@ import java.util.List;
 public class UserPrincipal implements UserDetails {
     private final Long id;
     private final String email;
+    private final String name;
+    private final String phone;
     private final String password;
     private final Role role;
 
-    public UserPrincipal(Long id, String email, String password, Role role) {
+    public UserPrincipal(Long id, String email, String name, String phone, String password, Role role) {
         this.id = id;
         this.email = email;
+        this.name = name;
+        this.phone = phone;
         this.password = password;
         this.role = role;
     }
@@ -34,18 +39,26 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return name;
     }
 
     public Long getId() {
         return id;
     }
 
+    public String getEmail() {
+        return email;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
     // 팩토리 메서드
-    public static UserPrincipal from(Account account) {
+    public static UserPrincipal from(Account account, Member member) {
         Role role = account.getRole();
 
-        return new UserPrincipal(account.getId(), account.getEmail(), account.getPassword(), role);
+        return new UserPrincipal(account.getId(), account.getEmail(), member.getName(), member.getPhone(), account.getPassword(), role);
     }
 
 }
