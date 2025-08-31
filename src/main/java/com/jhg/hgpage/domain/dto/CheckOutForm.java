@@ -3,7 +3,12 @@ package com.jhg.hgpage.domain.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.Getter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 public class CheckOutForm {
@@ -12,7 +17,7 @@ public class CheckOutForm {
     @Valid
     private DeliveryDto delivery = new DeliveryDto();
 
-    private ProductDto product = new ProductDto();
+    private List<ProductDto> product = new ArrayList<>();
 
     @Data
     public static class MemberDto {
@@ -37,7 +42,11 @@ public class CheckOutForm {
     }
 
     @Data
+    @AllArgsConstructor
     public static class ProductDto {
-
+        private Long id;
+        private String name;
+        private int price;
+        private int quantity;
     }
 }

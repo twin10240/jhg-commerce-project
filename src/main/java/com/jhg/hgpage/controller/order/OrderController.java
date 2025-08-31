@@ -3,9 +3,11 @@ package com.jhg.hgpage.controller.order;
 import com.jhg.hgpage.domain.Delivery;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Order;
+import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.CheckOutForm;
 import com.jhg.hgpage.domain.dto.OrderDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
+import com.jhg.hgpage.repositoey.ProductRepository;
 import com.jhg.hgpage.repositoey.SearchOption;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderController {
     private final MemberService memberService;
+    private final ProductRepository productRepository;
     private final OrderService orderService;
 
 //    @PostMapping("/orders")
@@ -51,6 +54,8 @@ public class OrderController {
         checkOutForm.getDelivery().setCity(member.getAddress().getCity());
         checkOutForm.getDelivery().setSaveAsDefault(true);
 
+        Product product = productRepository.findById(product_id).get();
+        checkOutForm.getProduct().add(new CheckOutForm.ProductDto(product_id, product.getName(), product.getPrice(), quantity));
 
         model.addAttribute("checkout", checkOutForm);
 

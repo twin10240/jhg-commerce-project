@@ -1,6 +1,6 @@
 <!-- templates/order/checkout.html -->
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -289,34 +289,31 @@
               <thead>
               <tr>
                 <th>상품</th>
-                <th>옵션</th>
                 <th class="right">가격</th>
                 <th class="right">수량</th>
                 <th class="right">합계</th>
               </tr>
               </thead>
               <tbody>
-              <tr>
+              <tr th:each="p, pStat : ${checkout.product}">
+                <!-- 전송용 숨김필드(아이디/옵션/수량) -->
+                <input type="hidden" th:field="*{product[__${pStat.index}__].id}"/>
                 <td>
                   <div style="display:flex; align-items:center; gap:12px">
                     <img class="img" alt=""/>
                     <div>
-                      <div style="font-weight:600">상품명</div>
-                      <div class="hint">SKU</div>
+                      <div style="font-weight:600" th:text="${p.name}">상품명</div>
                     </div>
                   </div>
                 </td>
-                <td>
-                  <div>색상/사이즈</div>
+                <td class="right">
+                  <span id="price" th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">0</span>원
                 </td>
                 <td class="right">
-                  <span>0</span>원
+                  <input id="quantity" class="input qty-input" type="number" min="1" th:field="*{product[__${pStat.index}__].quantity}"/>
                 </td>
                 <td class="right">
-                  <input class="input qty-input" type="number" min="1"/>
-                </td>
-                <td class="right">
-                  <span>0</span>원
+                  <span id="total" th:text="${#numbers.formatInteger(p.price * p.quantity,3,'COMMA')}">0</span>원
                 </td>
               </tr>
               </tbody>
@@ -405,12 +402,25 @@
         <section class="card">
           <div class="content" style="display:flex; flex-direction:column; gap:10px">
             <button type="submit" class="btn block">주문하기</button>
-            <a class="btn outline block">계속 쇼핑하기</a>
+            <a class="btn outline block" th:href="@{/main}">계속 쇼핑하기</a>
           </div>
         </section>
       </aside>
     </div>
   </form>
 </div>
+
+<script>
+  (function(){
+        const price = document.getElementById('price');
+        const quantity = document.getElementById('product_qty');
+        const total = document.getElementById('total');
+
+        quantity.addEventListener("change", (event) => {
+          total.textContent = price * quantity;
+        });
+    })();
+</script>
+
 </body>
 </html>

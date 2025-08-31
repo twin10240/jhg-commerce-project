@@ -1,5 +1,6 @@
 spring:
   datasource:
+#    url: jdbc:h2:~/hgpage
     url: jdbc:h2:tcp://localhost/~/hgpage
     username: sa
     password:
