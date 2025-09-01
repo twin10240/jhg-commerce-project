@@ -20,6 +20,10 @@ public class Product {
     @JoinColumn(name = "inventory_id")
     private Inventory inventory;
 
+//    @ManyToOne(fetch = LAZY)
+//    @JoinColumn(name = "cart_item_id")
+//    private CartItem cartItem;
+
     public void addStock(int quantity) {
         this.getInventory().addOnHandQty(quantity);
     }

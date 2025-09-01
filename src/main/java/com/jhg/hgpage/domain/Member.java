@@ -23,6 +23,9 @@ public class Member {
     @Embedded
     private Address address;
 
+    @OneToOne(mappedBy = "member", fetch = FetchType.LAZY)
+    private Cart cart;
+
     @OneToMany(mappedBy = "member")
     private List<Order> orders = new ArrayList<Order>();
 

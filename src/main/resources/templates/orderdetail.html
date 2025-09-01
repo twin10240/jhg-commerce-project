@@ -337,13 +337,13 @@
               <div class="field">
                 <label class="label">쿠폰</label>
                 <select class="select">
-                  <option>선택 안 함</option>
+                  <option value="">선택 안 함</option>
                 </select>
               </div>
               <div class="field">
                 <label class="label">포인트 사용</label>
-                <input class="input" type="number" min="0" step="10" placeholder="0" />
-                <div class="note">
+                <input class="input" type="number" min="0" step="10" placeholder="0" oninput="applyPoint()" />
+                <div id="totalpoint" class="note">
                   사용 가능 포인트: <b>0</b>P
                 </div>
               </div>
@@ -413,13 +413,20 @@
 <script>
   (function(){
         const price = document.getElementById('price');
-        const quantity = document.getElementById('product_qty');
+        const quantity = document.getElementById('quantity');
         const total = document.getElementById('total');
 
         quantity.addEventListener("change", (event) => {
-          total.textContent = price * quantity;
+          total.textContent = Number(price.textContent.replace(',', '')) * Number(quantity.value);
         });
     })();
+
+  function applyPoint() {
+    const totalPoint = document.getElementById('totalpoint');
+    console.log(totalPoint);
+  }
+
+  //# sourceURL=/html/orderdetail.js
 </script>
 
 </body>
