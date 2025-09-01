@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
@@ -20,9 +23,8 @@ public class Product {
     @JoinColumn(name = "inventory_id")
     private Inventory inventory;
 
-//    @ManyToOne(fetch = LAZY)
-//    @JoinColumn(name = "cart_item_id")
-//    private CartItem cartItem;
+    @OneToMany(mappedBy = "product")
+    private List<CartItem> cartItems = new ArrayList<>();
 
     public void addStock(int quantity) {
         this.getInventory().addOnHandQty(quantity);

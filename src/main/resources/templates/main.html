@@ -89,6 +89,16 @@
         tbody tr td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
         tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
 
+        .cart-link { position: relative; display:inline-flex; align-items:center; }
+        .cartbadge {
+          position:absolute; top:-6px; right:-10px;
+          min-width:18px; height:18px; padding:0 5px;
+          border-radius:999px; font-size:12px; line-height:18px;
+          background:#ff5252; color:#fff; text-align:center;
+          transform:scale(1); transition:transform .2s ease;
+        }
+        .cartbadge.bump { transform:scale(1.2); }
+
         /* 상품 그리드 */
         /* 상품 카드 간 간격을 조금 더 */
         .grid{ gap:20px; }
@@ -223,6 +233,11 @@
             <div>
                 <span class="pill" sec:authorize="hasRole('USER')">ROLE_USER</span>
                 <span class="pill" sec:authorize="hasRole('ADMIN')">ROLE_ADMIN</span>
+
+                <a href="/cart" class="cart-link" aria-label="장바구니" sec:authorize="hasRole('USER')">
+                    <img src="/images/cart.png" alt="장바구니 아이콘" width="24" height="24">
+                    <span id="cartBadge" class="cartbadge" aria-live="polite">0</span>
+                </a>
             </div>
         </header>
 
@@ -263,8 +278,7 @@
                         </div>
 
                         <button class="btn" type="submit">바로 구매</button>
-                        <button class="btn muted" type="button"
-                                onclick="addToCart(this)" th:attr="data-id=${p.id}">장바구니</button>
+                        <button class="btn muted" type="button" th:onclick="|addToCart(${p.id})|">장바구니</button>
                     </form>
                 </article>
             </div>
@@ -392,6 +406,76 @@
 </div>
 
 <script>
+    const badge = document.getElementById('cartBadge');
+    const csrf = { token: document.querySelector('meta[name="_csrf"]')?.content,
+                   header: document.querySelector('meta[name="_csrf_header"]')?.content };
+
+    function bumpBadge() {
+      if (!badge) return;
+      badge.classList.remove('bump');
+      void badge.offsetWidth;
+      badge.classList.add('bump');
+    }
+
+    function setCartCount(n) {
+      if (!badge) return;
+      badge.textContent = n;
+      bumpBadge();
+      try { localStorage.setItem('cartCount', String(n)); } catch(e){}
+    }
+
+    // 초기화: 페이지 로드 시 현재 개수 가져오기
+    (async function initCartCount(){
+      try {
+        const r = await fetch('/api/cart/count', { credentials: 'include' });
+        if (r.ok) {
+          const { count } = await r.json();
+          setCartCount(count ?? 0);
+        }
+      } catch (e) { /* 무시 */ }
+    })();
+
+    // 다른 탭에서 변경되면 동기화(선택)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'cartCount' && e.newValue != null) {
+        badge.textContent = e.newValue;
+        bumpBadge();
+      }
+    });
+
+    // 담기 버튼에서 호출할 함수(프로토타입용)
+    let addLock = false;
+    async function addToCart(productId, qty = 1) {
+      if (addLock) return;           // 더블클릭 방지
+      addLock = true;
+
+      // Optimistic UI: 일단 +1
+      const before = Number(badge.textContent || '0');
+      setCartCount(before + qty);
+
+      try {
+        const body = JSON.stringify({ productId, qty });
+        const opt = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include'
+        };
+        if (csrf.token && csrf.header) opt.headers[csrf.header] = csrf.token;
+        opt.body = body;
+
+        const r = await fetch('/api/cart/items', opt);
+        if (!r.ok) throw new Error('failed');
+        const data = await r.json();              // {count: 장바구니 전체 수량}
+        if (typeof data.count === 'number') setCartCount(data.count);
+      } catch (e) {
+        // 실패 시 롤백
+        setCartCount(before);
+        alert('담기에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      } finally {
+        addLock = false;
+      }
+    }
+
     // 탭 전환
     (function(){
         const tabs = document.getElementById('tabs');
@@ -415,7 +499,7 @@
     }
 
     // 장바구니 (토이: 로컬 스토리지 예시)
-    function addToCart(btn){
+    function addToCart2(btn){
         const id = btn.getAttribute('data-id');
         const qtyInput = btn.closest('form').querySelector('input[name="items[0].qty"]');
         const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10));
@@ -426,6 +510,8 @@
         btn.textContent = '담겼어요!';
         setTimeout(()=>btn.textContent='장바구니', 1200);
     }
+
+    //# sourceURL=/html/orderdetail.js
 </script>
 </body>
 </html>
