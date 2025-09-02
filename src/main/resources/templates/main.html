@@ -498,20 +498,7 @@
         });
     }
 
-    // 장바구니 (토이: 로컬 스토리지 예시)
-    function addToCart2(btn){
-        const id = btn.getAttribute('data-id');
-        const qtyInput = btn.closest('form').querySelector('input[name="items[0].qty"]');
-        const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10));
-        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-        const i = cart.findIndex(x => x.productId == id);
-        if(i>=0) cart[i].qty += qty; else cart.push({productId:id, qty});
-        localStorage.setItem('cart', JSON.stringify(cart));
-        btn.textContent = '담겼어요!';
-        setTimeout(()=>btn.textContent='장바구니', 1200);
-    }
-
-    //# sourceURL=/html/orderdetail.js
+//# sourceURL=/html/main.js
 </script>
 </body>
 </html>

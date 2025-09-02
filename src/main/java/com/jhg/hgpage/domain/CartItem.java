@@ -21,4 +21,20 @@ public class CartItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
     private Product product;
+
+    private int productPrice;
+    private int quantity;
+
+    public static CartItem createCartItem(Product product, int orderPrice, int count) {
+        CartItem cartItem = new CartItem();
+        cartItem.setProduct(product);
+        cartItem.setProductPrice(orderPrice);
+        cartItem.setQuantity(count);
+
+        return cartItem;
+    }
+
+    public int getTotalPice() {
+        return getProductPrice() * getQuantity();
+    }
 }

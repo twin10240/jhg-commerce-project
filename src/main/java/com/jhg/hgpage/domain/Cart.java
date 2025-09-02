@@ -1,11 +1,15 @@
 package com.jhg.hgpage.domain;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Getter @Setter
 public class Cart {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,5 +31,16 @@ public class Cart {
     public void removeItem(CartItem cartItem){
         cartItems.remove(cartItem);
         cartItem.setCart(null);
+    }
+
+    public static Cart createCart(Member member, CartItem... cartItems) {
+        Cart cart = new Cart();
+
+        cart.setMember(member);
+        for (CartItem cartItem : cartItems) {
+            cart.addCartItem(cartItem);
+        }
+
+        return cart;
     }
 }
