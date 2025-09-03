@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 
+import java.util.List;
+
 import static com.jhg.hgpage.domain.QCart.cart;
 import static com.jhg.hgpage.domain.QCartItem.cartItem;
 
@@ -30,13 +32,30 @@ public class CartRepository {
                                      " where c.member.id = :memberId", Integer.class).setParameter("memberId", memberId).getSingleResult();
     }
 
-    public Long CartCountWithQueryDsl(Long memberId) {
+    public Long CartCount_QueryDsl(Long memberId) {
         return jpaQueryFactory.select(cartItem.count())
                               .from(cartItem)
                               .join(cartItem.cart, cart)
                               .where(cart.member.id.eq(memberId))
                               .fetchOne();
     }
+
+    public List<Cart> findCartByMemberId(Long memberId) {
+        return em.createQuery("select c" +
+                                     " from Cart c" +
+                                     " where c.member.id = :memberId", Cart.class).setParameter("memberId", memberId).getResultList();
+    }
+
+    public Long CartItemByMemberId_QueryDsl(Long memberId) {
+        return jpaQueryFactory.select(cartItem.count())
+                .from(cartItem)
+                .join(cartItem.cart, cart)
+                .where(cart.member.id.eq(memberId))
+                .fetchOne();
+    }
+
+//    public List<CartItem> findItemByProduct(Product product) {
+//    }
 
     public void save(Cart cart) {
         if (cart.getId() == null) {

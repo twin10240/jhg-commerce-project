@@ -10,6 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.function.Supplier;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -22,16 +25,23 @@ public class CartService {
     @Transactional
     public Long addCartItem(Long memberId, Long productId, int quantity) {
         Member member = memberService.findById(memberId);
+
+        Cart cart = firstOrElseGet(cartRepository.findCartByMemberId(memberId), () -> Cart.createCart(member));
+
         Product product = productRepository.findById(productId).get();
+
         CartItem cartItem = CartItem.createCartItem(product, product.getPrice(), quantity);
 
-        Cart cart = Cart.createCart(member, cartItem);
-        cartRepository.save(cart);
+
 
         return cartItem.getId();
     }
 
+    private <T> T firstOrElseGet(List<T> list, Supplier<T> supplier) {
+        return list.isEmpty() ? supplier.get() : list.get(0);
+    }
+
     public Long getCartTotalCount(Long memberId) {
-        return cartRepository.CartCountWithQueryDsl(memberId);
+        return cartRepository.CartCount_QueryDsl(memberId);
     }
 }

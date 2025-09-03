@@ -20,7 +20,7 @@ public class Cart {
     @JoinColumn(name = "member_id")
     private Member member;
 
-    @OneToMany(mappedBy = "cart", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "cart", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CartItem> cartItems = new ArrayList<>();
 
     public void addCartItem(CartItem cartItem) {
@@ -33,13 +33,9 @@ public class Cart {
         cartItem.setCart(null);
     }
 
-    public static Cart createCart(Member member, CartItem... cartItems) {
+    public static Cart createCart(Member member) {
         Cart cart = new Cart();
-
         cart.setMember(member);
-        for (CartItem cartItem : cartItems) {
-            cart.addCartItem(cartItem);
-        }
 
         return cart;
     }
