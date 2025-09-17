@@ -33,6 +33,9 @@ public class initDb {
             em.persist(adminAccount);
 
             Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "500"));
+//            member.setCart(Cart.createCart(member));
+            member.setCart(new Cart(member));
+
             em.persist(member);
 
             Account account = new Account("twin10240@naver.com", new BCryptPasswordEncoder(12).encode("1111"), member);

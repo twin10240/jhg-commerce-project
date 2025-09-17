@@ -2,16 +2,16 @@ package com.jhg.hgpage.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
+import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
 @Getter
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Member {
     @Id @GeneratedValue
     @Column(name = "member_id")
@@ -24,16 +24,22 @@ public class Member {
     private Address address;
 
     @OneToOne(mappedBy = "member", fetch = FetchType.LAZY)
+    private Account account;
+
+    @JsonIgnore
+    @OneToOne(mappedBy = "member", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     private Cart cart;
 
     @OneToMany(mappedBy = "member")
     private List<Order> orders = new ArrayList<Order>();
 
-    public Member() {}
-
     public Member(String name, String phone, Address address) {
         this.name = name;
         this.phone = phone;
         this.address = address;
+    }
+
+    public void setCart(Cart cart) {
+        this.cart = cart;
     }
 }

@@ -37,4 +37,20 @@ public class CartItem {
     public int getTotalPice() {
         return getProductPrice() * getQuantity();
     }
+
+    public boolean isSameProduct(Product product) {
+        return this.product.equals(product);
+    }
+
+    public void addQuantity(int quantity) {
+        this.quantity += quantity;
+    }
+
+    public void attachTo(Cart cart) {
+        this.cart = cart;
+    }
+
+    public void detach() {
+        this.cart = null;
+    }
 }

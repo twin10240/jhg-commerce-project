@@ -5,6 +5,7 @@ import com.jhg.hgpage.domain.CartItem;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.repositoey.CartRepository;
+import com.jhg.hgpage.repositoey.CartRepositoryQuery;
 import com.jhg.hgpage.repositoey.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,15 +27,12 @@ public class CartService {
     public Long addCartItem(Long memberId, Long productId, int quantity) {
         Member member = memberService.findById(memberId);
 
-        Cart cart = firstOrElseGet(cartRepository.findCartByMemberId(memberId), () -> Cart.createCart(member));
-
         Product product = productRepository.findById(productId).get();
 
-        CartItem cartItem = CartItem.createCartItem(product, product.getPrice(), quantity);
+        Cart cart = firstOrElseGet(cartRepository.findCartByMemberId(memberId), () -> Cart.createCart(member));
+        CartItem cartItem = cart.addCartItem(product, quantity, product.getPrice());
 
-
-
-        return cartItem.getId();
+        return cart.getId();
     }
 
     private <T> T firstOrElseGet(List<T> list, Supplier<T> supplier) {
@@ -42,6 +40,10 @@ public class CartService {
     }
 
     public Long getCartTotalCount(Long memberId) {
-        return cartRepository.CartCount_QueryDsl(memberId);
+        return cartRepository.countCartByMemberId(memberId);
+    }
+
+    public Long getCartItemTotalCount(Long memberId) {
+        return cartRepository.countCartItemByMemberId(memberId);
     }
 }

@@ -1,7 +1,6 @@
 package com.jhg.hgpage.controller.main;
 
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.OrderDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
@@ -27,8 +26,8 @@ public class MainController {
 
     @GetMapping("/main")
     public String logIn(@AuthenticationPrincipal UserPrincipal userPrincipal, @ModelAttribute("searchOption") SearchOption searchOption, Model model) {
-//        Member member = memberService.findMemberByEmail(userPrincipal.getEmail());
-        Member member = memberService.findMemberByEmailWithQueryDsl(userPrincipal.getEmail());
+        Member member = memberService.findMemberByEmail(userPrincipal.getEmail());
+//        Member member = memberService.findMemberByEmailWithQueryDsl(userPrincipal.getEmail());
         model.addAttribute("member", member);
 
         List<Product> products = productService.findAll();

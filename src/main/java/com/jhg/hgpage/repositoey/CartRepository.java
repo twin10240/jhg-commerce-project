@@ -1,67 +1,17 @@
 package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.CartItem;
-import com.jhg.hgpage.domain.Product;
-import com.querydsl.jpa.impl.JPAQueryFactory;
-import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
-import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 
-import static com.jhg.hgpage.domain.QCart.cart;
-import static com.jhg.hgpage.domain.QCartItem.cartItem;
+public interface CartRepository extends JpaRepository<Cart, Long> {
 
-@Repository
-@RequiredArgsConstructor
-public class CartRepository {
+    Long countCartByMemberId(Long memberId);
 
-    private final EntityManager em;
+    @Query(value = "select count(ci) from Cart c left outer join c.cartItems ci where c.member.id =:memberId")
+    Long countCartItemByMemberId(Long memberId);
 
-    private final JPAQueryFactory jpaQueryFactory;
-
-    private final ProductRepository productRepository;
-
-    public int CartCount(Long memberId) {
-        return em.createQuery("select count(*)" +
-                                     " from CartItem ci" +
-                                     " join ci.cart c" +
-                                     " where c.member.id = :memberId", Integer.class).setParameter("memberId", memberId).getSingleResult();
-    }
-
-    public Long CartCount_QueryDsl(Long memberId) {
-        return jpaQueryFactory.select(cartItem.count())
-                              .from(cartItem)
-                              .join(cartItem.cart, cart)
-                              .where(cart.member.id.eq(memberId))
-                              .fetchOne();
-    }
-
-    public List<Cart> findCartByMemberId(Long memberId) {
-        return em.createQuery("select c" +
-                                     " from Cart c" +
-                                     " where c.member.id = :memberId", Cart.class).setParameter("memberId", memberId).getResultList();
-    }
-
-    public Long CartItemByMemberId_QueryDsl(Long memberId) {
-        return jpaQueryFactory.select(cartItem.count())
-                .from(cartItem)
-                .join(cartItem.cart, cart)
-                .where(cart.member.id.eq(memberId))
-                .fetchOne();
-    }
-
-//    public List<CartItem> findItemByProduct(Product product) {
-//    }
-
-    public void save(Cart cart) {
-        if (cart.getId() == null) {
-            em.persist(cart);
-        } else {
-            em.merge(cart);
-        }
-    }
+    List<Cart> findCartByMemberId(Long memberId);
 }

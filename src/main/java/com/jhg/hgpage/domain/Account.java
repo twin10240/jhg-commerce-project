@@ -2,12 +2,13 @@ package com.jhg.hgpage.domain;
 
 import com.jhg.hgpage.domain.enums.Role;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(indexes = @Index(name="ux_account_email", columnList="email", unique=true))
 public class Account {
 

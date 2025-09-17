@@ -445,9 +445,12 @@
 
     // 담기 버튼에서 호출할 함수(프로토타입용)
     let addLock = false;
-    async function addToCart(productId, qty = 1) {
+    async function addToCart(productId) {
       if (addLock) return;           // 더블클릭 방지
       addLock = true;
+
+      const qtyInput = document.getElementById(`qty-${productId}`);
+      const qty = Math.max(1, parseInt(qtyInput?.value ?? '1', 10));
 
       // Optimistic UI: 일단 +1
       const before = Number(badge.textContent || '0');
@@ -460,6 +463,7 @@
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include'
         };
+
         if (csrf.token && csrf.header) opt.headers[csrf.header] = csrf.token;
         opt.body = body;
 
@@ -467,6 +471,8 @@
         if (!r.ok) throw new Error('failed');
         const data = await r.json();              // {count: 장바구니 전체 수량}
         if (typeof data.count === 'number') setCartCount(data.count);
+
+        alert('장바구니에 담겼어요!');
       } catch (e) {
         // 실패 시 롤백
         setCartCount(before);

@@ -18,10 +18,6 @@ public class MemberRepositoryQuery {
 
     private final JPAQueryFactory jpaQueryFactory;
 
-    public Member findMemberByEmail(String email) {
-        return em.createQuery("select m from Account a join a.member m where a.email =: email", Member.class).setParameter("email", email).getSingleResult();
-    }
-
     public Member findMemberByEmailWithQueryDsl(String email) {
         return jpaQueryFactory.select(member)
                               .from(account)
