@@ -1,15 +1,11 @@
 package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Order;
-import org.springframework.data.domain.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-
-import static com.jhg.hgpage.domain.QOrder.order;
-import static com.jhg.hgpage.domain.QOrderItem.orderItem;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {

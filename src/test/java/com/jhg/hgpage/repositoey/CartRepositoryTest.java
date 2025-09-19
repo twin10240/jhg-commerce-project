@@ -6,10 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class CartRepositoryTest {
@@ -28,10 +25,9 @@ class CartRepositoryTest {
 
     @Test
     public void findCartByMemberIdTest() throws Exception {
-        List<Cart> cart = cartRepository.findCartByMemberId(2L);
+        Cart cart = cartRepository.findCartByMemberId(2L);
 
-        assertThat(cart.size()).isEqualTo(1L);
-        assertThat(cart.get(0).getId()).isEqualTo(1L);
+        assertThat(cart.getId()).isEqualTo(1L);
     }
 
 }

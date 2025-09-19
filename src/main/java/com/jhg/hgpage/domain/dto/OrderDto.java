@@ -2,7 +2,6 @@ package com.jhg.hgpage.domain.dto;
 
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 

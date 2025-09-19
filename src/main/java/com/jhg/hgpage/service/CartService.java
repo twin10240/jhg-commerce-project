@@ -2,10 +2,8 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.CartItem;
-import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.repositoey.CartRepository;
-import com.jhg.hgpage.repositoey.CartRepositoryQuery;
 import com.jhg.hgpage.repositoey.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,11 +23,9 @@ public class CartService {
 
     @Transactional
     public Long addCartItem(Long memberId, Long productId, int quantity) {
-        Member member = memberService.findById(memberId);
-
         Product product = productRepository.findById(productId).get();
 
-        Cart cart = firstOrElseGet(cartRepository.findCartByMemberId(memberId), () -> Cart.createCart(member));
+        Cart cart = cartRepository.findCartByMemberId(memberId);
         CartItem cartItem = cart.addCartItem(product, quantity, product.getPrice());
 
         return cart.getId();
@@ -45,5 +41,9 @@ public class CartService {
 
     public Long getCartItemTotalCount(Long memberId) {
         return cartRepository.countCartItemByMemberId(memberId);
+    }
+
+    public List<Cart> findCartItemByMemberId(Long memberId) {
+        return null;
     }
 }
