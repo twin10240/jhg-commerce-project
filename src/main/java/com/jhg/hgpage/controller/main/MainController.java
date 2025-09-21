@@ -26,10 +26,6 @@ public class MainController {
 
     @GetMapping("/main")
     public String logIn(@AuthenticationPrincipal UserPrincipal userPrincipal, @ModelAttribute("searchOption") SearchOption searchOption, Model model) {
-        Member member = memberService.findMemberByEmail(userPrincipal.getEmail());
-//        Member member = memberService.findMemberByEmailWithQueryDsl(userPrincipal.getEmail());
-        model.addAttribute("member", member);
-
         List<Product> products = productService.findAll();
         model.addAttribute("products", products);
 

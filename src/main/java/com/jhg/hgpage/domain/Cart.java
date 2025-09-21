@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Getter @Setter
+@Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Cart {
 
@@ -24,6 +24,10 @@ public class Cart {
 
     @OneToMany(mappedBy = "cart", fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.REMOVE}, orphanRemoval = true)
     private List<CartItem> cartItems = new ArrayList<>();
+
+    public Cart(Member member) {
+        this.member = member;
+    }
 
     public CartItem addCartItem(Product product, int quantity, int productPrice) {
         // 1) 이미 담긴 상품이면 수량만 증가
@@ -48,16 +52,5 @@ public class Cart {
             if (match) cartItem.detach();   // 선택: 반대편 참조 정리
             return match;
         });
-    }
-
-    public Cart(Member member) {
-        this.member = member;
-    }
-
-    public static Cart createCart(Member member) {
-        Cart cart = new Cart();
-        cart.setMember(member);
-
-        return cart;
     }
 }

@@ -25,26 +25,18 @@ public class Account {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", unique = true)
     private Member member;
+
+    // 추후 계정 활성화 여부를 위한 컬럼
     Boolean enabled = true;
 
     public Role getRole() {
         return role;
     }
 
-    public Account(String email, String password, Member member) {
+    public Account(String email, String password, Member member, Role role) {
         this.email = email;
         this.password = password;
         this.member = member;
-    }
-
-    public void setRole(Role role) {
-        this.role = Role.ADMIN;
-    }
-
-    public static Account createAdminAccount(String email, String password, Member member) {
-        Account account = new Account(email, password, member);
-        account.setRole(Role.ADMIN);
-
-        return account;
+        this.role = role;
     }
 }

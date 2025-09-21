@@ -18,7 +18,7 @@ public class SecurityConfig {
             // CSRF 기본 활성화(폼 기반이라면 권장), 특정 경로만 예외 가능
             .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/", "/login", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
+                    .requestMatchers("/", "/login", "/signup", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
                     .requestMatchers("/admin/**").hasRole("ADMIN") // 내부적으로 "ROLE_ADMIN" 권한 검사
                     .anyRequest().authenticated()
             )

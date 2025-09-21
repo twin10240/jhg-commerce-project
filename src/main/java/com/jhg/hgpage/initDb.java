@@ -1,6 +1,7 @@
 package com.jhg.hgpage;
 
 import com.jhg.hgpage.domain.*;
+import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -26,19 +27,16 @@ public class initDb {
         private final EntityManager em;
 
         public void initAccount() {
-            Member admin = new Member("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));
+            Member admin = Member.createAdmin("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));
             em.persist(admin);
 
-            Account adminAccount = Account.createAdminAccount("admin@admin.com",  new BCryptPasswordEncoder(12).encode("1111"), admin);
+            Account adminAccount = new Account("admin@admin.com",  new BCryptPasswordEncoder(12).encode("1111"), admin, Role.ADMIN);
             em.persist(adminAccount);
 
-            Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "500"));
-//            member.setCart(Cart.createCart(member));
-            member.setCart(new Cart(member));
-
+            Member member = Member.createUser("조형근", "010-6797-5587", new Address("서울", "관악구", "500"));
             em.persist(member);
 
-            Account account = new Account("twin10240@naver.com", new BCryptPasswordEncoder(12).encode("1111"), member);
+            Account account = new Account("twin10240@naver.com", new BCryptPasswordEncoder(12).encode("1111"), member, Role.USER);
             em.persist(account);
         }
 

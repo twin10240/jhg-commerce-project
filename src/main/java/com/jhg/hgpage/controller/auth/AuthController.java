@@ -2,7 +2,9 @@ package com.jhg.hgpage.controller.auth;
 
 import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
+import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.service.AccountService;
 import com.jhg.hgpage.service.MemberService;
 import jakarta.validation.Valid;
@@ -34,10 +36,11 @@ public class AuthController {
             return "signup";
         }
 
-        Member member = new Member(form.getName(), form.getPhone(), new Address(form.getCity(), form.getStreet(), form.getZipcode()));
+        Member member = Member.createUser(form.getName(), form.getPhone(), new Address(form.getCity(), form.getStreet(), form.getZipcode()));
+
         memberService.join(member);
 
-        accountService.signUp(new Account(form.getEmail(), passwordEncoder.encode(form.getPassword()), member));
+        accountService.signUp(new Account(form.getEmail(), passwordEncoder.encode(form.getPassword()), member, Role.USER));
 
         return "redirect:/";
     }

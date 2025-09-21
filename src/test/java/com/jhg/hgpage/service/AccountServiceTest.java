@@ -3,6 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.domain.enums.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,13 +27,13 @@ class AccountServiceTest {
         Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
         memberService.join(member);
 
-        Account account = new Account("twin10240@naver.com", "1111", member);
+        Account account = new Account("twin10240@naver.com", "1111", member, Role.USER);
         accountService.signUp(account);
 
         Member member2 = new Member("이동호", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
         memberService.join(member2);
 
-        Account account2 = new Account("twin1024@naver.com", "1111", member2);
+        Account account2 = new Account("twin1024@naver.com", "1111", member2, Role.USER);
         accountService.signUp(account2);
     }
 

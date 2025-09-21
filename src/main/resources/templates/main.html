@@ -226,7 +226,7 @@
             <div class="brand">
                 <div class="badge">GM</div>
                 <div>
-                    <h1>안녕하세요, <span th:text="${member.name}"></span> 님</h1>
+                    <h1>안녕하세요, <span th:text="${#authentication.principal.username}"></span> 님</h1>
                     <div class="hint">오늘도 따뜻한 쇼핑 되세요 😊</div>
                 </div>
             </div>

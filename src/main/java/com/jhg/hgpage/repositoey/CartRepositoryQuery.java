@@ -1,6 +1,8 @@
 package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Cart;
+import com.jhg.hgpage.domain.dto.CartItemDto;
+import com.jhg.hgpage.domain.dto.QCartItemDto;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -11,6 +13,7 @@ import java.util.List;
 
 import static com.jhg.hgpage.domain.QCart.cart;
 import static com.jhg.hgpage.domain.QCartItem.cartItem;
+import static com.jhg.hgpage.domain.QProduct.product;
 
 @Repository
 @RequiredArgsConstructor
@@ -20,14 +23,14 @@ public class CartRepositoryQuery {
 
     private final JPAQueryFactory jpaQueryFactory;
 
-    public int CartCount(Long memberId) {
+    public int cartCount(Long memberId) {
         return em.createQuery("select count(*)" +
                                      " from CartItem ci" +
                                      " join ci.cart c" +
                                      " where c.member.id = :memberId", Integer.class).setParameter("memberId", memberId).getSingleResult();
     }
 
-    public Long CartCount_QueryDsl(Long memberId) {
+    public Long cartCount_QueryDsl(Long memberId) {
         return jpaQueryFactory.select(cartItem.count())
                               .from(cartItem)
                               .join(cartItem.cart, cart)
@@ -41,7 +44,7 @@ public class CartRepositoryQuery {
                                      " where c.member.id = :memberId", Cart.class).setParameter("memberId", memberId).getResultList();
     }
 
-    public Long CartItemByMemberId_QueryDsl(Long memberId) {
+    public Long findItemCountMemberId_QueryDsl(Long memberId) {
         return jpaQueryFactory.select(cartItem.count())
                 .from(cartItem)
                 .join(cartItem.cart, cart)
@@ -49,8 +52,14 @@ public class CartRepositoryQuery {
                 .fetchOne();
     }
 
-//    public List<CartItem> findItemByProduct(Product product) {
-//    }
+    public List<CartItemDto> findCartItemByMemberId(Long memberId) {
+        return jpaQueryFactory.select(new QCartItemDto(cart.member.id, cart.id, product.id, product.name, cartItem.productPrice, cartItem.quantity))
+                .from(cartItem)
+                .join(cartItem.product, product)
+                .join(cartItem.cart, cart)
+                .where(cart.member.id.eq(memberId))
+                .fetch();
+    }
 
     public void save(Cart cart) {
         if (cart.getId() == null) {

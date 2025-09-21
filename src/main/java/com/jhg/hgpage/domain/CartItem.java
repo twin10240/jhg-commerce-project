@@ -1,13 +1,13 @@
 package com.jhg.hgpage.domain;
 
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
-import lombok.Setter;
-
-import java.util.List;
+import lombok.NoArgsConstructor;
 
 @Entity
-@Getter @Setter
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CartItem {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -25,13 +25,14 @@ public class CartItem {
     private int productPrice;
     private int quantity;
 
-    public static CartItem createCartItem(Product product, int orderPrice, int count) {
-        CartItem cartItem = new CartItem();
-        cartItem.setProduct(product);
-        cartItem.setProductPrice(orderPrice);
-        cartItem.setQuantity(count);
+    public CartItem(Product product, int productPrice, int quantity) {
+        this.product = product;
+        this.productPrice = productPrice;
+        this.quantity = quantity;
+    }
 
-        return cartItem;
+    public static CartItem createCartItem(Product product, int orderPrice, int count) {
+        return new CartItem(product, orderPrice, count);
     }
 
     public int getTotalPice() {
