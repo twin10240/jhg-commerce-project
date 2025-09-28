@@ -1,7 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.*;
-import com.jhg.hgpage.domain.dto.OrderDto;
+import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import com.jhg.hgpage.repositoey.OrderRepository;
 import com.jhg.hgpage.repositoey.OrderRepositoryQuery;

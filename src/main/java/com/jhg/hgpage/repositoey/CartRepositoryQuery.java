@@ -1,8 +1,8 @@
 package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.dto.CartItemDto;
-import com.jhg.hgpage.domain.dto.QCartItemDto;
+import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.domain.dto.view.QCartItemDto;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;

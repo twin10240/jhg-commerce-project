@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.dto;
+package com.jhg.hgpage.domain.dto.form;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;

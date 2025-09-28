@@ -1,11 +1,10 @@
 package com.jhg.hgpage.controller.order;
 
-import com.jhg.hgpage.domain.Delivery;
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.domain.dto.CheckOutForm;
-import com.jhg.hgpage.domain.dto.OrderDto;
+import com.jhg.hgpage.domain.dto.form.OrderCreateForm;
+import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.domain.dto.form.CheckOutForm;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.repositoey.ProductRepository;
 import com.jhg.hgpage.repositoey.SearchOption;
@@ -16,12 +15,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -58,6 +56,16 @@ public class OrderController {
         checkOutForm.getProduct().add(new CheckOutForm.ProductDto(product_id, product.getName(), product.getPrice(), quantity));
 
         model.addAttribute("checkout", checkOutForm);
+
+        return "orderdetail";
+    }
+
+    @PostMapping("/orders2")
+    public String createCheckOutFrom2(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderCreateForm orderCreateForm) {
+        System.err.println(orderCreateForm);
+
+        List<OrderCreateForm.Line> selected = orderCreateForm.getItems().stream().filter(l -> Boolean.TRUE.equals(l.getSelected())).toList();
+        System.err.println(selected);
 
         return "orderdetail";
     }

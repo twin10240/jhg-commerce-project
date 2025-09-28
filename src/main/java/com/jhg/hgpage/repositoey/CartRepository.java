@@ -1,11 +1,8 @@
 package com.jhg.hgpage.repositoey;
 
 import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.dto.CartItemDto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-
-import java.util.List;
 
 public interface CartRepository extends JpaRepository<Cart, Long> {
 

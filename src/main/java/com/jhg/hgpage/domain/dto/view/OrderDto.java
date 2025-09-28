@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.dto;
+package com.jhg.hgpage.domain.dto.view;
 
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import lombok.AllArgsConstructor;

@@ -1,6 +1,6 @@
 package com.jhg.hgpage.controller.cart;
 
-import com.jhg.hgpage.domain.dto.CartItemDto;
+import com.jhg.hgpage.domain.dto.view.CartItemDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.service.CartService;
 import lombok.RequiredArgsConstructor;
@@ -27,4 +27,6 @@ public class CartController {
 
         return "cart";
     }
+
+
 }

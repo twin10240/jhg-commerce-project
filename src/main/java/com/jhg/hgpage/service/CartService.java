@@ -3,7 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.CartItem;
 import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.domain.dto.CartItemDto;
+import com.jhg.hgpage.domain.dto.view.CartItemDto;
 import com.jhg.hgpage.repositoey.CartRepository;
 import com.jhg.hgpage.repositoey.CartRepositoryQuery;
 import com.jhg.hgpage.repositoey.ProductRepository;
@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -52,19 +51,35 @@ public class CartService {
 //                .map(ci -> new CartItemDto(ci.getMemerId(), ci.getCartId(), ci.getProductId(), rowNum.getAndIncrement(), ci.getProductName(), ci.getTotalPice(), ci.getQuantity()))
 //                .collect(Collectors.toList());
 
+//        return IntStream.range(0, cartItems.size())
+//                .mapToObj(i -> {
+//                    CartItemDto ci = cartItems.get(i);
+//                    return new CartItemDto(
+//                            ci.getMemberId(),
+//                            ci.getCartId(),
+//                            ci.getProductId(),
+//                            i + 1,
+//                            ci.getProductName(),
+//                            ci.getTotalPrice(),
+//                            ci.getProductPrice(),
+//                            ci.getQuantity()
+//                    );
+//                })
+//                .collect(Collectors.toList());
+
         return IntStream.range(0, cartItems.size())
                 .mapToObj(i -> {
                     CartItemDto ci = cartItems.get(i);
-                    return new CartItemDto(
-                            ci.getMemberId(),
-                            ci.getCartId(),
-                            ci.getProductId(),
-                            i + 1,
-                            ci.getProductName(),
-                            ci.getTotalPrice(),
-                            ci.getProductPrice(),
-                            ci.getQuantity()
-                    );
+                    return CartItemDto.builder()
+                            .memberId(ci.getMemberId())
+                            .cartId(ci.getCartId())
+                            .productId(ci.getProductId())
+                            .idx(i +1)
+                            .productName(ci.getProductName())
+                            .cartPrice(ci.getTotalPrice())
+                            .productPrice(ci.getProductPrice())
+                            .quantity(ci.getQuantity())
+                            .build();
                 })
                 .collect(Collectors.toList());
     }

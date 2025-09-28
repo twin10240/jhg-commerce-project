@@ -1,7 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.*;
-import com.jhg.hgpage.domain.dto.OrderDto;
+import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
@@ -11,8 +11,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional

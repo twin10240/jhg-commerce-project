@@ -1,8 +1,7 @@
 package com.jhg.hgpage.controller.main;
 
-import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.domain.dto.OrderDto;
+import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.repositoey.SearchOption;
 import com.jhg.hgpage.service.MemberService;
