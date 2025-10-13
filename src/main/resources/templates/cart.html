@@ -226,7 +226,7 @@
     </header>
 
     <div style="overflow:auto;">
-    <form id="checkoutForm" th:action="@{/orders2}" method="post">
+    <form id="checkoutForm" th:action="@{/orders}" method="post">
       <table>
         <thead>
           <tr>
@@ -244,15 +244,8 @@
         </thead>
 
         <tbody>
-          <tr th:each="ci, stat : ${cartItems}" th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.productPrice}">
-            <input type="hidden" th:name="|items[${stat.index}].productId|" th:value="${ci.productId}"/>
-
-            <td>
-                <input type="checkbox" th:name="|items[${stat.index}].selected|" value="true" checked />
-                <input type="hidden" th:name="|items[${stat.index}].selected|" value="false"/>
-            </td>
-
-
+          <tr th:each="ci : ${cartItems}" th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.productPrice}">
+            <td><input type="checkbox" name="chk" checked></td>
             <td th:text="${ci.idx}">번호</td>
             <td th:text="${ci.productName}">상품이름</td>
 
@@ -260,15 +253,15 @@
               <input th:id="|qty-${ci.productId}|"
                      class="input"
                      type="number"
-                     th:name="|items[${stat.index}].qty|"
+                     name="qty"
                      min="1"
                      th:value="${ci.quantity != null ? ci.quantity : 1}"/>
             </td>
 
-
             <td>
               <!-- 초기 표시는 서버값(ci.cartPrice)로 해두되, JS가 곧 덮어씀 -->
-              <span data-role="line-total" th:text="${#numbers.formatInteger(ci.cartPrice,1,'COMMA')}">23,000</span>원
+              <span data-role="line-total"
+                    th:text="${#numbers.formatInteger(ci.cartPrice,1,'COMMA')}">23,000</span>원
             </td>
           </tr>
 
@@ -285,7 +278,7 @@
     <div class="container">
       <span>총 합계:</span>
       <strong id="totalPrice" th:text="${#numbers.formatInteger(totalPrice,1,'COMMA')} + '원'">0원</strong>
-      <button class="checkout-btn" type="submit" form="checkoutForm">결제하기</button>
+      <button class="checkout-btn" type="submit">결제하기</button>
     </div>
   </footer>
 </div>

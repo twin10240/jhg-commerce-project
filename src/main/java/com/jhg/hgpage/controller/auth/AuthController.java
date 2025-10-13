@@ -1,8 +1,8 @@
 package com.jhg.hgpage.controller.auth;
 
+import com.jhg.hgpage.controller.form.SignUpForm;
 import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.service.AccountService;
