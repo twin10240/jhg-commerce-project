@@ -1,213 +1,65 @@
-<!-- templates/home.html -->
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>그니 마켓</title>
-
-  <!-- CSRF (세션 기반 Security) -->
-  <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />
-  <meta name="_csrf_header" th:content="${_csrf.headerName}" />
-  <meta name="_csrf" th:content="${_csrf.token}" />
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>그니마켓 · 장바구니</title>
   <style>
-      /* ========== Theme Tokens ========== */
-      :root{
-          --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
-          --card:#fffaf5; --ink:#443c33; --muted:#7a6f66;
-          --accent1:#f4a261; --accent2:#e76f51;
-          --ring:rgba(244,162,97,.35);
-          --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
-      }
+    :root{
+      --bg:#fff7ed; --card:#fffaf5; --ink:#2b2b2b; --muted:#6b6b6b;
+      --accent:#f4a261; --accent2:#e76f51; --ring:rgba(244,162,97,.35);
+      --radius:18px; --shadow:0 16px 40px rgba(0,0,0,.08);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,var(--bg),#ffffff 40%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,Helvetica,Arial,sans-serif}
+    .container{max-width:980px;margin:40px auto;padding:0 16px}
+    h1{font-size:28px;margin:0 0 18px}
 
-      /* ========== Base ========== */
-      *{ box-sizing:border-box }
-      html, body{ height:100% }
-      body{
-          margin:0; color:var(--ink);
-          font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
-          background:
-                  radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
-                  radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
-                  linear-gradient(180deg, var(--bg1), #fff);
-          padding:24px;
-      }
-      .container{ max-width:1080px; margin:0 auto }
+    /* 카드 */
+    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;border:1px solid #f1e8df}
+    .card header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px dashed #efdfd2}
+    .badge{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:white;font-weight:700;box-shadow:inset 0 0 0 2px rgba(255,255,255,.45)}
+    .brand{display:flex;align-items:center;gap:12px}
+    .hint{font-size:12px;color:var(--muted)}
 
-      /* ========== Cards & Sections ========== */
-      .card{
-          background:var(--card);
-          border-radius:var(--radius);
-          border:1px solid #e6d6c9;
-          box-shadow:var(--shadow);
-          padding:20px 18px;
-          position:relative; overflow:hidden;
-          animation:fade .28s ease-out both;
-      }
-      @keyframes fade{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:translateY(0) } }
+    /* 리스트 헤더 */
+    .toolbar{display:flex;align-items:center;gap:12px}
+    .btn{appearance:none;border:0;border-radius:12px;padding:10px 14px;background:var(--accent);color:white;cursor:pointer;font-weight:600;box-shadow:0 6px 18px var(--ring)}
+    .btn.secondary{background:#222;color:#fff}
+    .btn.ghost{background:transparent;color:#222;border:1px solid #e9ded3}
+    .btn.danger{background:var(--accent2)}
+    .btn:disabled{opacity:.45;cursor:not-allowed}
 
-      /* ========== Header / Brand ========== */
-      header{
-          display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px;
-      }
-      .brand{ display:flex; align-items:center; gap:12px }
-      .badge{
-          width:44px; height:44px; border-radius:14px; flex:none;
-          background:conic-gradient(from 210deg, #ffd7ba, #f7b267, #e76f51, #ffd7ba);
-          display:grid; place-items:center; color:#fff; font-weight:800; letter-spacing:.4px;
-          box-shadow:0 10px 20px rgba(231,111,81,.28);
-      }
-      h1{ margin:0; font-size:24px; line-height:1.2; letter-spacing:-.2px }
-      .pill{
-          padding:6px 10px; border-radius:999px; background:#fff; border:1px solid #eadfd6;
-          font-size:12px; color:#7b6f66;
-      }
-      .hint{ color:#6f665d; font-size:12px }
+    /* 그리드 */
+    .grid{display:grid;grid-template-columns: 36px 1fr 160px 140px 80px;gap:10px;align-items:center;padding:12px 16px}
+    .grid.head{font-size:13px;color:#7a6f66;background:#fff;border-bottom:1px dashed #efdfd2}
+    .grid.row{border-bottom:1px dashed #f0e6db}
 
-      /* ========== Tabs / Toolbar ========== */
-      nav.tabs{ display:flex; gap:8px; margin:10px 0 4px; flex-wrap:wrap }
-      .tab{
-          padding:10px 14px; border-radius:12px; cursor:pointer; user-select:none;
-          background:#fff; border:1px solid #eadfd6; color:#6e6259; font-weight:600;
-          transition:filter .15s ease, transform .05s ease;
-      }
-      .tab:hover{ filter:saturate(1.05) }
-      .tab:active{ transform:translateY(1px) }
-      .tab.active{
-          background:linear-gradient(135deg,var(--accent1),var(--accent2)); color:#fff; border-color:transparent;
-          box-shadow:0 10px 20px rgba(231,111,81,.25);
-      }
+    .item{display:flex;align-items:center;gap:12px}
+    .item .thumb{width:52px;height:52px;border-radius:12px;background:#f7efe7;flex:0 0 auto;border:1px solid #f1e8df}
+    .item .name{font-weight:600}
 
-      .toolbar{ display:flex; gap:10px; align-items:center; margin:8px 0 14px }
-      .toolbar .input{ flex:1 1 320px; min-width:240px }
-      .toolbar select.form-control{ min-width:140px }
-      .toolbar .btn{ white-space:nowrap; height:36px; line-height:36px; padding:0 12px }
+    /* 수량 컨트롤 */
+    .qty{display:inline-flex;align-items:center;border:1px solid #ead9c7;border-radius:12px;overflow:hidden}
+    .qty input{width:64px;border:0;padding:10px 8px;text-align:center;font-size:14px;outline:none;background:#fff}
+    .qty button{width:36px;height:36px;border:0;background:#fff;cursor:pointer;border-left:1px solid #ead9c7}
+    .qty button:first-child{border-left:0;border-right:1px solid #ead9c7}
 
-      /* ========== Controls ========== */
-      .input, select{
-          width:100%; padding:10px 12px; border-radius:12px; border:1px solid #e8ded5; background:#fff;
-          color:var(--ink); outline:none; transition:border-color .15s, box-shadow .15s;
-      }
-      .input:focus, select:focus{ border-color:#f4a261; box-shadow:0 0 0 6px var(--ring) }
+    .price,.line-total{text-align:right;font-variant-numeric:tabular-nums}
 
-      .btn{
-          appearance:none; border:0; cursor:pointer;
-          padding:10px 14px; border-radius:12px; color:#fff; font-weight:700;
-          background:linear-gradient(135deg, var(--accent1), var(--accent2));
-          box-shadow:0 10px 20px rgba(231,111,81,.3), 0 2px 6px rgba(0,0,0,.06);
-          transition:transform .05s ease, filter .2s ease;
-      }
-      .btn:hover{ filter:saturate(1.05) brightness(1.02) }
-      .btn:active{ transform:translateY(1px) }
-      .btn.muted{ background:linear-gradient(135deg,#b8b8b8,#7d7d7d) }
-      .checkout-btn{ min-height:40px; padding:10px 18px; border-radius:10px; font-size:14px }
+    /* 푸터 합계 */
+    .footer{display:flex;align-items:center;justify-content:space-between;padding:16px 20px}
+    .summary{display:flex;align-items:center;gap:18px}
+    .summary .chip{background:#fff;border:1px solid #ead9c7;border-radius:999px;padding:8px 12px;font-weight:700}
+    .muted{color:var(--muted)}
 
-      /* ========== Products Grid ========== */
-      .grid{ display:grid; gap:20px }
-      .product{
-          position:relative; background:var(--card);
-          border:1.5px solid #eadfd6; border-radius:14px; padding:16px;
-          box-shadow:0 8px 18px rgba(68,60,51,.08);
-          transition:transform .12s ease, box-shadow .2s ease, border-color .2s ease;
-      }
-      .product:hover{
-          transform:translateY(-2px);
-          box-shadow:0 16px 36px rgba(68,60,51,.16);
-          border-color:#f1c7a1;
-      }
-      .product h3{ overflow-wrap:anywhere }
-      .price{ font-weight:800; position:relative; padding-bottom:6px; margin-bottom:10px }
-      .price::after{
-          content:""; position:absolute; left:0; right:0; bottom:-6px; height:1px;
-          background:linear-gradient(90deg, transparent, #eadfd6, transparent);
-      }
-      .product-actions{
-          display:grid; grid-template-columns: 1fr auto auto; gap:12px; align-items:center;
-      }
-      .product-actions .btn{ white-space:nowrap; min-width:118px }
-      .product-actions .qty input{ width:100px; text-align:right }
-
-      /* ========== Table (Cart) ========== */
-      table{ width:100%; border-collapse:separate; border-spacing:0 8px }
-      th, td{ padding:12px 14px; text-align:left; font-size:14px }
-      thead th{ color:#7a6f66; font-weight:700 }
-      tbody tr{
-          background:var(--card); border:1px solid #e6d6c9; border-radius:12px;
-          box-shadow:0 10px 24px rgba(68,60,51,.10);
-      }
-      tbody tr td:first-child{ border-top-left-radius:12px; border-bottom-left-radius:12px }
-      tbody tr td:last-child{ border-top-right-radius:12px; border-bottom-right-radius:12px }
-      thead th:first-child{ width:56px }
-      td:first-child, th:first-child{ text-align:center }
-      .qty input{ width:100%; text-align:right }
-
-      /* 선택 배지/카트 뱃지 */
-      .cart-link{ position:relative; display:inline-flex; align-items:center }
-      .cartbadge{
-          position:absolute; top:-6px; right:-10px; min-width:18px; height:18px; padding:0 5px;
-          border-radius:999px; font-size:12px; line-height:18px; text-align:center;
-          background:#ff5252; color:#fff; transform:scale(1); transition:transform .2s ease;
-      }
-      .cartbadge.bump{ transform:scale(1.2) }
-
-      /* ========== Sticky Footer (Total Bar) ========== */
-      .cart-footer{
-          position:fixed; bottom:0; left:0; right:0;
-          background:#fff7ed; border-top:1px solid #ddd; padding:16px; z-index:1000;
-          backdrop-filter:saturate(1.1) blur(6px);
-          box-shadow:0 -8px 24px rgba(68,60,51,.10);
-      }
-      .cart-footer .container{
-          display:flex; justify-content:space-between; align-items:center;
-          max-width:960px; margin:0 auto;
-      }
-      /* 콘텐츠 가림 방지 기본 여백 (JS가 덮어써도 됨) */
-      body{ padding-bottom:96px }
-
-      /* ========== Responsive ========== */
-      @media (max-width:980px){
-          .grid{ grid-template-columns: repeat(2, minmax(0,1fr)) }
-          .row{ grid-template-columns:1fr 100px 100px }
-      }
-      @media (max-width:640px){
-          .grid{ grid-template-columns:1fr }
-          .row{ grid-template-columns:1fr; gap:8px }
-          nav.tabs{ gap:6px }
-          thead th:nth-child(2), tbody td:nth-child(2){ display:none } /* 번호 숨김(옵션) */
-      }
-
-      /* ========== Accessibility (Focus/Motion) ========== */
-      .input:focus, select:focus, .checkout-btn:focus-visible{
-          outline:none; box-shadow:0 0 0 6px var(--ring);
-      }
-      input[type="checkbox"]:focus-visible{ outline:2px solid #f4a261; outline-offset:2px }
-      @media (prefers-reduced-motion: reduce){
-          *{ animation:none !important; transition:none !important }
-      }
-
-      /* ========== Dark Mode ========== */
-      @media (prefers-color-scheme: dark){
-          body{ background:linear-gradient(180deg,#1b1917,#26211d) }
-          .card{ background:#201d1a; color:#f1eee9 }
-          .product{ background:#201d1a }
-          .input, select{ background:#161412; border-color:#39322c; color:#f1eee9 }
-          .tab{ background:#161412; border-color:#39322c; color:#d9d4cf }
-          thead th{ color:#bfb4a9 }
-          tbody tr{ background:#161412; border-color:#3a332d; box-shadow:0 10px 24px rgba(0,0,0,.25) }
-          .price{ color:#ffe1c7 }
-          .btn{ box-shadow:0 8px 18px rgba(0,0,0,.35) }
-          .cart-footer{ background:#1e1b18; border-top-color:#3a332d }
-      }
-
-      /* ========== Numeric Inputs (UX polish) ========== */
-      input[name="qty"]::-webkit-outer-spin-button,
-      input[name="qty"]::-webkit-inner-spin-button{ -webkit-appearance: none; margin:0 }
-      input[name="qty"]{ -moz-appearance:textfield }
-    </style>
-
+    @media (max-width: 720px){
+      .grid{grid-template-columns: 28px 1fr 120px 120px 70px}
+      .item .thumb{display:none}
+    }
+  </style>
 </head>
-
 <body>
 <div class="container">
   <div class="card">
@@ -215,167 +67,204 @@
       <div class="brand">
         <div class="badge">GM</div>
         <div>
-          <h1>안녕하세요, <span th:text="${#authentication.principal.username}"></span> 님</h1>
-          <div class="hint">오늘도 따뜻한 쇼핑 되세요 😊</div>
+          <h1>장바구니</h1>
+          <div class="hint">수량을 변경하면 라인 합계와 선택 합계가 즉시 갱신됩니다.</div>
         </div>
       </div>
-      <div>
-        <span class="pill" sec:authorize="hasRole('USER')">ROLE_USER</span>
-        <span class="pill" sec:authorize="hasRole('ADMIN')">ROLE_ADMIN</span>
+      <div class="toolbar">
+        <button class="btn ghost" id="btnSelectAll">전체선택</button>
+        <button class="btn danger" id="btnDelete" disabled>선택 삭제</button>
+        <button class="btn secondary" id="btnOrder" disabled>선택 주문</button>
       </div>
     </header>
 
-    <div style="overflow:auto;">
-    <form id="checkoutForm" th:action="@{/orders}" method="post">
-      <table>
-        <thead>
-          <tr>
-            <th>
-              <label style="display:flex; align-items:center; gap:6px;">
-                <input type="checkbox" id="chkAll">
-                <span>전체</span>
-              </label>
-            </th>
-            <th>번호</th>
-            <th>상품이름</th>
-            <th>수량</th>
-            <th>가격</th>
-          </tr>
-        </thead>
+    <!-- 리스트 헤더 -->
+    <div class="grid head">
+      <div><input type="checkbox" id="chkAll" /></div>
+      <div>상품명</div>
+      <div style="text-align:center">수량</div>
+      <div class="price">가격</div>
+      <div class="line-total">합계</div>
+    </div>
 
-        <tbody>
-          <tr th:each="ci : ${cartItems}" th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.productPrice}">
-            <td><input type="checkbox" name="chk" checked></td>
-            <td th:text="${ci.idx}">번호</td>
-            <td th:text="${ci.productName}">상품이름</td>
+    <!-- 폼: 수량 업데이트/삭제/주문 모두 이 폼으로 전송 가능 -->
+    <form id="cartForm" th:action="@{/cart}" method="post">
+      <div id="cartBody">
+        <!-- Row 템플릿 (Thymeleaf) -->
+        <div class="grid row" th:each="ci, stat : ${cartItems}"
+             th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.unitPrice}">
+          <div>
+            <input type="checkbox" class="row-chk" name="selectedIds"
+                   th:value="${ci.productId}" />
+          </div>
 
-            <td class="qty">
-              <input th:id="|qty-${ci.productId}|"
-                     class="input"
-                     type="number"
-                     name="qty"
-                     min="1"
-                     th:value="${ci.quantity != null ? ci.quantity : 1}"/>
-            </td>
+          <div class="item">
+            <div class="thumb" th:if="${ci.thumbUrl != null}" th:style="|background:url('${ci.thumbUrl}') center/cover, #f7efe7|"></div>
+            <div>
+              <div class="name" th:text="${ci.productName}">상품명</div>
+              <div class="muted" th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')} + '원/개'">10,000원/개</div>
+            </div>
+          </div>
 
-            <td>
-              <!-- 초기 표시는 서버값(ci.cartPrice)로 해두되, JS가 곧 덮어씀 -->
-              <span data-role="line-total"
-                    th:text="${#numbers.formatInteger(ci.cartPrice,1,'COMMA')}">23,000</span>원
-            </td>
-          </tr>
+          <div style="text-align:center">
+            <div class="qty">
+              <button type="button" class="btnMinus" aria-label="수량감소">−</button>
+              <input type="number" class="qty-input" min="1" step="1"
+                     th:name="|items[${stat.index}].quantity|"
+                     th:value="${ci.quantity}" />
+              <button type="button" class="btnPlus" aria-label="수량증가">＋</button>
+            </div>
+            <input type="hidden" th:name="|items[${stat.index}].productId|" th:value="${ci.productId}" />
+          </div>
 
-          <tr th:if="${#lists.isEmpty(cartItems)}">
-            <td colspan="5" class="hint">표시할 내역이 없습니다.</td>
-          </tr>
-        </tbody>
-      </table>
+          <div class="price" th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')} + '원'">10,000원</div>
+          <div class="line-total" data-line-total>—</div>
+        </div>
+        <!-- // row -->
+      </div>
+
+      <!-- 합계/액션 -->
+      <div class="footer">
+        <div class="summary">
+          <span class="chip">선택 상품 수: <b id="selCount">0</b>개</span>
+          <span class="chip">선택 합계: <b id="selTotal">0원</b></span>
+        </div>
+        <div class="toolbar">
+          <button class="btn danger" id="btnDelete2" disabled>선택 삭제</button>
+          <button class="btn" id="btnOrder2" disabled>선택 주문</button>
+        </div>
+      </div>
+
+      <!-- 서버 라우팅을 구분하고 싶다면 JS에서 action 변경 또는 hidden 필드로 intent 전송 -->
+      <input type="hidden" name="intent" id="intent" value="update" />
     </form>
-    </div>
   </div>
-
-  <footer class="cart-footer">
-    <div class="container">
-      <span>총 합계:</span>
-      <strong id="totalPrice" th:text="${#numbers.formatInteger(totalPrice,1,'COMMA')} + '원'">0원</strong>
-      <button class="checkout-btn" type="submit">결제하기</button>
-    </div>
-  </footer>
 </div>
 
 <script>
-    const fmt = new Intl.NumberFormat('ko-KR');
+(function(){
+  const fmt = new Intl.NumberFormat('ko-KR');
+  const container = document.getElementById('cartBody');
+  const chkAll = document.getElementById('chkAll');
+  const btnSelectAll = document.getElementById('btnSelectAll');
+  const btnDelete = document.getElementById('btnDelete');
+  const btnDelete2 = document.getElementById('btnDelete2');
+  const btnOrder = document.getElementById('btnOrder');
+  const btnOrder2 = document.getElementById('btnOrder2');
+  const selCount = document.getElementById('selCount');
+  const selTotal = document.getElementById('selTotal');
+  const form = document.getElementById('cartForm');
+  const intent = document.getElementById('intent');
 
-    function clampQty(n) {
-        const v = parseInt(n, 10);
-        return Number.isFinite(v) ? Math.max(1, v) : 1;
+  // 유틸: 행에서 필요한 요소 얻기
+  function getRowParts(row){
+    return {
+      unitPrice: Number(row.getAttribute('data-unit-price')) || 0,
+      qtyInput: row.querySelector('.qty-input'),
+      lineTotal: row.querySelector('[data-line-total]'),
+      checkbox: row.querySelector('.row-chk')
+    };
+  }
+
+  function updateLineTotal(row){
+    const { unitPrice, qtyInput, lineTotal } = getRowParts(row);
+    const q = Math.max(1, parseInt(qtyInput.value || '1', 10));
+    const total = unitPrice * q;
+    lineTotal.textContent = fmt.format(total) + '원';
+  }
+
+  function updateAllLineTotals(){
+    document.querySelectorAll('#cartBody .grid.row').forEach(updateLineTotal);
+  }
+
+  function updateSelectionSummary(){
+    const rows = Array.from(document.querySelectorAll('#cartBody .grid.row'));
+    const selected = rows.filter(r => getRowParts(r).checkbox.checked);
+    const count = selected.length;
+    const sum = selected.reduce((acc, r) => {
+      const { unitPrice, qtyInput } = getRowParts(r);
+      const q = Math.max(1, parseInt(qtyInput.value || '1', 10));
+      return acc + unitPrice * q;
+    }, 0);
+
+    selCount.textContent = count;
+    selTotal.textContent = fmt.format(sum) + '원';
+
+    // 액션 버튼 enable/disable
+    const enabled = count > 0;
+    [btnDelete, btnDelete2, btnOrder, btnOrder2].forEach(b => b.disabled = !enabled);
+
+    // 마스터 체크박스 상태 동기화
+    const all = rows.length > 0 && selected.length === rows.length;
+    chkAll.checked = all;
+    chkAll.indeterminate = !all && selected.length > 0;
+  }
+
+  // 초기 계산
+  updateAllLineTotals();
+  updateSelectionSummary();
+
+  // 수량 변경 핸들러 (입력 및 +/- 버튼)
+  container.addEventListener('input', e => {
+    if(e.target.classList.contains('qty-input')){
+      const row = e.target.closest('.grid.row');
+      // 최소값 보정
+      e.target.value = String(Math.max(1, parseInt(e.target.value || '1', 10)));
+      updateLineTotal(row);
+      updateSelectionSummary();
     }
-
-    // 합계 재계산 (단가×수량)
-    function recalc() {
-        let total = 0;
-
-        document.querySelectorAll('tbody tr[data-unit-price]').forEach(row => {
-            const checked = row.querySelector('input[type="checkbox"][name="chk"]')?.checked ?? true;
-            if (!checked) return;
-
-            const unit = Number(row.dataset.unitPrice) || 0;
-            const qtyInput = row.querySelector('input[name="qty"]');
-            const qty = clampQty(qtyInput?.value ?? '1');
-
-            const line = unit * qty;
-            total += line;
-
-            const lineSpan = row.querySelector('[data-role="line-total"]');
-            if (lineSpan) lineSpan.textContent = fmt.format(line);
-        });
-
-        const totalEl = document.getElementById('totalPrice');
-        if (totalEl) totalEl.textContent = fmt.format(total) + '원';
+  });
+  container.addEventListener('click', e => {
+    if(e.target.classList.contains('btnMinus') || e.target.classList.contains('btnPlus')){
+      const row = e.target.closest('.grid.row');
+      const { qtyInput } = getRowParts(row);
+      const cur = Math.max(1, parseInt(qtyInput.value || '1', 10));
+      qtyInput.value = String(Math.max(1, cur + (e.target.classList.contains('btnPlus') ? 1 : -1)));
+      updateLineTotal(row);
+      updateSelectionSummary();
     }
+  });
 
-    // 행 체크박스들 가져오기
-    function rowChecks() {
-        return Array.from(document.querySelectorAll('tbody input[type="checkbox"][name="chk"]'));
+  // 체크박스 선택
+  container.addEventListener('change', e => {
+    if(e.target.classList.contains('row-chk')){
+      updateSelectionSummary();
     }
+  });
 
-    // 헤더(전체선택) 상태 업데이트: 모두 체크/모두 해제/일부 체크(indeterminate)
-    function updateMasterState() {
-        const master = document.getElementById('chkAll');
-        const checks = rowChecks();
-        if (!master) return;
+  // 전체 선택 토글
+  function toggleAll(to){
+    document.querySelectorAll('.row-chk').forEach(ch => ch.checked = to);
+    updateSelectionSummary();
+  }
+  chkAll.addEventListener('change', () => toggleAll(chkAll.checked));
+  btnSelectAll.addEventListener('click', (e) => { e.preventDefault(); toggleAll(true); });
 
-        if (checks.length === 0) {
-            master.checked = false;
-            master.indeterminate = false;
-            master.disabled = true;   // 행 없을 때 비활성화(선택)
+  // 삭제 동작 (DOM 제거 + 서버 전송 형태 모두 지원)
+  function submitWithIntent(action){
+    // 서버로 보낼 때 intent만 바꾸고 form 제출
+    intent.value = action; // 'delete' | 'order' | 'update'
+    form.submit();
+  }
 
-            return;
-        }
+  function removeSelectedRows(){
+    const rows = Array.from(document.querySelectorAll('#cartBody .grid.row'));
+    rows.forEach(r => { if(getRowParts(r).checkbox.checked) r.remove(); });
+    updateSelectionSummary();
+  }
 
-        master.disabled = false;
+  // 아래 두 가지 중 사용하고 싶은 방식만 사용하세요.
+  // 1) 서버 제출 방식 (주석 해제):
+  // btnDelete.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('delete'); });
+  // btnDelete2.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('delete'); });
+  // btnOrder.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('order'); });
+  // btnOrder2.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('order'); });
 
-        const checkedCount = checks.filter(c => c.checked).length;
-        master.checked = checkedCount === checks.length;
-        master.indeterminate = checkedCount > 0 && checkedCount < checks.length;
-    }
+  // 2) 데모용 클라이언트 삭제 (DOM에서 제거):
+  btnDelete.addEventListener('click', (e)=>{ e.preventDefault(); removeSelectedRows(); });
+  btnDelete2.addEventListener('click', (e)=>{ e.preventDefault(); removeSelectedRows(); });
 
-    // 전체선택 클릭 → 모든 행 체크 동기화
-    function bindMasterToggle() {
-        const master = document.getElementById('chkAll');
-        if (!master) return;
-        master.addEventListener('change', () => {
-            const checks = rowChecks();
-            checks.forEach(c => { c.checked = master.checked; });
-            master.indeterminate = false;
-            recalc();
-        });
-    }
-
-    // 이벤트 바인딩
-    document.addEventListener('input', (e) => {
-        if (e.target.matches('input[name="qty"]')) {
-            recalc();
-        }
-    });
-
-    document.addEventListener('change', (e) => {
-        if (e.target.matches('input[type="checkbox"][name="chk"]')) {
-            updateMasterState();
-            recalc();
-        }
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-        // footer 가림 방지
-        const footer = document.querySelector('.cart-footer');
-        if (footer) {
-            const h = footer.getBoundingClientRect().height;
-            document.body.style.paddingBottom = `${h + 16}px`;
-        }
-
-        bindMasterToggle();
-        updateMasterState();
-        recalc();
-    });
+})();
 </script>
+</body>
+</html>

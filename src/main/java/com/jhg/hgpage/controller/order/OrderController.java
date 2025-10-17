@@ -1,6 +1,7 @@
 package com.jhg.hgpage.controller.order;
 
 import com.jhg.hgpage.controller.form.CheckOutForm;
+import com.jhg.hgpage.controller.form.OrderRequest;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
@@ -13,8 +14,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
 
 @Controller
 @RequiredArgsConstructor
@@ -24,14 +26,18 @@ public class OrderController {
     private final OrderService orderService;
 
 //    @PostMapping("/orders")
-//    public String createOrder(@AuthenticationPrincipal(expression = "id") Long userId, @RequestParam("productId") Long product_id, @RequestParam("qty") int quantity) {
-//        orderService.order(userId, product_id, quantity);
+//    public String createOrder(@AuthenticationPrincipal(expression = "id") Long userId, @ModelAttribute OrderRequest req) {
+//        if (req.getItems().isEmpty()) {
+//
+//        }
+//
+////        orderService.order(userId, product_id, quantity);
 //
 //        return "redirect:/main";
 //    }
 
     @PostMapping("/orders")
-    public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @RequestParam("productId") Long product_id, @RequestParam("qty") int quantity, Model model) {
+    public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderRequest req, Model model) {
         CheckOutForm checkOutForm = new CheckOutForm();
 
         // 로그인 사용자 정보로 기본값 채우기 (서버 신뢰 값)
@@ -47,8 +53,12 @@ public class OrderController {
         checkOutForm.getDelivery().setCity(member.getAddress().getCity());
         checkOutForm.getDelivery().setSaveAsDefault(true);
 
-        Product product = productRepository.findById(product_id).get();
-        checkOutForm.getProduct().add(new CheckOutForm.ProductDto(product_id, product.getName(), product.getPrice(), quantity));
+        if (req.getItems().isEmpty()) {
+            Product product = productRepository.findById(req.getProductId()).get();
+            checkOutForm.getProduct().add(new CheckOutForm.ProductDto(req.getProductId(), product.getName(), product.getPrice(), req.getQty()));
+        } else {
+
+        }
 
         model.addAttribute("checkout", checkOutForm);
 
