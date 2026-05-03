@@ -266,7 +266,7 @@
                         <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
                     </div>
 
-                    <form th:action="@{/orders}" method="post" class="product-actions">
+                    <form th:action="@{/orders/checkout-form}" method="post" class="product-actions">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
 
                         <!-- 단일 품목 즉시 구매 -->

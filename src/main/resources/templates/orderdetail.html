@@ -135,6 +135,33 @@
     */
 
     .price{font-weight:800}
+
+    .header{font-weight:800; margin-bottom:12px}
+    .content{display:grid; gap:12px}
+    .table{width:100%; border-collapse:separate; border-spacing:0 8px}
+    .right{text-align:right}
+    .chip{
+      display:inline-flex; align-items:center; gap:6px;
+      border:1px solid #eadfd6; border-radius:999px;
+      background:#fff; color:#6e6259; padding:6px 10px; font-weight:800;
+    }
+    .summary-toolbar{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; flex-wrap:wrap; padding:10px 0 4px;
+    }
+    .summary-toolbar .hint{display:flex; align-items:center; gap:8px}
+    .img{
+      width:40px; height:40px; border-radius:10px;
+      background:#f7efe7; border:1px solid #eadfd6;
+    }
+    .sum{display:grid; gap:10px}
+    .line{display:flex; justify-content:space-between; align-items:center; gap:16px}
+    .line.total{
+      margin-top:4px; padding-top:12px; border-top:1px dashed #eadfd6;
+      font-size:18px;
+    }
+    .btn.outline{background:#fff; color:#6e6259; border:1px solid #eadfd6; box-shadow:none}
+    .btn.block{display:block; text-align:center; width:100%}
     /* 1) 검색창 + 로그아웃 툴바 */
     .toolbar{display:flex; gap:10px; align-items:center; margin:8px 0 14px;}
     .toolbar .input{flex:1; width:auto; min-width:0;} /* flex에서 100% 대신 flex:1 */
@@ -274,15 +301,12 @@
         <section class="card">
           <div class="header">주문 상품</div>
           <div class="content">
-            <div class="toolbar">
+            <div class="summary-toolbar">
               <div class="hint">
-                <span class="chip">바로구매</span> 1개 상품
+                <span class="chip">&#51452;&#47928; &#49345;&#54408;</span>
+                &#52509; <b id="productCount" th:text="${checkout.productCount}">0</b>&#44060;
               </div>
-              <div class="hint">
-                <span class="chip">장바구니</span>
-                총 <b>0</b>개 상품
-              </div>
-              <a class="btn outline">장바구니로 이동</a>
+              <a class="btn outline" th:href="@{/cart}">&#51109;&#48148;&#44396;&#45768;&#47196; &#51060;&#46041;</a>
             </div>
 
             <table class="table">
@@ -295,7 +319,7 @@
               </tr>
               </thead>
               <tbody>
-              <tr th:each="p, pStat : ${checkout.product}">
+              <tr th:each="p, pStat : ${checkout.product}" th:attr="data-unit-price=${p.price}">
                 <!-- 전송용 숨김필드(아이디/옵션/수량) -->
                 <input type="hidden" th:field="*{product[__${pStat.index}__].id}"/>
                 <td>
@@ -307,13 +331,13 @@
                   </div>
                 </td>
                 <td class="right">
-                  <span id="price" th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">0</span>원
+                  <span class="unit-price" th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">0</span>&#50896;
                 </td>
                 <td class="right">
-                  <input id="quantity" class="input qty-input" type="number" min="1" th:field="*{product[__${pStat.index}__].quantity}"/>
+                  <input class="input qty-input" type="number" min="1" th:field="*{product[__${pStat.index}__].quantity}"/>
                 </td>
                 <td class="right">
-                  <span id="total" th:text="${#numbers.formatInteger(p.price * p.quantity,3,'COMMA')}">0</span>원
+                  <span class="line-total" th:text="${#numbers.formatInteger(p.price * p.quantity,3,'COMMA')}">0</span>&#50896;
                 </td>
               </tr>
               </tbody>
@@ -358,14 +382,10 @@
         <section class="card">
           <div class="header">결제 금액</div>
           <div class="content sum">
-            <div class="line"><span>상품 합계</span><b>0</b></div>
-            <div class="line"><span>배송비</span><b>0</b></div>
-            <div class="line">
-              <span>할인 합계</span><b>-0</b>
-            </div>
-            <div class="line total"><span>총 결제금액</span>
-              <b>0</b>
-            </div>
+            <div class="line"><span>&#49345;&#54408; &#54633;&#44228;</span><b><span id="productSubtotal" th:text="${#numbers.formatInteger(checkout.productTotalPrice,3,'COMMA')}">0</span>&#50896;</b></div>
+            <div class="line"><span>&#48176;&#49569;&#48708;</span><b><span id="deliveryFee">0</span>&#50896;</b></div>
+            <div class="line"><span>&#54624;&#51064; &#54633;&#44228;</span><b>-<span id="discountTotal">0</span>&#50896;</b></div>
+            <div class="line total"><span>&#52509; &#44208;&#51228;&#44552;&#50529;</span><b><span id="paymentTotal" th:text="${#numbers.formatInteger(checkout.productTotalPrice,3,'COMMA')}">0</span>&#50896;</b></div>
           </div>
         </section>
 
@@ -412,14 +432,52 @@
 
 <script>
   (function(){
-        const price = document.getElementById('price');
-        const quantity = document.getElementById('quantity');
-        const total = document.getElementById('total');
+    const fmt = new Intl.NumberFormat('ko-KR');
+    const rows = Array.from(document.querySelectorAll('tbody tr[data-unit-price]'));
+    const subtotalEl = document.getElementById('productSubtotal');
+    const deliveryEl = document.getElementById('deliveryFee');
+    const discountEl = document.getElementById('discountTotal');
+    const totalEl = document.getElementById('paymentTotal');
 
-        quantity.addEventListener("change", (event) => {
-          total.textContent = Number(price.textContent.replace(',', '')) * Number(quantity.value);
-        });
-    })();
+    function numberFrom(el) {
+      return Number((el?.textContent || '0').replace(/[^0-9]/g, '')) || 0;
+    }
+
+    function normalizeQty(input) {
+      const qty = parseInt(input.value || '1', 10);
+      input.value = String(Number.isFinite(qty) && qty > 0 ? qty : 1);
+      return Number(input.value);
+    }
+
+    function recalc() {
+      let subtotal = 0;
+
+      rows.forEach(row => {
+        const unitPrice = Number(row.dataset.unitPrice) || 0;
+        const qtyInput = row.querySelector('.qty-input');
+        const qty = normalizeQty(qtyInput);
+        const lineTotal = unitPrice * qty;
+        subtotal += lineTotal;
+
+        const lineEl = row.querySelector('.line-total');
+        if (lineEl) lineEl.textContent = fmt.format(lineTotal);
+      });
+
+      const deliveryFee = numberFrom(deliveryEl);
+      const discount = numberFrom(discountEl);
+      const paymentTotal = Math.max(0, subtotal + deliveryFee - discount);
+
+      if (subtotalEl) subtotalEl.textContent = fmt.format(subtotal);
+      if (totalEl) totalEl.textContent = fmt.format(paymentTotal);
+    }
+
+    rows.forEach(row => {
+      row.querySelector('.qty-input')?.addEventListener('input', recalc);
+      row.querySelector('.qty-input')?.addEventListener('change', recalc);
+    });
+
+    recalc();
+  })();
 
   function applyPoint() {
     const totalPoint = document.getElementById('totalpoint');

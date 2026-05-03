@@ -24,5 +24,7 @@ public class OrderRequest {
 
         @NotNull @Min(1)
         private Integer qty;
+
+        private Boolean selected;
     }
 }

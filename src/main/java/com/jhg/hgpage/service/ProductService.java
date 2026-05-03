@@ -1,7 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.repositoey.ProductRepository;
+import com.jhg.hgpage.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -2,14 +2,12 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.repositoey.ProductRepository;
+import com.jhg.hgpage.repository.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.Rollback;
 import org.springframework.transaction.annotation.Transactional;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 class ProductServiceTest {
@@ -25,7 +23,7 @@ class ProductServiceTest {
         inventory.setReservedQty(0);
 
         Product product = new Product();
-        product.setName("샤프");
+        product.setName("product");
         product.setPrice(1000);
         product.setInventory(inventory);
 

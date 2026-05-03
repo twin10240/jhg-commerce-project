@@ -58,7 +58,7 @@ public class UserPrincipal implements UserDetails {
     public static UserPrincipal from(Account account, Member member) {
         Role role = account.getRole();
 
-        return new UserPrincipal(account.getId(), account.getEmail(), member.getName(), member.getPhone(), account.getPassword(), role);
+        return new UserPrincipal(member.getId(), account.getEmail(), member.getName(), member.getPhone(), account.getPassword(), role);
     }
 
 }

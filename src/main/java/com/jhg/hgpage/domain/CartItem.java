@@ -47,6 +47,13 @@ public class CartItem {
         this.quantity += quantity;
     }
 
+    public void changeQuantity(int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Cart item quantity must be at least 1.");
+        }
+        this.quantity = quantity;
+    }
+
     public void attachTo(Cart cart) {
         this.cart = cart;
     }

@@ -53,4 +53,12 @@ public class Cart {
             return match;
         });
     }
+    public void changeItemQuantity(Product product, int quantity) {
+        CartItem cartItem = cartItems.stream()
+                .filter(it -> it.isSameProduct(product))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Cart item not found."));
+
+        cartItem.changeQuantity(quantity);
+    }
 }

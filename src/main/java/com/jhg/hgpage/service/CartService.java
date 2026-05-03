@@ -4,9 +4,9 @@ import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.CartItem;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.view.CartItemDto;
-import com.jhg.hgpage.repositoey.CartRepository;
-import com.jhg.hgpage.repositoey.CartRepositoryQuery;
-import com.jhg.hgpage.repositoey.ProductRepository;
+import com.jhg.hgpage.repository.CartRepository;
+import com.jhg.hgpage.repository.CartRepositoryQuery;
+import com.jhg.hgpage.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +33,27 @@ public class CartService {
         CartItem cartItem = cart.addCartItem(product, quantity, product.getPrice());
 
         return cart.getId();
+    }
+
+    @Transactional
+    public void updateCartItemQuantity(Long memberId, Long productId, int quantity) {
+        Product product = productRepository.findById(productId).get();
+        Cart cart = cartRepository.findCartByMemberId(memberId);
+
+        cart.changeItemQuantity(product, quantity);
+    }
+
+    @Transactional
+    public void removeCartItem(Long memberId, Long productId) {
+        Product product = productRepository.findById(productId).get();
+        Cart cart = cartRepository.findCartByMemberId(memberId);
+
+        cart.removeItem(product);
+    }
+
+    @Transactional
+    public void removeCartItems(Long memberId, List<Long> productIds) {
+        productIds.forEach(productId -> removeCartItem(memberId, productId));
     }
 
     private <T> T firstOrElseGet(List<T> list, Supplier<T> supplier) {
@@ -76,8 +97,10 @@ public class CartService {
                             .productId(ci.getProductId())
                             .idx(i +1)
                             .productName(ci.getProductName())
-                            .cartPrice(ci.getTotalPrice())
-                            .productPrice(ci.getProductPrice())
+                            .cartPrice(ci.getLineTotalPrice())
+                            .productPrice(ci.getUnitPrice())
+                            .unitPrice(ci.getUnitPrice())
+                            .lineTotalPrice(ci.getLineTotalPrice())
                             .quantity(ci.getQuantity())
                             .build();
                 })

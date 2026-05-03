@@ -2,8 +2,8 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.repositoey.MemberRepository;
-import com.jhg.hgpage.repositoey.MemberRepositoryQuery;
+import com.jhg.hgpage.repository.MemberRepository;
+import com.jhg.hgpage.repository.MemberRepositoryQuery;
 import jakarta.persistence.NoResultException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

@@ -3,7 +3,7 @@ package com.jhg.hgpage.controller.main;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
-import com.jhg.hgpage.repositoey.SearchOption;
+import com.jhg.hgpage.repository.SearchOption;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.service.ProductService;

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +18,16 @@ public class CheckOutForm {
     private DeliveryDto delivery = new DeliveryDto();
 
     private List<ProductDto> product = new ArrayList<>();
+
+    public int getProductCount() {
+        return product.size();
+    }
+
+    public int getProductTotalPrice() {
+        return product.stream()
+                .mapToInt(item -> item.getPrice() * item.getQuantity())
+                .sum();
+    }
 
     @Data
     public static class MemberDto {
@@ -41,6 +52,7 @@ public class CheckOutForm {
     }
 
     @Data
+    @NoArgsConstructor
     @AllArgsConstructor
     public static class ProductDto {
         private Long id;
