@@ -10,10 +10,12 @@ import com.jhg.hgpage.repository.ProductRepository;
 import com.jhg.hgpage.repository.SearchOption;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -80,7 +82,15 @@ public class OrderController {
     }
 
     @PostMapping("/orders/checkout")
-    public String checkout(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute("checkout") CheckOutForm form) {
+    public String checkout(@AuthenticationPrincipal UserPrincipal user,
+                           @Valid @ModelAttribute("checkout") CheckOutForm form,
+                           BindingResult bindingResult) {
+        // 빈 주문 / 배송지 누락 / 수량 오류 시 주문서로 되돌리고 인라인 에러 표시
+        if (bindingResult.hasErrors()) {
+            restoreCheckOutDisplay(user, form);
+            return "orderdetail";
+        }
+
         Address deliveryAddress = new Address(
                 form.getDelivery().getCity(),
                 form.getDelivery().getStreet(),
@@ -94,6 +104,24 @@ public class OrderController {
         orderService.order(user.getId(), deliveryAddress, lines);
 
         return "redirect:/main";
+    }
+
+    // 검증 실패로 주문서를 다시 렌더링할 때, 폼이 전송하지 않는 표시용 값(상품명/가격, disabled 회원정보)을 복원한다.
+    private void restoreCheckOutDisplay(UserPrincipal user, CheckOutForm form) {
+        if (user != null) {
+            form.getMember().setName(user.getUsername());
+            form.getMember().setEmail(user.getEmail());
+        }
+
+        form.getProduct().forEach(item -> {
+            if (item.getId() == null) {
+                return;
+            }
+            productRepository.findById(item.getId()).ifPresent(product -> {
+                item.setName(product.getName());
+                item.setPrice(product.getPrice());
+            });
+        });
     }
 
     @GetMapping("/orders/me")
