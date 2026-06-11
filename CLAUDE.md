@@ -54,9 +54,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - `aop/` — `TimeTraceAop` (메서드 실행시간 로깅)
 - `api/` — `CartApiController` (장바구니 REST: 담기/수량변경/삭제/카운트)
 - `config/` — `SecurityConfig`, `QueryDslConfig`
-- `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`) + `form/` (요청 폼 DTO)
+- `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO)
 - `domain/` — JPA 엔티티 + `dto/`(view·form), `enums/`(Role/OrderStatus/DeliveryStatus)
-- `exception/` — `NotEnoughStockException`
+- `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
 - `repository/` — Spring Data 인터페이스 + QueryDSL 구현 클래스
 - `service/` — 비즈니스 로직
 - `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드
@@ -65,7 +65,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **Account ↔ Member (1:1 분리)**: 인증정보(Account: email/password/role)와 회원정보(Member: name/phone/address)를 분리. `UserPrincipal`이 둘을 합쳐 Spring Security 주체로 동작.
 - **Member → Cart (1:1, cascade ALL)**: `Member.createUser()` 시 장바구니 자동 생성, `createAdmin()`은 장바구니 없음.
 - **Order → OrderItem → Product / Delivery**: 주문 시 `OrderItem.createOrderItem()`에서 재고 차감, `Order.cancel()`에서 재고 복구.
-- **Product ↔ Inventory (1:1)**: 재고를 별도 엔티티로 분리(onHandQty/reservedQty).
+- **Product ↔ Inventory (1:1)**: 재고를 별도 엔티티로 분리(onHandQty/reservedQty). `@Version` 낙관적 락.
+- **PurchaseOrder → PurchaseOrderItem → Product**: 관리자 발주(`ORDERED`) → 입고(`receive()`: 재고 증가 + `RECEIVED`). 중복 입고 거부.
 
 ### 주요 흐름
 - **회원가입**: `AuthController` → `AccountService.signUp(member, account)` 단일 트랜잭션으로 Member+Account 원자적 저장. 이메일 중복 시 `DuplicateEmailException` → 컨트롤러가 signup 폼의 email 필드 에러로 안내.
@@ -100,6 +101,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-11)
+- ~~발주/입고 백엔드 부재 (B-2)~~: `PurchaseOrder`(`ORDERED`→`RECEIVED`, 정적 팩토리, `@Enumerated(STRING)`) + `PurchaseOrderItem` 도메인 신규. `receive()`는 중복 입고를 `IllegalStateException`으로 거부(재고 이중 증가 방지). `PurchaseOrderService.create/receive/findAllWithItems`(fetch join) + `AdminController` 매핑. 입고는 HTML 폼 제약 때문에 path variable 대신 `POST /admin/purchase-orders/receive`(param `poId`) 채택, main.html의 깨진 `th:action`(`${poId}` 미존재)과 주석 CSRF 복원. 재고 페이지에 발주 현황 테이블 추가. 테스트: `PurchaseOrderTest`, `PurchaseOrderServiceTest`, `PurchaseOrderRepositoryTest`, `AdminControllerMvcTest`.
+- ~~품절 사용자 UX 부재 (C)~~: 메인 상품 카드에 재고 표시 — 재고 0이면 "품절" 배지 + 카드 흐림 + 수량/구매/장바구니 disabled, 1~9개면 "N개 남음", 수량 입력 `max=재고`. 카드가 재고를 읽으므로 페이징 쿼리를 `findPageWithInventory`/`findPageByNameWithInventory`(fetch join + countQuery)로 교체해 OSIV 의존 N+1 제거. 서버 측 강제는 기존 `removeStock` 예외 + 낙관적 락 그대로. 테스트: `ProductRepositoryTest`(페이징 fetch join), `MainControllerMvcTest`(품절/남은수량 렌더링 — 인라인 CSS 주석에 한글 키워드를 쓰면 content 문자열 검사가 오염되니 주의).
+- ~~관리자 재고 조정/조회 백엔드 부재 (B-1)~~: `InventoryService.adjust(productId, delta, reason)`(음수 방지, reason은 로그) + `AdminController`(`GET /admin/inventory` 조회 페이지, `POST /admin/inventory/adjust` 조정 후 flash와 함께 조회로 리다이렉트) 구현. `ProductRepository.findAllWithInventory()` fetch join으로 N+1 방지. main.html adjust 폼의 주석 처리됐던 CSRF hidden 복원. 발주/입고(B-2)는 미구현으로 남음. 테스트: `InventoryServiceTest`, `AdminControllerMvcTest`(USER 403 포함), `ProductRepositoryTest`.
 - ~~`Delivery.status`가 항상 null~~: `Order.createOrder()`에서 `DeliveryStatus.READY`로 초기화해 `cancel()`의 "배송완료 시 취소 불가" 가드를 살림. `Delivery.status`에 빠져 있던 `@Enumerated(STRING)`도 추가(ORDINAL 저장 위험 제거, `Order.status`와 일관). 테스트: `OrderTest`(도메인 단위), `DeliveryStatusMappingTest`(`@DataJpaTest` — 네이티브 쿼리로 문자열 저장 검증).
 - ~~재고 차감 동시성 미보장~~: `Inventory`에 `@Version` 낙관적 락 도입. 동시 수정 시 늦게 커밋하는 쪽은 `OptimisticLockingFailureException` → `GlobalExceptionHandler`가 화면이면 flash("주문이 몰려...") + `redirect:/main`, API면 409. 테스트: `InventoryOptimisticLockTest`(`@DataJpaTest` 임베디드 H2 — TCP 서버 불필요), `OrderControllerMvcTest`. `Inventory.reservedQty`는 여전히 미사용(결제 단계 도입 시 예약 모델과 함께 활용 예정).
 - ~~회원가입 트랜잭션 분리~~: `AccountService.signUp(Member, Account)` 단일 `@Transactional`로 통합. 이메일 중복은 `DuplicateEmailException`(저장 전 선검사)으로 던지고, `AuthController`가 catch하여 signup 폼 email 필드 에러로 표시. `AuthController`의 `MemberService` 의존 제거. 테스트: `AccountServiceSignUpTest`, `AuthControllerMvcTest`(`@Import(SecurityConfig.class)` — `/signup` permitAll 필요).
@@ -109,7 +113,6 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 높음
 1. **`ddl-auto: create`**: 재시작마다 스키마 DROP & 재생성 → 데이터 소실. 운영 시 `validate`/`update` 또는 Flyway 필요.
-2. **관리자 재고 UI 백엔드 부재**: `main.html`이 `/admin/inventory/adjust`, `/admin/purchase-orders`, `/admin/purchase-orders/{id}/receive`로 폼 제출하지만 admin 컨트롤러가 없음 → 404/405. SecurityConfig에 `/admin/**` 인가 규칙만 존재.
 
 ### 심각도 중간
 6. **주문 후 장바구니 미정리**: 장바구니에서 주문해도 장바구니 아이템이 남음.
@@ -127,8 +130,6 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 16. `templates/backup.html`, `cart_backup.html`, `backup2.html` 등 백업 파일이 저장소에 포함됨.
 
 ### 개선 우선순위
-1. admin UI 정리 — `/admin/**` 백엔드 구현 또는 미구현 폼 제거 (B-1: 재고 조정/조회 → B-2: 발주/입고)
-2. 품절 사용자 UX — 메인 상품 카드 재고/품절 표시 + 구매 버튼 비활성화
-3. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
-4. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
-5. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체
+1. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
+2. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
+3. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체
