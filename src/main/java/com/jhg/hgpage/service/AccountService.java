@@ -1,7 +1,6 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.repository.AccountRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AccountService implements UserDetailsService {
     private final AccountRepository accountRepository;
-    private final MemberService memberService;
 
     @Transactional
     public Long signUp(Account account) {
@@ -29,16 +27,11 @@ public class AccountService implements UserDetailsService {
         return account.getId();
     }
 
-    public Account findAccountByEmail(String email) {
-        return accountRepository.findByEmail(email).get();
-    }
-
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         Account account = accountRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Email does not exist."));
-        Member member = memberService.findMember(account.getId());
 
-        return UserPrincipal.from(account, member);
+        return UserPrincipal.from(account, account.getMember());
     }
 }

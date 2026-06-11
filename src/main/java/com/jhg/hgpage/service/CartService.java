@@ -4,6 +4,7 @@ import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.CartItem;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.CartRepository;
 import com.jhg.hgpage.repository.CartRepositoryQuery;
 import com.jhg.hgpage.repository.ProductRepository;
@@ -27,7 +28,7 @@ public class CartService {
 
     @Transactional
     public Long addCartItem(Long memberId, Long productId, int quantity) {
-        Product product = productRepository.findById(productId).get();
+        Product product = findProduct(productId);
 
         Cart cart = cartRepository.findCartByMemberId(memberId);
         CartItem cartItem = cart.addCartItem(product, quantity, product.getPrice());
@@ -37,7 +38,7 @@ public class CartService {
 
     @Transactional
     public void updateCartItemQuantity(Long memberId, Long productId, int quantity) {
-        Product product = productRepository.findById(productId).get();
+        Product product = findProduct(productId);
         Cart cart = cartRepository.findCartByMemberId(memberId);
 
         cart.changeItemQuantity(product, quantity);
@@ -45,10 +46,15 @@ public class CartService {
 
     @Transactional
     public void removeCartItem(Long memberId, Long productId) {
-        Product product = productRepository.findById(productId).get();
+        Product product = findProduct(productId);
         Cart cart = cartRepository.findCartByMemberId(memberId);
 
         cart.removeItem(product);
+    }
+
+    private Product findProduct(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
     }
 
     @Transactional

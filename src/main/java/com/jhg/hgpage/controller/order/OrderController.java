@@ -6,6 +6,7 @@ import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.ProductRepository;
 import com.jhg.hgpage.repository.SearchOption;
 import com.jhg.hgpage.service.MemberService;
@@ -51,14 +52,14 @@ public class OrderController {
             checkOutForm.getMember().setPhone(user.getPhone());
         }
 
-        Member member = memberService.findById(user.getId());
+        Member member = memberService.findMember(user.getId());
         checkOutForm.getDelivery().setCity(member.getAddress().getCity());
         checkOutForm.getDelivery().setStreet(member.getAddress().getStreet());
         checkOutForm.getDelivery().setZipcode(member.getAddress().getZipcode());
         checkOutForm.getDelivery().setSaveAsDefault(true);
 
         if (req.getItems().isEmpty()) {
-            Product product = productRepository.findById(req.getProductId()).get();
+            Product product = findProduct(req.getProductId());
             checkOutForm.getProduct().add(new CheckOutForm.ProductDto(req.getProductId(), product.getName(), product.getPrice(), req.getQty()));
         } else {
             List<OrderRequest.OrderItem> selectedItems = req.getItems().stream()
@@ -66,7 +67,7 @@ public class OrderController {
                     .toList();
 
             for (OrderRequest.OrderItem item : selectedItems) {
-                Product product = productRepository.findById(item.getProductId()).get();
+                Product product = findProduct(item.getProductId());
                 checkOutForm.getProduct().add(new CheckOutForm.ProductDto(
                         item.getProductId(),
                         product.getName(),
@@ -104,6 +105,11 @@ public class OrderController {
         orderService.order(user.getId(), deliveryAddress, lines);
 
         return "redirect:/main";
+    }
+
+    private Product findProduct(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
     }
 
     // 검증 실패로 주문서를 다시 렌더링할 때, 폼이 전송하지 않는 표시용 값(상품명/가격, disabled 회원정보)을 복원한다.

@@ -2,6 +2,7 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.*;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.OrderRepository;
 import com.jhg.hgpage.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.repository.ProductRepository;
@@ -27,13 +28,13 @@ public class OrderService {
     }
 
     @Transactional
-    public Long order(Long memberId, Long product_id, int quantity) {
-        Member member = memberService.findById(memberId);
+    public Long order(Long memberId, Long productId, int quantity) {
+        Member member = memberService.findMember(memberId);
 
         Delivery delivery = new Delivery();
         delivery.setAddress(member.getAddress());
 
-        Product product = productRepository.findById(product_id).get();
+        Product product = findProduct(productId);
         OrderItem orderItem = OrderItem.createOrderItem(product, product.getPrice(), quantity);
 
         Order order = orderRepository.save(Order.createOrder(member, delivery, orderItem));
@@ -43,14 +44,14 @@ public class OrderService {
 
     @Transactional
     public Long order(Long memberId, Address address, List<OrderLine> lines) {
-        Member member = memberService.findById(memberId);
+        Member member = memberService.findMember(memberId);
 
         Delivery delivery = new Delivery();
         delivery.setAddress(address);
 
         OrderItem[] orderItems = lines.stream()
                 .map(line -> {
-                    Product product = productRepository.findById(line.productId()).get();
+                    Product product = findProduct(line.productId());
                     return OrderItem.createOrderItem(product, product.getPrice(), line.quantity());
                 })
                 .toArray(OrderItem[]::new);
@@ -58,6 +59,11 @@ public class OrderService {
         Order order = orderRepository.save(Order.createOrder(member, delivery, orderItems));
 
         return order.getId();
+    }
+
+    private Product findProduct(Long productId) {
+        return productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
     }
 
     public record OrderLine(Long productId, int quantity) {}

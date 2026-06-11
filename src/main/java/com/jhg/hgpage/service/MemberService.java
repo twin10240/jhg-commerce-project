@@ -2,6 +2,7 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.MemberRepository;
 import com.jhg.hgpage.repository.MemberRepositoryQuery;
 import jakarta.persistence.NoResultException;
@@ -30,7 +31,8 @@ public class MemberService {
     }
 
     public Member findMember(Long id) {
-        return memberRepository.findById(id).get();
+        return memberRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Member", id));
     }
 
     public Member findMemberByEmail(String email) throws NoResultException {
@@ -39,9 +41,5 @@ public class MemberService {
 
     public Member findMemberByEmailWithQueryDsl(String email) throws NoResultException {
         return memberRepositoryQuery.findMemberByEmailWithQueryDsl(email);
-    }
-
-    public Member findById(Long id) {
-        return memberRepository.findById(id).get();
     }
 }

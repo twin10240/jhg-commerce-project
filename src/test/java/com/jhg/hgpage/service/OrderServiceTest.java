@@ -21,7 +21,7 @@ class OrderServiceTest {
 
     @Test
     public void 내주문조회_테스트() {
-        Member member = memberService.findById(2L);
+        Member member = memberService.findMember(2L);
 
 
         Delivery delivery = new Delivery();

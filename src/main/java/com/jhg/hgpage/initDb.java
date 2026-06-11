@@ -41,7 +41,7 @@ public class initDb {
         }
 
         public void initProduct() {
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 20; i++) {
                 Inventory inventory = new Inventory();
                 inventory.setOnHandQty(15 * (i + 1));
                 inventory.setReservedQty(0);
