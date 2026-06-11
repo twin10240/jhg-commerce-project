@@ -449,7 +449,7 @@
             <div class="card" style="padding:14px; margin-bottom:12px;">
                 <h2 style="margin:4px 0 12px; font-size:18px;">발주 생성</h2>
                 <form th:action="@{/admin/purchase-orders}" method="post" style="display:grid; grid-template-columns:2fr 1fr 1fr auto; gap:10px; align-items:end;">
-                    <!--                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />-->
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <div>
                         <label class="hint">상품</label>
                         <select name="items[0].productId" class="input">
@@ -471,8 +471,8 @@
             <!-- 입고 처리 -->
             <div class="card" style="padding:14px;">
                 <h2 style="margin:4px 0 12px; font-size:18px;">입고 처리</h2>
-                <form th:action="@{/admin/purchase-orders/{id}/receive(id=${poId})}" method="post" style="display:grid; grid-template-columns:2fr auto; gap:10px; align-items:end;">
-                    <!--                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />-->
+                <form th:action="@{/admin/purchase-orders/receive}" method="post" style="display:grid; grid-template-columns:2fr auto; gap:10px; align-items:end;">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                     <div>
                         <label class="hint">PO 번호</label>
                         <input class="input" type="number" name="poId" placeholder="예: 1001" />
