@@ -5,8 +5,8 @@ import com.jhg.hgpage.domain.Account;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
+import com.jhg.hgpage.exception.DuplicateEmailException;
 import com.jhg.hgpage.service.AccountService;
-import com.jhg.hgpage.service.MemberService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,7 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 @RequiredArgsConstructor
 public class AuthController {
     private final AccountService accountService;
-    private final MemberService memberService;
     private final PasswordEncoder passwordEncoder;
 
     @GetMapping("/signup")
@@ -37,10 +36,14 @@ public class AuthController {
         }
 
         Member member = Member.createUser(form.getName(), form.getPhone(), new Address(form.getCity(), form.getStreet(), form.getZipcode()));
+        Account account = new Account(form.getEmail(), passwordEncoder.encode(form.getPassword()), member, Role.USER);
 
-        memberService.join(member);
-
-        accountService.signUp(new Account(form.getEmail(), passwordEncoder.encode(form.getPassword()), member, Role.USER));
+        try {
+            accountService.signUp(member, account);
+        } catch (DuplicateEmailException e) {
+            result.rejectValue("email", "duplicate", "이미 사용 중인 이메일입니다.");
+            return "signup";
+        }
 
         return "redirect:/";
     }

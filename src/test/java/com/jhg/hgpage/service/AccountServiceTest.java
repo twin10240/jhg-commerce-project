@@ -25,16 +25,12 @@ class AccountServiceTest {
     @Rollback(value = false)
     public void SignupAndJoinTest() {
         Member member = new Member("조형근", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
-        memberService.join(member);
-
         Account account = new Account("twin10240@naver.com", "1111", member, Role.USER);
-        accountService.signUp(account);
+        accountService.signUp(member, account);
 
         Member member2 = new Member("이동호", "010-6797-5587", new Address("서울", "관악구", "봉천동"));
-        memberService.join(member2);
-
         Account account2 = new Account("twin1024@naver.com", "1111", member2, Role.USER);
-        accountService.signUp(account2);
+        accountService.signUp(member2, account2);
     }
 
 }
