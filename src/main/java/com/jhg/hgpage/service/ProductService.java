@@ -22,6 +22,10 @@ public class ProductService {
         return productRepository.findAll();
     }
 
+    public List<Product> findAllWithInventory() {
+        return productRepository.findAllWithInventory();
+    }
+
     // keyword 가 비어있으면 전체 페이지, 있으면 이름(부분/대소문자무시) 검색 페이지
     public Page<Product> findPage(String keyword, Pageable pageable) {
         if (!StringUtils.hasText(keyword)) {

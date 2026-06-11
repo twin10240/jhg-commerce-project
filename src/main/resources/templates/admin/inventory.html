@@ -1,0 +1,117 @@
+<!-- templates/admin/inventory.html : 관리자 재고 조회 -->
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>재고 관리</title>
+
+  <style>
+    :root{
+      --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
+      --card:#fffaf5; --ink:#443c33; --muted:#7a6f66;
+      --accent1:#f4a261; --accent2:#e76f51;
+      --ring:rgba(244,162,97,.35);
+      --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
+    }
+    *{box-sizing:border-box}
+    html{height:100%}
+    body{
+      min-height:100%;
+      margin:0; color:var(--ink);
+      font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
+      background:
+              radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
+              radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
+              linear-gradient(180deg, var(--bg1), #fff);
+      background-repeat:no-repeat;
+      padding:24px;
+    }
+    .container{max-width:1080px; margin:0 auto}
+
+    .page-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px}
+    .page-title{font-size:24px; font-weight:800; letter-spacing:-.2px}
+    .page-desc{color:var(--muted); font-size:13px; margin-top:4px}
+
+    .card{
+      background:var(--card); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:20px 18px;
+      animation:fade .3s ease;
+    }
+    @keyframes fade{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:translateY(0)}}
+
+    .btn{
+      appearance:none; border:0; cursor:pointer;
+      padding:10px 14px; border-radius:12px; color:white; font-weight:700;
+      background:linear-gradient(135deg, var(--accent1), var(--accent2));
+      box-shadow:0 10px 20px rgba(231,111,81,.3), 0 2px 6px rgba(0,0,0,.06);
+      text-decoration:none; font-size:14px;
+    }
+    .btn.outline{background:#fff; color:#6e6259; border:1px solid #eadfd6; box-shadow:none}
+
+    .flash{
+      margin-bottom:14px; padding:12px 16px; border-radius:10px; font-size:14px;
+    }
+    .flash.success{border:1px solid #b7d9b0; color:#2e7d32; background:#f1f8ef}
+    .flash.error{border:1px solid #e3b4ac; color:#c0392b; background:#fdf3f1}
+
+    table{width:100%; border-collapse:separate; border-spacing:0 8px}
+    th,td{padding:10px 12px; text-align:left; font-size:14px}
+    thead th{color:#7a6f66; font-weight:700}
+    tbody tr{background:var(--card); border:1px solid #eadfd6; border-radius:12px}
+    tbody tr td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
+    tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
+    .right{text-align:right}
+    .qty-zero{color:#c0392b; font-weight:800}
+    .hint{color:var(--muted); font-size:12px}
+
+    @media (prefers-color-scheme: dark){
+      body{background:linear-gradient(180deg,#1b1917,#26211d)}
+      .card{background:#201d1a; color:#f1eee9}
+      thead th{color:#bfb4a9}
+      tbody tr{background:#161412; border-color:#39322c}
+      .btn.outline{background:#161412; border-color:#39322c; color:#d9d4cf}
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="page-head">
+    <div>
+      <div class="page-title">재고 관리</div>
+      <div class="page-desc">전체 상품의 현재 보유 수량입니다. 조정은 메인의 재고(관리자) 탭에서 할 수 있습니다.</div>
+    </div>
+    <a class="btn outline" th:href="@{/main}">메인으로</a>
+  </div>
+
+  <div class="flash success" th:if="${successMessage}" th:text="${successMessage}"></div>
+  <div class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
+
+  <div class="card">
+    <table>
+      <thead>
+      <tr>
+        <th style="width:80px">ID</th>
+        <th>상품명</th>
+        <th class="right">가격</th>
+        <th class="right">보유 수량</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="p : ${products}">
+        <td th:text="${p.id}">1</td>
+        <td th:text="${p.name}">상품1</td>
+        <td class="right"><span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">10,000</span>원</td>
+        <td class="right">
+          <span th:text="${p.inventory.onHandQty}" th:classappend="${p.inventory.onHandQty == 0} ? 'qty-zero'">15</span>개
+        </td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(products)}">
+        <td colspan="4" class="hint">등록된 상품이 없습니다.</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+</body>
+</html>
