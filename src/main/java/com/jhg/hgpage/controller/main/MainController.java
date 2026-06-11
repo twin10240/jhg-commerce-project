@@ -31,12 +31,19 @@ public class MainController {
     public String logIn(@AuthenticationPrincipal UserPrincipal userPrincipal,
                         @ModelAttribute("searchOption") SearchOption searchOption,
                         @RequestParam(defaultValue = "") String keyword,
-                        @PageableDefault(size = 12, sort = "id") Pageable pageable,
+                        @PageableDefault(size = 10, sort = "id") Pageable pageable,
                         Model model) {
         // 사용자 상품 그리드: 검색 + 페이징 적용
         Page<Product> productPage = productService.findPage(keyword, pageable);
         model.addAttribute("productPage", productPage);
         model.addAttribute("keyword", keyword);
+
+        // 숫자 페이지 네비게이션: 현재 페이지를 중심으로 최대 5개 번호를 노출한다. (0-based)
+        int totalPages = productPage.getTotalPages();
+        int beginPage = Math.max(0, Math.min(productPage.getNumber() - 2, totalPages - 5));
+        int endPage = Math.min(Math.max(totalPages - 1, 0), beginPage + 4);
+        model.addAttribute("beginPage", beginPage);
+        model.addAttribute("endPage", endPage);
 
         // 관리자 재고/발주 select 전용: ADMIN 일 때만 전체 상품을 조회한다.
         // (일반 사용자는 이 데이터를 렌더링하지 않으므로 불필요한 전체 스캔을 피한다)

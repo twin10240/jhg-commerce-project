@@ -20,14 +20,17 @@
             --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
         }
         *{box-sizing:border-box}
-        html,body{height:100%}
+        html{height:100%}
+        /* height:100%로 고정하면 스크롤 영역에서 배경이 반복되며 끊기므로 min-height 사용 */
         body{
+            min-height:100%;
             margin:0; color:var(--ink);
             font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
             background:
                     radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
                     radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
                     linear-gradient(180deg, var(--bg1), #fff);
+            background-repeat:no-repeat;
             padding:24px;
         }
         .container{max-width:1080px; margin:0 auto}
@@ -99,9 +102,12 @@
         }
         .cartbadge.bump { transform:scale(1.2); }
 
-        /* 상품 그리드 */
-        /* 상품 카드 간 간격을 조금 더 */
-        .grid{ gap:20px; }
+        /* 상품 그리드: 데스크톱 기본 2열 (한 페이지 10개 = 2열 × 5줄) */
+        .grid{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0,1fr));
+            gap:20px;
+        }
 
         /* 카드 대비/분리감 강화 */
         .product{
@@ -192,6 +198,25 @@
             padding: 0 12px;
         }
 
+        /* 페이지 네비게이션 */
+        .paging{
+            display:flex; gap:8px; justify-content:center; align-items:center;
+            margin-top:16px; flex-wrap:wrap;
+        }
+        .page-num{
+            min-width:36px; height:36px; padding:0 6px;
+            display:inline-grid; place-items:center;
+            border-radius:10px; background:#fff; border:1px solid #eadfd6;
+            color:#6e6259; font-weight:700; font-size:14px; text-decoration:none;
+            transition:border-color .15s ease;
+        }
+        .page-num:hover{border-color:#f1c7a1}
+        .page-num.active{
+            background:linear-gradient(135deg,var(--accent1),var(--accent2));
+            color:#fff; border-color:transparent;
+            box-shadow:0 6px 14px rgba(231,111,81,.25);
+        }
+
         /* 레이아웃 */
         .section{display:none; margin-top:12px}
         .section.active{display:block}
@@ -213,6 +238,7 @@
             .product{ background:#201d1a; }
             .input, select{background:#161412; border-color:#39322c; color:#f1eee9}
             .tab{background:#161412; border-color:#39322c; color:#d9d4cf}
+            .page-num{background:#161412; border-color:#39322c; color:#d9d4cf}
             thead th{color:#bfb4a9}
             /*tbody tr{background:#161412; border-color:#39322c}*/
             tbody tr{ background:#161412; }
@@ -294,12 +320,28 @@
                 </div>
             </div>
 
-            <!-- 페이지 네비게이션 (검색어 유지) -->
-            <nav th:if="${productPage.totalPages > 1}"
-                 style="display:flex; gap:12px; justify-content:center; align-items:center; margin-top:16px;">
+            <!-- 페이지 네비게이션 (검색어 유지): 이전 | 1 … 4 [5] 6 … 12 | 다음 -->
+            <nav class="paging" th:if="${productPage.totalPages > 1}">
                 <a class="btn muted" th:if="${!productPage.first}"
                    th:href="@{/main(keyword=${keyword}, page=${productPage.number - 1}, size=${productPage.size})}">이전</a>
-                <span class="hint" th:text="|${productPage.number + 1} / ${productPage.totalPages}|">1 / 1</span>
+
+                <th:block th:if="${beginPage > 0}">
+                    <a class="page-num" th:href="@{/main(keyword=${keyword}, page=0, size=${productPage.size})}">1</a>
+                    <span class="hint" th:if="${beginPage > 1}">&hellip;</span>
+                </th:block>
+
+                <th:block th:each="i : ${#numbers.sequence(beginPage, endPage)}">
+                    <span class="page-num active" th:if="${i == productPage.number}" th:text="${i + 1}">1</span>
+                    <a class="page-num" th:unless="${i == productPage.number}" th:text="${i + 1}"
+                       th:href="@{/main(keyword=${keyword}, page=${i}, size=${productPage.size})}">2</a>
+                </th:block>
+
+                <th:block th:if="${endPage < productPage.totalPages - 1}">
+                    <span class="hint" th:if="${endPage < productPage.totalPages - 2}">&hellip;</span>
+                    <a class="page-num" th:text="${productPage.totalPages}"
+                       th:href="@{/main(keyword=${keyword}, page=${productPage.totalPages - 1}, size=${productPage.size})}">10</a>
+                </th:block>
+
                 <a class="btn muted" th:if="${!productPage.last}"
                    th:href="@{/main(keyword=${keyword}, page=${productPage.number + 1}, size=${productPage.size})}">다음</a>
             </nav>
