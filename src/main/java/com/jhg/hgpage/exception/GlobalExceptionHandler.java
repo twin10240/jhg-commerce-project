@@ -1,6 +1,7 @@
 package com.jhg.hgpage.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +35,18 @@ public class GlobalExceptionHandler {
 
         RequestContextUtils.getOutputFlashMap(request)
                 .put("errorMessage", "재고가 부족하여 주문을 완료하지 못했습니다. 수량을 확인해 주세요.");
+        return new ModelAndView("redirect:/main");
+    }
+
+    // 낙관적 락 충돌(동시 재고 수정 등): 사용자 재시도로 해소되는 일시적 충돌이므로 재시도를 안내한다.
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public Object handleOptimisticLockingFailure(OptimisticLockingFailureException e, HttpServletRequest request) {
+        if (isApiRequest(request)) {
+            return problem(HttpStatus.CONFLICT, "Concurrent modification detected. Please retry.");
+        }
+
+        RequestContextUtils.getOutputFlashMap(request)
+                .put("errorMessage", "주문이 몰려 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         return new ModelAndView("redirect:/main");
     }
 

@@ -1,6 +1,7 @@
 package com.jhg.hgpage.controller.order;
 
 import com.jhg.hgpage.domain.Address;
+import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
@@ -13,6 +14,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -154,6 +156,24 @@ class OrderControllerMvcTest {
     @Test
     void 재고가_부족하면_main으로_리다이렉트하고_에러메시지를_flash에_담는다() throws Exception {
         doThrow(new NotEnoughStockException("need more stock"))
+                .when(orderService).order(anyLong(), any(Address.class), anyList());
+
+        mockMvc.perform(post("/orders/checkout")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("delivery.city", "서울")
+                        .param("delivery.street", "관악구")
+                        .param("delivery.zipcode", "500")
+                        .param("product[0].id", "1")
+                        .param("product[0].quantity", "2"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/main"))
+                .andExpect(flash().attributeExists("errorMessage"));
+    }
+
+    @Test
+    void 재고_수정이_충돌하면_main으로_리다이렉트하고_에러메시지를_flash에_담는다() throws Exception {
+        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
                 .when(orderService).order(anyLong(), any(Address.class), anyList());
 
         mockMvc.perform(post("/orders/checkout")

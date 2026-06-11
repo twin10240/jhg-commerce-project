@@ -10,6 +10,9 @@ public class Inventory {
     @Id @GeneratedValue
     @Column(name = "inventory_id")
     private Long id;
+    // 낙관적 락: 동시 재고 수정 시 늦게 커밋하는 쪽이 OptimisticLockException으로 실패한다(오버셀 방지)
+    @Version
+    private Long version;
     @Column(nullable=false)
     private int onHandQty = 0; // 현재 보유 수량
     @Column(nullable=false)
