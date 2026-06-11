@@ -1,5 +1,6 @@
 package com.jhg.hgpage.controller.main;
 
+import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
@@ -21,6 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -28,6 +31,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -50,11 +54,55 @@ class MainControllerMvcTest {
     }
 
     private Product sampleProduct() {
+        return productWithStock(50);
+    }
+
+    private Product productWithStock(int stock) {
         Product p = new Product();
         p.setId(1L);
         p.setName("상품1");
         p.setPrice(10000);
+        Inventory inventory = new Inventory();
+        inventory.setOnHandQty(stock);
+        p.setInventory(inventory);
         return p;
+    }
+
+    private Page<Product> pageOf(Product product) {
+        return new PageImpl<>(List.of(product), PageRequest.of(0, 10, Sort.by("id")), 1);
+    }
+
+    @Test
+    void 재고가_없는_상품은_품절로_표시되고_버튼이_비활성화된다() throws Exception {
+        when(productService.findPage(eq(""), any(Pageable.class))).thenReturn(pageOf(productWithStock(0)));
+        when(orderService.findOrders(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/main").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("품절")))
+                .andExpect(content().string(containsString("disabled=\"disabled\"")));
+    }
+
+    @Test
+    void 재고가_적은_상품은_남은_수량을_보여준다() throws Exception {
+        when(productService.findPage(eq(""), any(Pageable.class))).thenReturn(pageOf(productWithStock(3)));
+        when(orderService.findOrders(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/main").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("3개 남음")))
+                .andExpect(content().string(not(containsString("품절"))));
+    }
+
+    @Test
+    void 재고가_충분하면_품절과_남은수량을_표시하지_않는다() throws Exception {
+        when(productService.findPage(eq(""), any(Pageable.class))).thenReturn(pageOf(productWithStock(50)));
+        when(orderService.findOrders(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/main").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("품절"))))
+                .andExpect(content().string(not(containsString("개 남음"))));
     }
 
     @Test

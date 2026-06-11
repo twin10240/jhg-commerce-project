@@ -26,28 +26,28 @@ class ProductServiceFindPageTest {
     @InjectMocks ProductService productService;
 
     @Test
-    void keyword가_있으면_이름검색_페이징으로_위임한다() {
+    void keyword가_있으면_재고포함_이름검색_페이징으로_위임한다() {
         Pageable pageable = PageRequest.of(0, 12);
         Page<Product> expected = new PageImpl<>(List.of());
-        when(productRepository.findByNameContainingIgnoreCase("상품", pageable)).thenReturn(expected);
+        when(productRepository.findPageByNameWithInventory("상품", pageable)).thenReturn(expected);
 
         Page<Product> result = productService.findPage("상품", pageable);
 
         assertThat(result).isSameAs(expected);
-        verify(productRepository).findByNameContainingIgnoreCase("상품", pageable);
+        verify(productRepository).findPageByNameWithInventory("상품", pageable);
         verifyNoMoreInteractions(productRepository);
     }
 
     @Test
-    void keyword가_공백이면_전체조회_페이징으로_위임한다() {
+    void keyword가_공백이면_재고포함_전체조회_페이징으로_위임한다() {
         Pageable pageable = PageRequest.of(0, 12);
         Page<Product> expected = new PageImpl<>(List.of());
-        when(productRepository.findAll(pageable)).thenReturn(expected);
+        when(productRepository.findPageWithInventory(pageable)).thenReturn(expected);
 
         Page<Product> result = productService.findPage("   ", pageable);
 
         assertThat(result).isSameAs(expected);
-        verify(productRepository).findAll(pageable);
+        verify(productRepository).findPageWithInventory(pageable);
         verifyNoMoreInteractions(productRepository);
     }
 }

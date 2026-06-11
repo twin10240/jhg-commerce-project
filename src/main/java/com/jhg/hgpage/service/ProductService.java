@@ -26,12 +26,13 @@ public class ProductService {
         return productRepository.findAllWithInventory();
     }
 
-    // keyword 가 비어있으면 전체 페이지, 있으면 이름(부분/대소문자무시) 검색 페이지
+    // keyword 가 비어있으면 전체 페이지, 있으면 이름(부분/대소문자무시) 검색 페이지.
+    // 상품 카드가 재고를 표시하므로 inventory를 fetch join으로 함께 로드한다.
     public Page<Product> findPage(String keyword, Pageable pageable) {
         if (!StringUtils.hasText(keyword)) {
-            return productRepository.findAll(pageable);
+            return productRepository.findPageWithInventory(pageable);
         }
-        return productRepository.findByNameContainingIgnoreCase(keyword.trim(), pageable);
+        return productRepository.findPageByNameWithInventory(keyword.trim(), pageable);
     }
 
 }

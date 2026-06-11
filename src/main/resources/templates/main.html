@@ -131,6 +131,16 @@
         /* 제목이 길어도 자연스럽게 줄바꿈 */
         .product h3{ overflow-wrap:anywhere; }
 
+        /* 재고 상태 배지/카드 스타일 */
+        .product.soldout{opacity:.55}
+        .soldout-badge{
+            display:inline-block; margin-left:6px; padding:2px 8px; vertical-align:middle;
+            border-radius:999px; font-size:12px; font-weight:800;
+            color:#c0392b; background:#fdf3f1; border:1px solid #e3b4ac;
+        }
+        .low-stock{color:#c0392b; font-size:12px; font-weight:700; margin:-2px 0 8px}
+        .product .btn:disabled, .product .input:disabled{opacity:.5; cursor:not-allowed}
+
         /* 가격 아래에 은은한 구분선 */
         .price{ position:relative; padding-bottom:6px; margin-bottom:10px; }
         .price::after{
@@ -293,11 +303,17 @@
             </div>
 
             <div class="grid" id="productGrid">
-                <article class="product" th:each="p : ${productPage.content}">
-                    <h3 th:text="${p.name}">허니 라떼</h3>
+                <article class="product" th:each="p : ${productPage.content}"
+                         th:with="stock=${p.inventory != null ? p.inventory.onHandQty : 0}"
+                         th:classappend="${stock == 0} ? 'soldout'">
+                    <h3>
+                        <span th:text="${p.name}">허니 라떼</span>
+                        <span class="soldout-badge" th:if="${stock == 0}">품절</span>
+                    </h3>
                     <div class="price">
                         <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
                     </div>
+                    <div class="low-stock" th:if="${stock > 0 and stock < 10}" th:text="|${stock}개 남음|">3개 남음</div>
 
                     <form th:action="@{/orders/checkout-form}" method="post" class="product-actions">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -307,11 +323,12 @@
 
                         <div class="qty">
                             <label class="hint" th:for="|qty-${p.id}|">수량</label>
-                            <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" value="1" />
+                            <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" value="1"
+                                   th:max="${stock}" th:disabled="${stock == 0}" />
                         </div>
 
-                        <button class="btn" type="submit">바로 구매</button>
-                        <button class="btn muted" type="button" th:onclick="|addToCart(${p.id})|">장바구니</button>
+                        <button class="btn" type="submit" th:disabled="${stock == 0}">바로 구매</button>
+                        <button class="btn muted" type="button" th:onclick="|addToCart(${p.id})|" th:disabled="${stock == 0}">장바구니</button>
                     </form>
                 </article>
 
