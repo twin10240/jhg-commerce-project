@@ -6,7 +6,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -58,7 +57,6 @@ public class CheckOutForm {
 
     @Data
     @NoArgsConstructor
-    @AllArgsConstructor
     public static class ProductDto {
         @NotNull
         private Long id;
@@ -66,5 +64,14 @@ public class CheckOutForm {
         private int price;
         @Min(value = 1, message = "수량은 1개 이상이어야 합니다.")
         private int quantity;
+        // 주문서에서 체크 해제하면 주문에서 제외. 기본 true라 단건 구매/기존 흐름은 그대로 동작한다.
+        private boolean selected = true;
+
+        public ProductDto(Long id, String name, int price, int quantity) {
+            this.id = id;
+            this.name = name;
+            this.price = price;
+            this.quantity = quantity;
+        }
     }
 }

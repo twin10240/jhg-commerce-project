@@ -86,6 +86,14 @@ public class OrderController {
     public String checkout(@AuthenticationPrincipal UserPrincipal user,
                            @Valid @ModelAttribute("checkout") CheckOutForm form,
                            BindingResult bindingResult) {
+        // 체크된 상품만 주문 대상. 전부 해제하면 빈 주문과 동일하게 product 필드 에러로 안내한다.
+        List<CheckOutForm.ProductDto> selectedProducts = form.getProduct().stream()
+                .filter(CheckOutForm.ProductDto::isSelected)
+                .toList();
+        if (selectedProducts.isEmpty()) {
+            bindingResult.rejectValue("product", "noneSelected", "주문할 상품을 1개 이상 선택해주세요.");
+        }
+
         // 빈 주문 / 배송지 누락 / 수량 오류 시 주문서로 되돌리고 인라인 에러 표시
         if (bindingResult.hasErrors()) {
             restoreCheckOutDisplay(user, form);
@@ -98,7 +106,7 @@ public class OrderController {
                 form.getDelivery().getZipcode()
         );
 
-        List<OrderService.OrderLine> lines = form.getProduct().stream()
+        List<OrderService.OrderLine> lines = selectedProducts.stream()
                 .map(product -> new OrderService.OrderLine(product.getId(), product.getQuantity()))
                 .toList();
 
