@@ -22,5 +22,6 @@ public class Delivery {
     @Embedded
     private Address address;
 
+    @Enumerated(EnumType.STRING) // ORDINAL은 enum 순서 변경 시 기존 데이터가 깨진다 (Order.status와 일관)
     private DeliveryStatus status;
 }

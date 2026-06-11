@@ -57,6 +57,8 @@ public class Order {
 
         order.setMember(member);
         order.setDelivery(delivery);
+        // 배송 상태를 초기화해야 cancel()의 "배송완료 시 취소 불가" 가드가 동작한다
+        delivery.setStatus(DeliveryStatus.READY);
 
         for (OrderItem orderItem: orderItems) {
             order.addOrderItem(orderItem);

@@ -100,6 +100,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-11)
+- ~~`Delivery.status`가 항상 null~~: `Order.createOrder()`에서 `DeliveryStatus.READY`로 초기화해 `cancel()`의 "배송완료 시 취소 불가" 가드를 살림. `Delivery.status`에 빠져 있던 `@Enumerated(STRING)`도 추가(ORDINAL 저장 위험 제거, `Order.status`와 일관). 테스트: `OrderTest`(도메인 단위), `DeliveryStatusMappingTest`(`@DataJpaTest` — 네이티브 쿼리로 문자열 저장 검증).
 - ~~재고 차감 동시성 미보장~~: `Inventory`에 `@Version` 낙관적 락 도입. 동시 수정 시 늦게 커밋하는 쪽은 `OptimisticLockingFailureException` → `GlobalExceptionHandler`가 화면이면 flash("주문이 몰려...") + `redirect:/main`, API면 409. 테스트: `InventoryOptimisticLockTest`(`@DataJpaTest` 임베디드 H2 — TCP 서버 불필요), `OrderControllerMvcTest`. `Inventory.reservedQty`는 여전히 미사용(결제 단계 도입 시 예약 모델과 함께 활용 예정).
 - ~~회원가입 트랜잭션 분리~~: `AccountService.signUp(Member, Account)` 단일 `@Transactional`로 통합. 이메일 중복은 `DuplicateEmailException`(저장 전 선검사)으로 던지고, `AuthController`가 catch하여 signup 폼 email 필드 에러로 표시. `AuthController`의 `MemberService` 의존 제거. 테스트: `AccountServiceSignUpTest`, `AuthControllerMvcTest`(`@Import(SecurityConfig.class)` — `/signup` permitAll 필요).
 
@@ -111,7 +112,6 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 2. **관리자 재고 UI 백엔드 부재**: `main.html`이 `/admin/inventory/adjust`, `/admin/purchase-orders`, `/admin/purchase-orders/{id}/receive`로 폼 제출하지만 admin 컨트롤러가 없음 → 404/405. SecurityConfig에 `/admin/**` 인가 규칙만 존재.
 
 ### 심각도 중간
-5. **`Delivery.status`가 항상 null**: `Order.createOrder()`가 `OrderStatus.ORDER`만 설정하고 Delivery 상태를 안 잡음 → `Order.cancel()`의 "배송완료 시 취소 불가" 가드(`getStatu자 글s() == COMP`)가 사실상 무력. 생성 시 `READY` 초기화 필요.
 6. **주문 후 장바구니 미정리**: 장바구니에서 주문해도 장바구니 아이템이 남음.
 7. **`TimeTraceAop` 포인트컷 과다**: `execution(* com.jhg.hgpage..*(..))` — 모든 메서드를 감싸 로그 폭증/성능 저하(`System.out.println` 사용). 서비스·컨트롤러로 한정 권장.
 8. **죽은 코드/주석 코드 다수**: `OrderController.createOrder`(주석), `CartService` 주석 블록, `OrderRepositoryQuery.findOrders(SearchOption)`(주석). `productLike()`는 product가 아닌 **member.name으로 필터링하는 버그**(주석 상태). `OrderService`의 단건 주문 오버로드는 사실상 미사용.
@@ -127,9 +127,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 16. `templates/backup.html`, `cart_backup.html`, `backup2.html` 등 백업 파일이 저장소에 포함됨.
 
 ### 개선 우선순위
-1. `Order.createOrder`에서 `Delivery` 상태 `READY` 초기화
-2. admin UI 정리 — `/admin/**` 백엔드 구현 또는 미구현 폼 제거 (B-1: 재고 조정/조회 → B-2: 발주/입고)
-3. 품절 사용자 UX — 메인 상품 카드 재고/품절 표시 + 구매 버튼 비활성화
-4. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
-5. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
-6. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체
+1. admin UI 정리 — `/admin/**` 백엔드 구현 또는 미구현 폼 제거 (B-1: 재고 조정/조회 → B-2: 발주/입고)
+2. 품절 사용자 UX — 메인 상품 카드 재고/품절 표시 + 구매 버튼 비활성화
+3. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
+4. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
+5. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체
