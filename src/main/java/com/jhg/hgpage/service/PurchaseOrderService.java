@@ -19,6 +19,7 @@ public class PurchaseOrderService {
 
     private final ProductRepository productRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final BackorderAllocator backorderAllocator;
 
     public record PurchaseOrderLine(Long productId, int quantity) {}
 
@@ -50,6 +51,12 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new EntityNotFoundException("PurchaseOrder", poId));
 
         purchaseOrder.receive();
+
+        // 입고로 가용분이 생겼으니 이 상품들을 기다리는 백오더를 재할당한다
+        List<Long> productIds = purchaseOrder.getItems().stream()
+                .map(item -> item.getProduct().getId())
+                .toList();
+        backorderAllocator.allocate(productIds);
 
         return purchaseOrder.getId();
     }

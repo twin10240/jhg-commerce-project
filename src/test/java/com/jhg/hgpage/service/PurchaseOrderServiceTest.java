@@ -31,6 +31,7 @@ class PurchaseOrderServiceTest {
 
     @Mock ProductRepository productRepository;
     @Mock PurchaseOrderRepository purchaseOrderRepository;
+    @Mock BackorderAllocator backorderAllocator;
     @InjectMocks PurchaseOrderService purchaseOrderService;
 
     private Product productWithStock(int stock) {
@@ -96,6 +97,30 @@ class PurchaseOrderServiceTest {
 
         assertThat(po.getStatus()).isEqualTo(PurchaseOrderStatus.RECEIVED);
         assertThat(product.getInventory().getOnHandQty()).isEqualTo(15);
+    }
+
+    @Test
+    void 입고하면_입고된_상품들의_백오더_할당을_트리거한다() {
+        Product product = productWithStock(10);
+        PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
+        when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
+
+        purchaseOrderService.receive(7L);
+
+        verify(backorderAllocator).allocate(List.of(1L));
+    }
+
+    @Test
+    void 중복_입고가_거부되면_백오더_할당도_트리거하지_않는다() {
+        Product product = productWithStock(10);
+        PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
+        po.receive(); // 이미 입고됨
+        when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
+
+        assertThatThrownBy(() -> purchaseOrderService.receive(7L))
+                .isInstanceOf(IllegalStateException.class);
+
+        verify(backorderAllocator, never()).allocate(any());
     }
 
     @Test

@@ -10,16 +10,21 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class InventoryServiceTest {
 
     @Mock ProductRepository productRepository;
+    @Mock BackorderAllocator backorderAllocator;
     @InjectMocks InventoryService inventoryService;
 
     private Product productWithStock(int stock) {
@@ -72,5 +77,37 @@ class InventoryServiceTest {
         assertThatThrownBy(() -> inventoryService.adjust(99L, 1, "조정"))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("99");
+    }
+
+    @Test
+    void 재고를_증가시키면_백오더_할당을_트리거한다() {
+        Product product = productWithStock(10);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        inventoryService.adjust(1L, 5, "정기조사");
+
+        verify(backorderAllocator).allocate(List.of(1L));
+    }
+
+    @Test
+    void 재고_감소는_백오더_할당을_트리거하지_않는다() {
+        Product product = productWithStock(10);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        inventoryService.adjust(1L, -3, "파손");
+
+        verify(backorderAllocator, never()).allocate(any());
+    }
+
+    @Test
+    void 예약된_수량_아래로_감소시키는_조정은_거부한다() {
+        Product product = productWithStock(10);
+        product.getInventory().setReservedQty(4); // 예약 4 → 실물을 4 미만으로 줄일 수 없음
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> inventoryService.adjust(1L, -7, "조정"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
     }
 }
