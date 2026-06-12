@@ -36,3 +36,6 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### p6spy ###
+spy.log
