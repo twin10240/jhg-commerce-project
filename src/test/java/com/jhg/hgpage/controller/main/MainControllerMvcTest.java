@@ -201,6 +201,17 @@ class MainControllerMvcTest {
     }
 
     @Test
+    void 메인에는_주문_새로고침_fetch_배선이_포함된다() throws Exception {
+        when(productService.findPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
+        when(orderService.findOrders(1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/main").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/api/orders/me")))
+                .andExpect(content().string(containsString("ordersTbody")));
+    }
+
+    @Test
     void 관리자는_inventoryProducts를_조회한다() throws Exception {
         when(productService.findPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
         when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));

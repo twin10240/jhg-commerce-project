@@ -370,7 +370,8 @@
                 <div class="hint">최근 주문 내역입니다.</div>
 
                 <div class="toolbar">
-                    <form th:action="@{/orders/me}" th:object="${searchOption}" method="get" class="form-inline">
+                    <!-- JS가 submit을 가로채 fetch(/api/orders/me)로 목록만 갱신. action은 JS 비활성 시 폴백 -->
+                    <form id="orderRefreshForm" th:action="@{/orders/me}" th:object="${searchOption}" method="get" class="form-inline">
                         <input class="input" id="productName" th:field="*{productName}" placeholder="상품 검색..." />
 
                         <select id="orderStatus" th:field="*{orderStatus}" class="form-control">
@@ -396,8 +397,8 @@
                         <th style="width:140px">더보기</th>
                     </tr>
                     </thead>
-                    <tbody>
-                    <!-- 서버에서 orders: List<MyOrderSummary> -->
+                    <tbody id="ordersTbody">
+                    <!-- 서버에서 orders: List<OrderDto>. 새로고침 시 JS가 같은 형태로 다시 그린다 -->
                     <tr th:each="o : ${orders}">
                         <td th:text="${o.id}">101</td>
                         <td th:text="${o.status}">PAID</td>
@@ -514,6 +515,42 @@
         }
       } catch (e) { /* 무시 */ }
     })();
+
+    // 내 주문 새로고침: 페이지 이동 없이 목록 데이터만 다시 그린다
+    const orderRefreshForm = document.getElementById('orderRefreshForm');
+    const ordersTbody = document.getElementById('ordersTbody');
+
+    function renderOrders(orders) {
+      if (!ordersTbody) return;
+      ordersTbody.innerHTML = '';
+      if (!orders || orders.length === 0) {
+        ordersTbody.innerHTML = '<tr><td colspan="5" class="hint">표시할 주문이 없습니다.</td></tr>';
+        return;
+      }
+      const fmt = new Intl.NumberFormat('ko-KR');
+      for (const o of orders) {
+        const tr = document.createElement('tr');
+        const createdAt = (o.createdAt || '').replace('T', ' ').slice(0, 16);
+        tr.innerHTML = `
+          <td>${o.id}</td>
+          <td>${o.status}</td>
+          <td><span>${fmt.format(o.totalAmount)}</span>원</td>
+          <td>${createdAt}</td>
+          <td><a class="btn muted" href="/orders/${o.id}">상세</a></td>`;
+        ordersTbody.appendChild(tr);
+      }
+    }
+
+    if (orderRefreshForm) {
+      orderRefreshForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const r = await fetch('/api/orders/me', { credentials: 'include' });
+          if (!r.ok) return; // 실패 시 기존 화면 유지
+          renderOrders(await r.json());
+        } catch (err) { /* 실패 시 기존 화면 유지 */ }
+      });
+    }
 
     // 다른 탭에서 변경되면 동기화(선택)
     window.addEventListener('storage', (e) => {
