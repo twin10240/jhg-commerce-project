@@ -1,0 +1,18 @@
+1781231273331|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists account cascade |     drop table if exists account cascade 
+1781231273334|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists cart cascade |     drop table if exists cart cascade 
+1781231273335|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists cart_item cascade |     drop table if exists cart_item cascade 
+1781231273335|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists delivery cascade |     drop table if exists delivery cascade 
+1781231273336|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists inventory cascade |     drop table if exists inventory cascade 
+1781231273347|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists member cascade |     drop table if exists member cascade 
+1781231273348|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists order_item cascade |     drop table if exists order_item cascade 
+1781231273349|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists orders cascade |     drop table if exists orders cascade 
+1781231273349|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists product cascade |     drop table if exists product cascade 
+1781231273350|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists purchase_order cascade |     drop table if exists purchase_order cascade 
+1781231273350|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop table if exists purchase_order_item cascade |     drop table if exists purchase_order_item cascade 
+1781231273350|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists delivery_seq|     drop sequence if exists delivery_seq
+1781231273350|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists inventory_seq|     drop sequence if exists inventory_seq
+1781231273350|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists member_seq|     drop sequence if exists member_seq
+1781231273351|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists order_item_seq|     drop sequence if exists order_item_seq
+1781231273351|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists orders_seq|     drop sequence if exists orders_seq
+1781231273351|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists purchase_order_item_seq|     drop sequence if exists purchase_order_item_seq
+1781231273351|0|statement|connection 47|url jdbc:h2:mem:d68c7248-58d2-4aaf-9bbc-af7a8a5b2dec|     drop sequence if exists purchase_order_seq|     drop sequence if exists purchase_order_seq

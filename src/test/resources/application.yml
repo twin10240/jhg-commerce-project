@@ -1,0 +1,16 @@
+# 테스트 전용 설정: 임베디드 H2를 사용해 H2 TCP 서버 없이도 전체 테스트가 돈다.
+# (src/main/resources/application.yml을 통째로 대체하므로 필요한 설정을 모두 포함할 것)
+spring:
+  datasource:
+    url: jdbc:h2:mem:hgpage-test;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100

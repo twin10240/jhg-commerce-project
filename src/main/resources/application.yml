@@ -8,7 +8,9 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: create
+      # 기본: 데이터 보존(update). 스키마를 갈아엎고 다시 시드하려면 local 프로파일로 실행:
+      #   .\gradlew.bat bootRun --args='--spring.profiles.active=local'
+      ddl-auto: update
     properties:
       hibernate:
         show_sql: true
@@ -19,3 +21,13 @@ spring:
     level:
       org.hibernate.SQL: debug
       org.hibernate.type.descriptor.sql.BasicBinder: trace
+
+---
+# 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    hibernate:
+      ddl-auto: create

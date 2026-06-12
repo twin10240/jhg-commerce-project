@@ -16,6 +16,10 @@ public class initDb {
 
     @PostConstruct
     public void init() {
+        // ddl-auto: update에서는 재시작해도 데이터가 남으므로, 비어 있는 DB에만 시드한다
+        if (initService.alreadySeeded()) {
+            return;
+        }
         initService.initAccount();
         initService.initProduct();
     }
@@ -25,6 +29,11 @@ public class initDb {
     @Transactional
     static class initService {
         private final EntityManager em;
+
+        public boolean alreadySeeded() {
+            Long count = em.createQuery("select count(a) from Account a", Long.class).getSingleResult();
+            return count > 0;
+        }
 
         public void initAccount() {
             Member admin = Member.createAdmin("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));

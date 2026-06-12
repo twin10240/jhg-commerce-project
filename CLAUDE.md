@@ -14,7 +14,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 |------|-----------|
 | 언어/빌드 | Java 17, Gradle, Spring Boot 3.5.5 |
 | 영속성 | Spring Data JPA (Hibernate), QueryDSL 5.0 (jakarta) |
-| DB | H2 (TCP 모드 `jdbc:h2:tcp://localhost/~/hgpage`), `ddl-auto: create` |
+| DB | H2 (TCP 모드 `jdbc:h2:tcp://localhost/~/hgpage`), `ddl-auto: update`(기본) / `local` 프로파일은 `create`(리셋용). 테스트는 임베디드 H2(`src/test/resources/application.yml`) |
 | 보안 | Spring Security 6 + BCrypt(strength 12), Thymeleaf-Security 통합 |
 | 화면 | Thymeleaf + Bootstrap |
 | 기타 | Lombok, p6spy(SQL 로깅), AOP 시간측정 |
@@ -31,11 +31,15 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 # 단일 테스트 클래스
 .\gradlew.bat test --tests "com.jhg.hgpage.service.OrderServiceTest"
 
-# 애플리케이션 실행
+# 애플리케이션 실행 (기본: ddl-auto update — 데이터 보존)
 .\gradlew.bat bootRun
+
+# 스키마 리셋 + 재시드 (local 프로파일: ddl-auto create)
+.\gradlew.bat bootRun --args='--spring.profiles.active=local'
 ```
 
-> 주의: 실행 전 H2 TCP 서버가 `localhost`에 떠 있어야 한다(`application.yml`의 datasource URL 참고).
+> 주의: `bootRun` 전에 H2 TCP 서버가 `localhost`에 떠 있어야 한다(`application.yml`의 datasource URL 참고).
+> 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돈다.
 > QueryDSL Q타입(`QMember`, `QCartItem` 등)은 `annotationProcessor`가 빌드 시 `generated/`에 생성한다.
 > `build/reports/problems/problems-report.html` 권한 문제(삭제 불가 ACL)로 빌드가 `FileAlreadyExistsException`으로 실패하면 `--no-problems-report` 플래그를 붙여 실행한다.
 
@@ -60,7 +64,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
 - `repository/` — Spring Data 인터페이스 + QueryDSL 구현 클래스
 - `service/` — 비즈니스 로직
-- `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드
+- `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드 (멱등: Account가 하나라도 있으면 skip)
 
 ### 도메인 모델 핵심
 - **Account ↔ Member (1:1 분리)**: 인증정보(Account: email/password/role)와 회원정보(Member: name/phone/address)를 분리. `UserPrincipal`이 둘을 합쳐 Spring Security 주체로 동작.
@@ -81,6 +85,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - 관리자: `admin@admin.com` / `1111` (ROLE_ADMIN, 장바구니 없음)
 - 일반회원: `twin10240@naver.com` / `1111` (ROLE_USER)
 - 상품 20개("상품1"~"상품20", 가격 10000~29000) + 각 재고 자동 생성
+- **빈 DB에만 시드된다**(Account 존재 시 skip). 처음부터 다시 시드하려면 `local` 프로파일로 실행.
 
 ## 컨벤션 / 주의사항
 
@@ -96,12 +101,13 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 테스트는 두 세대가 공존한다. 신규 테스트는 **신세대 패턴**을 따를 것.
 
-- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존. `AccountServiceTest`, `ProductServiceTest`는 `@Rollback(false)`로 실제 DB에 데이터를 남기는 데이터 입력용 스크립트에 가까움. H2 TCP 서버 + 시드 데이터 전제라 CI에서 못 돈다. **H2가 떠 있어도 2건은 확정 실패**(2026-06-12 확인): `AccountServiceTest.SignupAndJoinTest`는 initDb가 시드하는 이메일을 재가입시켜 `DuplicateEmailException`(중복 검사 도입 이후 항상 실패), `CartServiceTest.장바구니목록테스트`는 `productPrice`(단가) 합이 라인합계 합(116000)이길 기대하는 낡은 assertion. 둘 다 신세대 교체 대상.
+- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존. `AccountServiceTest`, `ProductServiceTest`는 `@Rollback(false)`로 DB에 데이터를 남기는 데이터 입력용 스크립트에 가까움. (2026-06-12부터 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돌고 실 DB를 오염시키지 않지만, 시드 데이터·하드코딩 ID 의존은 그대로.) **2건은 확정 실패**(2026-06-12 확인): `AccountServiceTest.SignupAndJoinTest`는 initDb가 시드하는 이메일을 재가입시켜 `DuplicateEmailException`(중복 검사 도입 이후 항상 실패), `CartServiceTest.장바구니목록테스트`는 `productPrice`(단가) 합이 라인합계 합(116000)이길 기대하는 낡은 assertion. 둘 다 신세대 교체 대상.
 - **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-12)
+- ~~`ddl-auto: create` 데이터 소실 (#1)~~: 기본 `ddl-auto: update`(데이터 보존) + `local` 프로파일만 `create`(리셋용, `--spring.profiles.active=local`). `initDb`는 멱등 가드 추가(Account 존재 시 skip)로 update 환경에서 재시작해도 중복 시드/기동 실패 없음. `src/test/resources/application.yml` 신설로 테스트는 임베디드 H2(`mem:hgpage-test`, create-drop) 사용 — 구세대 테스트의 H2 TCP 서버 의존 제거, 테스트가 실 DB를 오염시키지 않음. 실부트 3회(update 기동/재기동 보존/local 리셋+재시드)로 검증. 테스트: `InitDbTest`(`@DataJpaTest`, 멱등성). 주의: `update`는 컬럼 타입 변경/삭제를 반영하지 못하므로 엔티티 구조 변경 후 스키마가 어긋나면 `local`로 리셋할 것.
 - ~~주문 후 장바구니 미정리 (#6)~~: `CheckOutForm.fromCart`(hidden, 주문서 생성 시 장바구니 경유면 true)로 출처를 구분해, 장바구니발 주문은 `OrderService.orderFromCart()`가 주문 생성 + 주문된 상품만 장바구니 제거를 **단일 트랜잭션**으로 수행(주문 실패 시 장바구니 불변). 바로 구매는 장바구니를 건드리지 않는다. `Cart.removeItems(productIds)` 도메인 메서드 신규, `CartService.removeCartItems`는 상품별 재조회 루프(#9 일부)에서 장바구니 1회 조회 + 일괄 제거로 재작성. 테스트: `CartTest`, `CartServiceRemoveItemsTest`, `OrderServiceOrderFromCartTest`, `OrderControllerMvcTest`(fromCart 분기 4건).
 - ~~`OrderRepositoryQuery.findOrders` distinct 누락 (#17)~~: `select(order).distinct()` 명시. Hibernate 6이 fetch join 중복을 자동 제거하긴 하지만 의도를 코드에 명시. 컬렉션 fetch join + `limit(100)` 조합은 limit이 메모리 적용되는 문제(HHH90003004)가 남아 있음 — #9 페이징 개선 때 함께 다룰 것.
 - ~~메인 관리자 재고 목록 fetch join 미사용 (#18)~~: `MainController`의 ADMIN 분기를 `productService.findAll()` → `findAllWithInventory()`로 교체. `/admin/inventory`와 조회 경로 일관화, OSIV 의존 제거. `MainControllerMvcTest`의 mock 검증도 `findAllWithInventory()`로 갱신.
@@ -118,7 +124,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - ~~`Optional.get()` 남발 / 전역 예외처리 부재~~: `EntityNotFoundException` + `GlobalExceptionHandler` 도입. 모든 `.get()`을 `orElseThrow`로 교체, `NotEnoughStockException`은 화면이면 flash + `redirect:/main`, API면 409. `MemberService.findMember`/`findById` 중복도 `findMember`로 통합. `loadUserByUsername`이 Account PK를 Member PK로 오용하던 잠재 버그도 `account.getMember()`로 수정.
 
 ### 심각도 높음
-1. **`ddl-auto: create`**: 재시작마다 스키마 DROP & 재생성 → 데이터 소실. 운영 시 `validate`/`update` 또는 Flyway 필요.
+- 없음 (2026-06-12 기준. 운영 배포 단계가 되면 `update` 대신 Flyway 마이그레이션 도입 검토)
 
 ### 심각도 중간
 7. **`TimeTraceAop` 포인트컷 과다**: `execution(* com.jhg.hgpage..*(..))` — 모든 메서드를 감싸 로그 폭증/성능 저하(`System.out.println` 사용). 서비스·컨트롤러로 한정 권장.
@@ -137,6 +143,5 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 20. `Account.enabled` 필드 미사용 — 선언만 있고 어디서도 읽지 않음. 계정 비활성화 기능을 붙이거나 제거할 것. (2026-06-12 발견)
 
 ### 개선 우선순위
-1. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
-2. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
-3. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체
+1. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
+2. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체(확정 실패 2건 우선)
