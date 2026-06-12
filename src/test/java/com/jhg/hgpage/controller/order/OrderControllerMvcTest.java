@@ -296,6 +296,7 @@ class OrderControllerMvcTest {
         delivery.setAddress(new Address("서울", "관악구", "500"));
         com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
+        order.allocate(); // 재고 10 → 예약 2
         if (canceled) {
             order.cancel();
         }

@@ -66,13 +66,24 @@ class OrderServiceOrderFromCartTest {
     }
 
     @Test
-    void 주문이_실패하면_장바구니를_건드리지_않는다() {
+    void 재고가_부족해도_백오더로_접수되고_장바구니는_정리된다() {
         when(memberService.findMember(1L)).thenReturn(member());
         when(productRepository.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10000, 0)));
+        when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        orderService.orderFromCart(1L, ADDRESS, List.of(new OrderService.OrderLine(1L, 1)));
+
+        verify(cartService).removeCartItems(1L, List.of(1L)); // 백오더도 정상 접수 — 장바구니 정리
+    }
+
+    @Test
+    void 주문이_실패하면_장바구니를_건드리지_않는다() {
+        when(memberService.findMember(1L)).thenReturn(member());
+        when(productRepository.findById(99L)).thenReturn(Optional.empty()); // 없는 상품 → 진짜 실패
 
         assertThatThrownBy(() -> orderService.orderFromCart(1L, ADDRESS,
-                List.of(new OrderService.OrderLine(1L, 1))))
-                .isInstanceOf(NotEnoughStockException.class);
+                List.of(new OrderService.OrderLine(99L, 1))))
+                .isInstanceOf(com.jhg.hgpage.exception.EntityNotFoundException.class);
 
         verifyNoInteractions(cartService);
     }

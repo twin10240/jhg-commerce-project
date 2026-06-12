@@ -44,7 +44,10 @@ public class OrderService {
                 })
                 .toArray(OrderItem[]::new);
 
-        Order order = orderRepository.save(Order.createOrder(member, delivery, orderItems));
+        Order order = Order.createOrder(member, delivery, orderItems);
+        // 가용분이 있으면 예약(ORDER), 부족하면 거부하지 않고 백오더(BACKORDERED)로 접수
+        order.allocate();
+        orderRepository.save(order);
 
         return order.getId();
     }

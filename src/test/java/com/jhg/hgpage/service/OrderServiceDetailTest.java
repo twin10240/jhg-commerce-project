@@ -54,7 +54,9 @@ class OrderServiceDetailTest {
 
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        return Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
+        Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
+        order.allocate(); // 재고 10 → 예약 2
+        return order;
     }
 
     @Test

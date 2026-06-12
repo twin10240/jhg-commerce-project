@@ -25,19 +25,14 @@ public class OrderItem {
 
     private int count;
 
+    // 생성은 순수하다 — 재고 예약/차감 여부는 Order.allocate()/completeDelivery()가 결정한다
     public static OrderItem createOrderItem(Product product, int orderPrice, int count) {
         OrderItem orderItem = new OrderItem();
         orderItem.setProduct(product);
         orderItem.setOrderPrice(orderPrice);
         orderItem.setCount(count);
 
-        product.removeStock(count);
-
         return orderItem;
-    }
-
-    public void cancel() {
-        getProduct().addStock(count);
     }
 
     public int getTotalPrice() {
