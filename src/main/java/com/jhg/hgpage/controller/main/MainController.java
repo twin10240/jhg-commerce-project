@@ -50,7 +50,7 @@ public class MainController {
         boolean isAdmin = userPrincipal.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
         if (isAdmin) {
-            model.addAttribute("inventoryProducts", productService.findAll());
+            model.addAttribute("inventoryProducts", productService.findAllWithInventory());
         }
 
         List<OrderDto> orders = orderService.findOrders(userPrincipal.getId());

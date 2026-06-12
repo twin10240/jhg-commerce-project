@@ -24,7 +24,7 @@ public class OrderRepositoryQuery {
     private final JPAQueryFactory jpaQueryFactory;
 
     public List<Order> findOrders(Long memberId) {
-        return jpaQueryFactory.select(order)
+        return jpaQueryFactory.select(order).distinct()
                 .from(order)
                 .join(order.orderItems, orderItem).fetchJoin()
                 .where(order.member.id.eq(memberId))

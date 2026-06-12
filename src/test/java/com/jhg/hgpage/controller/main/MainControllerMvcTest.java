@@ -197,19 +197,19 @@ class MainControllerMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(model().attributeDoesNotExist("inventoryProducts"));
 
-        verify(productService, never()).findAll();
+        verify(productService, never()).findAllWithInventory();
     }
 
     @Test
     void 관리자는_inventoryProducts를_조회한다() throws Exception {
         when(productService.findPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
-        when(productService.findAll()).thenReturn(List.of(sampleProduct()));
+        when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));
         when(orderService.findOrders(2L)).thenReturn(List.of());
 
         mockMvc.perform(get("/main").with(user(adminPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(model().attributeExists("inventoryProducts"));
 
-        verify(productService).findAll();
+        verify(productService).findAllWithInventory();
     }
 }
