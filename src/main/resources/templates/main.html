@@ -303,17 +303,18 @@
             </div>
 
             <div class="grid" id="productGrid">
+                <!-- 가용수량(available = 실물 - 예약) 기준. 가용 0이어도 백오더로 주문 가능하므로 버튼을 막지 않는다 -->
                 <article class="product" th:each="p : ${productPage.content}"
-                         th:with="stock=${p.inventory != null ? p.inventory.onHandQty : 0}"
-                         th:classappend="${stock == 0} ? 'soldout'">
+                         th:with="stock=${p.inventory != null ? p.inventory.availableQty : 0}">
                     <h3>
                         <span th:text="${p.name}">허니 라떼</span>
-                        <span class="soldout-badge" th:if="${stock == 0}">품절</span>
+                        <span class="soldout-badge" th:if="${stock <= 0}">입고 대기</span>
                     </h3>
                     <div class="price">
                         <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
                     </div>
                     <div class="low-stock" th:if="${stock > 0 and stock < 10}" th:text="|${stock}개 남음|">3개 남음</div>
+                    <div class="low-stock" th:if="${stock <= 0}">주문 시 입고 후 출고됩니다</div>
 
                     <form th:action="@{/orders/checkout-form}" method="post" class="product-actions">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
@@ -323,12 +324,11 @@
 
                         <div class="qty">
                             <label class="hint" th:for="|qty-${p.id}|">수량</label>
-                            <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" value="1"
-                                   th:max="${stock}" th:disabled="${stock == 0}" />
+                            <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" value="1" />
                         </div>
 
-                        <button class="btn" type="submit" th:disabled="${stock == 0}">바로 구매</button>
-                        <button class="btn muted" type="button" th:onclick="|addToCart(${p.id})|" th:disabled="${stock == 0}">장바구니</button>
+                        <button class="btn" type="submit">바로 구매</button>
+                        <button class="btn muted" type="button" th:onclick="|addToCart(${p.id})|">장바구니</button>
                     </form>
                 </article>
 

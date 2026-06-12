@@ -316,6 +316,29 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 백오더_주문_상세에는_입고대기_안내와_취소버튼이_보인다() throws Exception {
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.domain.Product scarce = new com.jhg.hgpage.domain.Product();
+        scarce.setName("부족상품");
+        scarce.setPrice(10000);
+        Inventory inventory = new Inventory();
+        inventory.setOnHandQty(0);
+        scarce.setInventory(inventory);
+        com.jhg.hgpage.domain.Delivery delivery = new com.jhg.hgpage.domain.Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.domain.OrderItem.createOrderItem(scarce, 10000, 2));
+        order.allocate(); // BACKORDERED
+        when(orderService.findOrderDetail(10L, 1L))
+                .thenReturn(com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("입고 대기")))
+                .andExpect(content().string(containsString("주문 취소")));
+    }
+
+    @Test
     void 취소된_주문_상세에는_취소버튼이_없다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(true));
 

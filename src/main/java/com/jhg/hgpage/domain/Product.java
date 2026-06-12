@@ -1,6 +1,5 @@
 package com.jhg.hgpage.domain;
 
-import com.jhg.hgpage.exception.NotEnoughStockException;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,12 +27,5 @@ public class Product {
 
     public void addStock(int quantity) {
         this.getInventory().addOnHandQty(quantity);
-    }
-
-    public void removeStock(int quantity) {
-        int restStock = this.getInventory().getOnHandQty() - quantity;
-        if (restStock < 0) throw new NotEnoughStockException("need more stock");
-
-        this.getInventory().setOnHandQty(restStock);
     }
 }

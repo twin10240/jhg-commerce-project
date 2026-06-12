@@ -37,7 +37,8 @@ public class OrderDetailDto {
                 .map(oi -> new OrderLineDto(oi.getProduct().getName(), oi.getOrderPrice(), oi.getCount(), oi.getTotalPrice()))
                 .toList();
         this.totalPrice = order.getTotalPrice();
-        this.cancelable = order.getStatus() == OrderStatus.ORDER
+        // 백오더는 예약이 없어 자유롭게 취소 가능. 배송완료/이미취소만 불가.
+        this.cancelable = (order.getStatus() == OrderStatus.ORDER || order.getStatus() == OrderStatus.BACKORDERED)
                 && order.getDelivery().getStatus() != DeliveryStatus.COMP;
     }
 

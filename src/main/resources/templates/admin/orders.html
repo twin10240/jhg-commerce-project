@@ -70,6 +70,7 @@
     }
     .status-badge.order{color:#8a6d3b; background:#fcf6e8; border:1px solid #e7d3a1}
     .status-badge.cancel{color:#c0392b; background:#fdf3f1; border:1px solid #e3b4ac}
+    .status-badge.backorder{color:#a4690f; background:#fff4e0; border:1px solid #ecd2a3}
     .status-badge.ready{color:#1f5f8b; background:#eef6fb; border:1px solid #b5d4e8}
     .status-badge.comp{color:#2e7d32; background:#f1f8ef; border:1px solid #b7d9b0}
 
@@ -116,7 +117,8 @@
         <td th:text="${o.id}">101</td>
         <td th:text="${o.memberName}">주문자A</td>
         <td>
-          <span class="status-badge" th:classappend="${o.status.name() == 'CANCEL'} ? 'cancel' : 'order'"
+          <span class="status-badge"
+                th:classappend="${o.status.name() == 'CANCEL'} ? 'cancel' : (${o.status.name() == 'BACKORDERED'} ? 'backorder' : 'order')"
                 th:text="${o.status}">ORDER</span>
         </td>
         <td>

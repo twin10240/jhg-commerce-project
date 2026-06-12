@@ -91,6 +91,29 @@ class OrderServiceDetailTest {
     }
 
     @Test
+    void 백오더_주문의_상세는_입고대기_상태고_취소는_가능하다() {
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        ReflectionTestUtils.setField(member, "id", 1L);
+        Product scarce = new Product();
+        scarce.setId(8L);
+        scarce.setName("부족상품");
+        scarce.setPrice(10000);
+        Inventory inventory = new Inventory();
+        inventory.setOnHandQty(0);
+        scarce.setInventory(inventory);
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(scarce, 10000, 2));
+        order.allocate(); // BACKORDERED
+        when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
+
+        OrderDetailDto detail = orderService.findOrderDetail(10L, 1L);
+
+        assertThat(detail.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+        assertThat(detail.isCancelable()).isTrue(); // 백오더는 예약이 없어 자유롭게 취소 가능
+    }
+
+    @Test
     void 취소된_주문의_상세는_취소불가로_표시된다() {
         Order order = orderOwnedBy(1L);
         order.cancel();

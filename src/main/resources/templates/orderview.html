@@ -25,6 +25,7 @@
     .badge{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600;}
     .badge.order{background:#e9efff; color:var(--primary);}
     .badge.cancel{background:#fdecec; color:var(--danger);}
+    .badge.backorder{background:#fff4e0; color:#a4690f;}
     table{width:100%; border-collapse:collapse; font-size:14px;}
     th,td{padding:10px 8px; border-bottom:1px solid var(--line); text-align:left;}
     th{color:var(--muted); font-weight:600;}
@@ -50,8 +51,10 @@
       <dt>주문번호</dt><dd th:text="${order.id}">101</dd>
       <dt>주문상태</dt>
       <dd>
-        <span class="badge" th:classappend="${order.status.name() == 'CANCEL'} ? 'cancel' : 'order'"
+        <span class="badge"
+              th:classappend="${order.status.name() == 'CANCEL'} ? 'cancel' : (${order.status.name() == 'BACKORDERED'} ? 'backorder' : 'order')"
               th:text="${order.status}">ORDER</span>
+        <span class="badge backorder" th:if="${order.status.name() == 'BACKORDERED'}">입고 대기 — 입고 후 출고됩니다</span>
       </dd>
       <dt>주문일시</dt><dd th:text="${#temporals.format(order.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</dd>
       <dt>배송상태</dt><dd th:text="${order.deliveryStatus}">READY</dd>
