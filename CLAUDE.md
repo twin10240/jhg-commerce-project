@@ -57,7 +57,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 패키지 구조 (`src/main/java/com/jhg/hgpage`)
 - `aop/` — `TimeTraceAop` (메서드 실행시간 로깅)
-- `api/` — `CartApiController` (장바구니 REST: 담기/수량변경/삭제/카운트)
+- `api/` — `CartApiController`(장바구니 REST: 담기/수량변경/삭제/카운트), `OrderApiController`(내 주문 목록 JSON — 메인 새로고침 fetch용)
 - `config/` — `SecurityConfig`, `QueryDslConfig`
 - `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO)
 - `domain/` — JPA 엔티티 + `dto/view`(응답 DTO), `enums/`(Role/OrderStatus/DeliveryStatus)
@@ -78,7 +78,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **로그인**: `AccountService.loadUserByUsername`(email 조회) → `UserPrincipal`. 로그인 파라미터는 `email`/`password`, 성공 시 `/main`. 로그인 화면 템플릿은 `home.html`.
 - **메인**: `GET /main` — 상품 페이징·검색(`keyword`, size=10, sort=id) + 내 주문 목록 + (ADMIN이면) 전체 재고 목록. 페이지 네비게이션은 숫자 클릭형(`이전 | 1 … 4 [5] 6 … 12 | 다음`, 윈도우 최대 5개) — 컨트롤러가 0-based `beginPage`/`endPage`를 모델로 내려준다.
 - **장바구니**: `CartApiController`(REST) — fetch 호출용. 담기/수량변경/삭제/카운트. 모든 응답에 최신 장바구니 count 반환.
-- **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. 장바구니에서 온 주문서는 `CheckOutForm.fromCart`(hidden) = true — 주문 확정 시 `OrderService.orderFromCart()`가 주문 생성과 함께 주문된 상품만 장바구니에서 제거(단일 트랜잭션). 바로 구매는 장바구니 불변. `GET /orders/me`는 미구현(`redirect:/main`).
+- **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. 장바구니에서 온 주문서는 `CheckOutForm.fromCart`(hidden) = true — 주문 확정 시 `OrderService.orderFromCart()`가 주문 생성과 함께 주문된 상품만 장바구니에서 제거(단일 트랜잭션). 바로 구매는 장바구니 불변. `GET /orders/me`는 새로고침 폼의 JS 폴백(`redirect:/main`) — 실제 새로고침은 `GET /api/orders/me`(JSON) fetch.
+- **주문 상세/취소**: `GET /orders/{id}`(`orderview.html`) — `findDetailById` fetch join 단건 조회, **본인 주문만**(타인/없는 주문은 404로 존재를 숨김, IDOR 방지). `POST /orders/{id}/cancel` — `Order.cancel()` 호출(재고 복구, 배송완료·재취소 거부 가드), 성공/실패를 flash로 상세에 표시. 취소 버튼은 `OrderDetailDto.cancelable`(ORDER 상태 + 배송완료 전)일 때만 노출.
 - **가격 정책**: 가격은 항상 서버에서 `Product`를 재조회해 사용한다. 클라이언트가 보낸 가격을 신뢰하지 않는다. 주문/장바구니에 당시 가격을 스냅샷(`orderPrice`/`productPrice`)으로 저장.
 
 ### 초기 시드 계정 (`initDb`)
@@ -107,6 +108,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-12)
+- ~~주문 상세 페이지 부재("상세" 버튼 404) / 주문 취소 기능 부재~~: `GET /orders/{id}` + `orderview.html`(주문정보/상품 테이블/취소 버튼) + `POST /orders/{id}/cancel` 구현. `OrderRepositoryQuery.findDetailById`(QueryDSL, member/delivery/orderItems/product fetch join — 컨벤션대로 복잡 조회는 `*RepositoryQuery`에 배치. 1:N fetch join + `fetchOne()` 단건 조회는 Hibernate 6 메모리 중복 제거 덕에 안전하며 다품목 테스트로 검증), `OrderService.findOrderDetail/cancelOrder`(본인 확인 공통화 — 타인 주문은 404로 숨김). 같은 쿼리의 JPQL 버전을 `OrderRepository.findDetailById`에 **학습용 비교 자료로 의도적으로 보존**(javadoc에 명시 — 죽은 코드 청소 대상 아님). **`Order.cancel()`의 재취소 미차단 버그 수정**(CANCEL 상태 재호출 시 재고 이중 복구되던 것을 `IllegalStateException`으로 거부). 테스트: `OrderTest`(재취소 가드), `OrderRepositoryDetailTest`(`@DataJpaTest` fetch join), `OrderServiceDetailTest`(인가 6건), `OrderControllerMvcTest`(렌더링/404/취소 flash 5건).
+- ~~내 주문 새로고침이 전체 페이지 이동~~: 새로고침 버튼의 폼 submit을 JS가 가로채 `GET /api/orders/me`(신규 `OrderApiController`, JSON) fetch로 목록 tbody만 재렌더링. JS 비활성 시 기존 `GET /orders/me` 폴백 유지. 테스트: `OrderApiControllerMvcTest`, `MainControllerMvcTest`(배선 핀).
 - ~~구세대 확정 실패 2건이 빌드 차단~~: `AccountServiceTest`(시드 이메일 재가입 → `DuplicateEmailException`)와 `CartServiceTest`(단가 합을 라인합계 합으로 기대한 낡은 assertion)를 자체 데이터 생성 + `@Transactional` 롤백 방식의 통합 테스트로 재작성(시드/하드코딩 ID 의존 제거). 회원가입 2건(원자적 저장·중복 거부), 장바구니 2건(DTO 단가/라인합계, 동일 상품 재담기 수량 증가). `gradlew build` 전체 통과 복구.
 - ~~죽은 코드/중복/오타/백업 파일 청소 (#8, #11, #14, #16, #20)~~: 주석 코드 제거(`OrderController.createOrder`, `CartService` 매핑 블록, `OrderRepositoryQuery.findOrders(SearchOption)`+member.name 필터 버그였던 `productLike`), 미사용 제거(`OrderService` 단건 주문 오버로드, `CartService.firstOrElseGet`, `CartRepositoryQuery`의 미사용 5개 메서드, `OrderCreateForm` 클래스, `Member.setCart/removeCart`, `Account.enabled`/수동 `getRole()`/email unique 이중 선언), `getTotalPice`→`getTotalPrice` 오타 수정(`OrderItem`+`Order`, `CartItem` 쪽은 미사용이라 삭제), 백업 템플릿 3종(`backup.html`, `backup2.html`, `cart_backup.html`) 삭제. `GET /orders/me` 매핑은 main.html 검색 폼이 사용하므로 유지. 동작 불변 — 전체 테스트로 회귀 없음 확인. `OptionalTest`/`PassWordTest`는 사용자 요청으로 보존.
 - ~~`ddl-auto: create` 데이터 소실 (#1)~~: 기본 `ddl-auto: update`(데이터 보존) + `local` 프로파일만 `create`(리셋용, `--spring.profiles.active=local`). `initDb`는 멱등 가드 추가(Account 존재 시 skip)로 update 환경에서 재시작해도 중복 시드/기동 실패 없음. `src/test/resources/application.yml` 신설로 테스트는 임베디드 H2(`mem:hgpage-test`, create-drop) 사용 — 구세대 테스트의 H2 TCP 서버 의존 제거, 테스트가 실 DB를 오염시키지 않음. 실부트 3회(update 기동/재기동 보존/local 리셋+재시드)로 검증. 테스트: `InitDbTest`(`@DataJpaTest`, 멱등성). 주의: `update`는 컬럼 타입 변경/삭제를 반영하지 못하므로 엔티티 구조 변경 후 스키마가 어긋나면 `local`로 리셋할 것.

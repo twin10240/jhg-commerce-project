@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>주문 상세</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#ffffff; --line:#e5e7f0; --text:#222533; --muted:#7c8093;
+      --primary:#4f6ef7; --danger:#e5484d; --ok:#2f9e62;
+      --shadow:0 8px 24px rgba(35,45,90,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0; background:var(--bg); color:var(--text);
+         font-family:'Segoe UI','Malgun Gothic',sans-serif;}
+    .wrap{max-width:760px; margin:40px auto; padding:0 16px;}
+    .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
+          box-shadow:var(--shadow); padding:22px 24px; margin-bottom:18px;}
+    h1{font-size:20px; margin:0 0 18px;}
+    .flash{border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:14px;}
+    .flash.ok{background:#e8f6ee; color:var(--ok); border:1px solid #c4e8d3;}
+    .flash.err{background:#fdecec; color:var(--danger); border:1px solid #f5c6c8;}
+    .meta{display:grid; grid-template-columns:120px 1fr; row-gap:10px; font-size:14px;}
+    .meta dt{color:var(--muted);}
+    .meta dd{margin:0;}
+    .badge{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600;}
+    .badge.order{background:#e9efff; color:var(--primary);}
+    .badge.cancel{background:#fdecec; color:var(--danger);}
+    table{width:100%; border-collapse:collapse; font-size:14px;}
+    th,td{padding:10px 8px; border-bottom:1px solid var(--line); text-align:left;}
+    th{color:var(--muted); font-weight:600;}
+    td.num, th.num{text-align:right;}
+    .total{display:flex; justify-content:flex-end; gap:14px; padding:14px 8px 2px;
+           font-size:15px; font-weight:700;}
+    .actions{display:flex; justify-content:space-between; align-items:center; margin-top:6px;}
+    .btn{display:inline-block; border:none; border-radius:10px; padding:10px 18px;
+         font-size:14px; cursor:pointer; text-decoration:none;}
+    .btn.muted{background:#eef0f6; color:var(--text);}
+    .btn.danger{background:var(--danger); color:#fff;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>주문 상세</h1>
+
+  <div class="flash ok" th:if="${successMessage}" th:text="${successMessage}">완료 메시지</div>
+  <div class="flash err" th:if="${errorMessage}" th:text="${errorMessage}">에러 메시지</div>
+
+  <div class="card">
+    <dl class="meta">
+      <dt>주문번호</dt><dd th:text="${order.id}">101</dd>
+      <dt>주문상태</dt>
+      <dd>
+        <span class="badge" th:classappend="${order.status.name() == 'CANCEL'} ? 'cancel' : 'order'"
+              th:text="${order.status}">ORDER</span>
+      </dd>
+      <dt>주문일시</dt><dd th:text="${#temporals.format(order.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</dd>
+      <dt>배송상태</dt><dd th:text="${order.deliveryStatus}">READY</dd>
+      <dt>배송지</dt><dd th:text="|${order.city} ${order.street} (${order.zipcode})|">서울 관악구 (500)</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead>
+      <tr>
+        <th>상품명</th>
+        <th class="num">단가</th>
+        <th class="num">수량</th>
+        <th class="num">합계</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr th:each="item : ${order.items}">
+        <td th:text="${item.productName}">상품1</td>
+        <td class="num"><span th:text="${#numbers.formatInteger(item.orderPrice,3,'COMMA')}">10,000</span>원</td>
+        <td class="num" th:text="${item.count}">2</td>
+        <td class="num"><span th:text="${#numbers.formatInteger(item.totalPrice,3,'COMMA')}">20,000</span>원</td>
+      </tr>
+      </tbody>
+    </table>
+    <div class="total">
+      <span>총 결제금액</span>
+      <span><span th:text="${#numbers.formatInteger(order.totalPrice,3,'COMMA')}">20,000</span>원</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <a class="btn muted" th:href="@{/main}">메인으로</a>
+    <form th:if="${order.cancelable}" th:action="@{|/orders/${order.id}/cancel|}" method="post"
+          onsubmit="return confirm('이 주문을 취소하시겠습니까? 재고가 복구됩니다.');">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+      <button class="btn danger" type="submit">주문 취소</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -48,6 +48,18 @@ class OrderTest {
     }
 
     @Test
+    void 이미_취소된_주문은_다시_취소할_수_없다() {
+        Product product = productWithStock(10);
+        Order order = createOrder(product, 2); // 재고 10 -> 8
+        order.cancel(); // 재고 8 -> 10
+
+        assertThatThrownBy(order::cancel)
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10); // 재고 이중 복구 없음
+    }
+
+    @Test
     void 배송전_주문은_취소되고_재고가_복구된다() {
         Product product = productWithStock(10);
         Order order = createOrder(product, 2); // 재고 10 -> 8

@@ -1,6 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.*;
+import com.jhg.hgpage.domain.dto.view.OrderDetailDto;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.OrderRepository;
@@ -59,6 +60,25 @@ public class OrderService {
         cartService.removeCartItems(memberId, orderedProductIds);
 
         return orderId;
+    }
+
+    public OrderDetailDto findOrderDetail(Long orderId, Long memberId) {
+        return OrderDetailDto.from(findOwnedOrder(orderId, memberId));
+    }
+
+    @Transactional
+    public void cancelOrder(Long orderId, Long memberId) {
+        findOwnedOrder(orderId, memberId).cancel();
+    }
+
+    // 본인 주문만 반환. 타인 주문은 존재 자체를 숨기기 위해 404(EntityNotFoundException)로 처리(IDOR 방지)
+    private Order findOwnedOrder(Long orderId, Long memberId) {
+        Order order = orderRepositoryQuery.findDetailById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+        if (!order.getMember().getId().equals(memberId)) {
+            throw new EntityNotFoundException("Order", orderId);
+        }
+        return order;
     }
 
     private Product findProduct(Long productId) {

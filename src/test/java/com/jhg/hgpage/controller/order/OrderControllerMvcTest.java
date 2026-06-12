@@ -5,6 +5,7 @@ import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.exception.NotEnoughStockException;
 import com.jhg.hgpage.repository.ProductRepository;
 import com.jhg.hgpage.service.MemberService;
@@ -21,8 +22,10 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasProperty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -33,7 +36,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -276,6 +281,81 @@ class OrderControllerMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("orderdetail"))
                 .andExpect(model().attribute("checkout", hasProperty("fromCart", is(false))));
+    }
+
+    /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
+    private com.jhg.hgpage.domain.dto.view.OrderDetailDto detailDto(boolean canceled) {
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        product.setName("테스트상품");
+        product.setPrice(10000);
+        Inventory inventory = new Inventory();
+        inventory.setOnHandQty(10);
+        product.setInventory(inventory);
+        com.jhg.hgpage.domain.Delivery delivery = new com.jhg.hgpage.domain.Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
+        if (canceled) {
+            order.cancel();
+        }
+        return com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order);
+    }
+
+    @Test
+    void 주문_상세를_렌더링하고_취소가능하면_취소버튼이_보인다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orderview"))
+                .andExpect(model().attributeExists("order"))
+                .andExpect(content().string(containsString("테스트상품")))
+                .andExpect(content().string(containsString("주문 취소")));
+    }
+
+    @Test
+    void 취소된_주문_상세에는_취소버튼이_없다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(true));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("주문 취소"))));
+    }
+
+    @Test
+    void 타인_또는_없는_주문_상세는_404_에러페이지를_보여준다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L))
+                .thenThrow(new EntityNotFoundException("Order", 10L));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error"));
+    }
+
+    @Test
+    void 주문을_취소하면_상세로_리다이렉트하고_성공_flash를_담는다() throws Exception {
+        mockMvc.perform(post("/orders/10/cancel")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attributeExists("successMessage"));
+
+        verify(orderService).cancelOrder(10L, 1L);
+    }
+
+    @Test
+    void 취소불가_주문이면_에러_flash와_함께_상세로_돌아간다() throws Exception {
+        doThrow(new IllegalStateException("이미 배송완료된 상품은 취소가 불가능합니다."))
+                .when(orderService).cancelOrder(10L, 1L);
+
+        mockMvc.perform(post("/orders/10/cancel")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attributeExists("errorMessage"));
     }
 
     @Test

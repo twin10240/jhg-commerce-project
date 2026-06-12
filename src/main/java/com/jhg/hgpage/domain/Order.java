@@ -73,6 +73,10 @@ public class Order {
         if(delivery.getStatus() == DeliveryStatus.COMP){
             throw new IllegalStateException("이미 배송완료된 상품은 취소가 불가능합니다.");
         }
+        // 재취소를 막지 않으면 orderItem.cancel()이 재고를 이중 복구한다
+        if(this.status == OrderStatus.CANCEL){
+            throw new IllegalStateException("이미 취소된 주문입니다.");
+        }
 
         this.setStatus(OrderStatus.CANCEL);
         for(OrderItem orderItem : orderItems) {

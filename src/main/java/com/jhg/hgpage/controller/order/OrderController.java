@@ -19,7 +19,9 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
 
@@ -132,9 +134,32 @@ public class OrderController {
         });
     }
 
-    // main.html의 주문 검색 폼이 이 경로로 보내므로 매핑은 유지. 검색 기능은 미구현.
+    // 새로고침은 JS가 가로채 /api/orders/me fetch로 처리. 이 매핑은 JS 비활성 시 폼 폴백. 검색 기능은 미구현.
     @GetMapping("/orders/me")
     public String findMyOrders(@AuthenticationPrincipal(expression = "id") Long userId, SearchOption searchOption, Model model) {
         return "redirect:/main";
+    }
+
+    // 본인 주문만 조회 가능 — 타인/없는 주문은 서비스가 404(EntityNotFoundException)로 숨긴다
+    @GetMapping("/orders/{orderId}")
+    public String orderDetail(@AuthenticationPrincipal UserPrincipal user,
+                              @PathVariable Long orderId,
+                              Model model) {
+        model.addAttribute("order", orderService.findOrderDetail(orderId, user.getId()));
+        return "orderview";
+    }
+
+    @PostMapping("/orders/{orderId}/cancel")
+    public String cancelOrder(@AuthenticationPrincipal UserPrincipal user,
+                              @PathVariable Long orderId,
+                              RedirectAttributes redirectAttributes) {
+        try {
+            orderService.cancelOrder(orderId, user.getId());
+            redirectAttributes.addFlashAttribute("successMessage", "주문이 취소되었습니다.");
+        } catch (IllegalStateException e) {
+            // 배송완료/이미취소 등 취소 불가 사유를 상세 화면에 flash로 안내
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/orders/" + orderId;
     }
 }
