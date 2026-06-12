@@ -40,7 +40,7 @@ public class OrderItem {
         getProduct().addStock(count);
     }
 
-    public int getTotalPice() {
+    public int getTotalPrice() {
         return getOrderPrice() * getCount();
     }
 }

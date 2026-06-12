@@ -35,10 +35,6 @@ public class CartItem {
         return new CartItem(product, orderPrice, count);
     }
 
-    public int getTotalPice() {
-        return getProductPrice() * getQuantity();
-    }
-
     public boolean isSameProduct(Product product) {
         return this.product.equals(product);
     }

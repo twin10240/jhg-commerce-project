@@ -18,7 +18,7 @@ class MemberServiceTest {
     @Test
     public void joinTest() throws Exception {
         Member member = new Member("member", "010", new Address("a", "b", "c"));
-        member.setCart(new Cart(member));
+        member.createCart(new Cart(member));
 
         Member result = memberRepository.save(member);
 

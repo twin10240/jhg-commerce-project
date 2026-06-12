@@ -29,21 +29,6 @@ public class OrderService {
     }
 
     @Transactional
-    public Long order(Long memberId, Long productId, int quantity) {
-        Member member = memberService.findMember(memberId);
-
-        Delivery delivery = new Delivery();
-        delivery.setAddress(member.getAddress());
-
-        Product product = findProduct(productId);
-        OrderItem orderItem = OrderItem.createOrderItem(product, product.getPrice(), quantity);
-
-        Order order = orderRepository.save(Order.createOrder(member, delivery, orderItem));
-
-        return order.getId();
-    }
-
-    @Transactional
     public Long order(Long memberId, Address address, List<OrderLine> lines) {
         Member member = memberService.findMember(memberId);
 
@@ -89,8 +74,4 @@ public class OrderService {
                 .map(o -> new OrderDto(o.getId(), o.getStatus(), o.getTotalPrice(), o.getOrderDate()))
                 .collect(Collectors.toList());
     }
-
-//    public List<Order> findOrders(SearchOption searchOption, Long memberId) {
-//        return orderRepositoryQuery.findOrders(searchOption, memberId);
-//    }
 }

@@ -15,7 +15,8 @@ public class Account {
     // IDENTITY 전략은 em.persist()로 객체를 영속화 시키는 시점에 곧바로 insert 쿼리가 DB로 전송되고, 거기서 반환받은 식별자 값을 가지고 1차 캐시에 엔티티를 등록시켜 관리
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    @Column(nullable=false, length=190, unique=true)
+    // unique 제약은 @Table의 명명된 인덱스(ux_account_email)로만 선언
+    @Column(nullable=false, length=190)
     private String email;
     @Column(nullable = false, length = 100) // bcrypt 60자 + 여유
     private String password; // 해시 저장
@@ -25,13 +26,6 @@ public class Account {
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id", unique = true)
     private Member member;
-
-    // 추후 계정 활성화 여부를 위한 컬럼
-    Boolean enabled = true;
-
-    public Role getRole() {
-        return role;
-    }
 
     public Account(String email, String password, Member member, Role role) {
         this.email = email;

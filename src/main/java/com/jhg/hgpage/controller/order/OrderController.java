@@ -30,17 +30,6 @@ public class OrderController {
     private final ProductRepository productRepository;
     private final OrderService orderService;
 
-//    @PostMapping("/orders")
-//    public String createOrder(@AuthenticationPrincipal(expression = "id") Long userId, @ModelAttribute OrderRequest req) {
-//        if (req.getItems().isEmpty()) {
-//
-//        }
-//
-//        orderService.order(userId, product_id, quantity);
-//
-//        return "redirect:/main";
-//    }
-
     @PostMapping("/orders/checkout-form")
     public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderRequest req, Model model) {
         CheckOutForm checkOutForm = new CheckOutForm();
@@ -143,13 +132,9 @@ public class OrderController {
         });
     }
 
+    // main.html의 주문 검색 폼이 이 경로로 보내므로 매핑은 유지. 검색 기능은 미구현.
     @GetMapping("/orders/me")
     public String findMyOrders(@AuthenticationPrincipal(expression = "id") Long userId, SearchOption searchOption, Model model) {
-//        List<Order> orders = orderService.findOrders(searchOption, userId);
-//        List<OrderDto> result = orders.stream().map(o -> new OrderDto(o.getId(), o.getStatus(), o.getTotalPrice(), o.getOrderDate())).toList();
-
-//        model.addAttribute("orders", result);
-
         return "redirect:/main";
     }
 }

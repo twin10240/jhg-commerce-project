@@ -55,15 +55,7 @@ public class Member {
     }
 
 
-    public void setCart(Cart cart) {
-        this.cart = cart;
-    }
-
     public void createCart(Cart cart) {
         this.cart = cart;
-    }
-
-    public void removeCart() {
-        this.cart = null;
     }
 }
