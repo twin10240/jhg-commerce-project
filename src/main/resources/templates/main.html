@@ -420,7 +420,10 @@
         <section id="inventory" class="section" sec:authorize="hasRole('ADMIN')">
             <div style="display:flex; align-items:center; justify-content:space-between; margin:6px 2px 12px;">
                 <div class="hint">재고 조정 및 입고 처리</div>
-                <a class="btn muted" th:href="@{/admin/inventory}">재고조회</a>
+                <div style="display:flex; gap:8px;">
+                    <a class="btn muted" th:href="@{/admin/inventory}">재고조회</a>
+                    <a class="btn muted" th:href="@{/admin/orders}">배송관리</a>
+                </div>
             </div>
 
             <!-- 재고 조정 -->

@@ -4,9 +4,24 @@
 
 ## 프로젝트 개요
 
-Spring Boot 기반 **학습용 커머스(쇼핑몰) 웹 애플리케이션** (`hgpage`, group `com.jhg`).
+Spring Boot 기반 **학습용 커머스 웹 애플리케이션** (`hgpage`, group `com.jhg`).
 김영한 JPA 강의 스타일의 도메인 설계(Order/OrderItem/Delivery/Inventory)에 Spring Security 인증,
 QueryDSL, 장바구니 REST API를 직접 확장한 구조.
+
+## 프로젝트 비전 / 로드맵 (2026-06-12 확정)
+
+최종 목표는 쇼핑몰 완성이 아니라 **미니 OMS + 별도 WMS 간 통신** 구현이다.
+핵심 컨셉: **재고가 없어도 주문이 가능해야 한다(백오더)**. 작업 방향을 판단할 때 이 비전을 기준으로 삼을 것.
+
+- **Phase 1 — 주문 정책 전환 (OMS화, 모놀리스 내부)**: 주문 시 즉시 차감 → 예약(reserve) 모델로 전환.
+  `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
+  실제 차감은 출고 시점, 입고 시 백오더 자동 할당. 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
+- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.
+- **Phase 3 — WMS 물리 분리**: 별도 Spring Boot 앱 + REST 통신(출고 요청/재고 조회/입고 통지/출고 콜백).
+  재고의 단일 진실 공급원은 WMS, OMS는 판매가용 재고. 멱등 API·보상 처리 학습 포인트.
+- (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
+
+> 주의: "품절 시 구매 차단 강화" 같은 쇼핑몰 방향 개선은 이 비전과 충돌한다. 기존 품절 UX(C)는 Phase 1에서 백오더 UX로 대체 예정.
 
 ## 기술 스택
 
@@ -80,6 +95,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **장바구니**: `CartApiController`(REST) — fetch 호출용. 담기/수량변경/삭제/카운트. 모든 응답에 최신 장바구니 count 반환.
 - **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. 장바구니에서 온 주문서는 `CheckOutForm.fromCart`(hidden) = true — 주문 확정 시 `OrderService.orderFromCart()`가 주문 생성과 함께 주문된 상품만 장바구니에서 제거(단일 트랜잭션). 바로 구매는 장바구니 불변. `GET /orders/me`는 새로고침 폼의 JS 폴백(`redirect:/main`) — 실제 새로고침은 `GET /api/orders/me`(JSON) fetch.
 - **주문 상세/취소**: `GET /orders/{id}`(`orderview.html`) — `findDetailById` fetch join 단건 조회, **본인 주문만**(타인/없는 주문은 404로 존재를 숨김, IDOR 방지). `POST /orders/{id}/cancel` — `Order.cancel()` 호출(재고 복구, 배송완료·재취소 거부 가드), 성공/실패를 flash로 상세에 표시. 취소 버튼은 `OrderDetailDto.cancelable`(ORDER 상태 + 배송완료 전)일 때만 노출.
+- **관리자 배송 관리**: `GET /admin/orders` — 전체 주문 목록(최신순), READY 건에만 "배송완료" 버튼 → `POST /admin/orders/complete-delivery` → `Order.completeDelivery()`(READY→COMP, 취소된 주문·중복 처리 거부).
 - **가격 정책**: 가격은 항상 서버에서 `Product`를 재조회해 사용한다. 클라이언트가 보낸 가격을 신뢰하지 않는다. 주문/장바구니에 당시 가격을 스냅샷(`orderPrice`/`productPrice`)으로 저장.
 
 ### 초기 시드 계정 (`initDb`)
@@ -108,6 +124,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-12)
+- ~~배송 상태가 영원히 READY (관리자 배송 처리 부재)~~: `Order.completeDelivery()`(취소된 주문 거부 + 중복 처리 거부 가드) + `GET /admin/orders`(`admin/orders.html` — 전체 주문 목록, READY 건에만 배송완료 버튼) + `POST /admin/orders/complete-delivery`(param `orderId`, flash 안내). 목록은 `OrderRepositoryQuery.findAllForAdmin()`(member/delivery fetch join, orderItems는 batch fetch, id desc) → `AdminOrderDto`(completable 포함). 진입점: 메인 재고 탭·재고 관리 페이지에 "배송관리" 링크. 이로써 "배송완료 시 취소 불가" 가드와 상세 페이지 취소 버튼 숨김이 실전 동작. 테스트: `OrderTest`(+3), `OrderRepositoryAdminListTest`, `OrderServiceAdminTest`, `AdminControllerMvcTest`(+4, USER 403 포함).
 - ~~주문 상세 페이지 부재("상세" 버튼 404) / 주문 취소 기능 부재~~: `GET /orders/{id}` + `orderview.html`(주문정보/상품 테이블/취소 버튼) + `POST /orders/{id}/cancel` 구현. `OrderRepositoryQuery.findDetailById`(QueryDSL, member/delivery/orderItems/product fetch join — 컨벤션대로 복잡 조회는 `*RepositoryQuery`에 배치. 1:N fetch join + `fetchOne()` 단건 조회는 Hibernate 6 메모리 중복 제거 덕에 안전하며 다품목 테스트로 검증), `OrderService.findOrderDetail/cancelOrder`(본인 확인 공통화 — 타인 주문은 404로 숨김). 같은 쿼리의 JPQL 버전을 `OrderRepository.findDetailById`에 **학습용 비교 자료로 의도적으로 보존**(javadoc에 명시 — 죽은 코드 청소 대상 아님). **`Order.cancel()`의 재취소 미차단 버그 수정**(CANCEL 상태 재호출 시 재고 이중 복구되던 것을 `IllegalStateException`으로 거부). 테스트: `OrderTest`(재취소 가드), `OrderRepositoryDetailTest`(`@DataJpaTest` fetch join), `OrderServiceDetailTest`(인가 6건), `OrderControllerMvcTest`(렌더링/404/취소 flash 5건).
 - ~~내 주문 새로고침이 전체 페이지 이동~~: 새로고침 버튼의 폼 submit을 JS가 가로채 `GET /api/orders/me`(신규 `OrderApiController`, JSON) fetch로 목록 tbody만 재렌더링. JS 비활성 시 기존 `GET /orders/me` 폴백 유지. 테스트: `OrderApiControllerMvcTest`, `MainControllerMvcTest`(배선 핀).
 - ~~구세대 확정 실패 2건이 빌드 차단~~: `AccountServiceTest`(시드 이메일 재가입 → `DuplicateEmailException`)와 `CartServiceTest`(단가 합을 라인합계 합으로 기대한 낡은 assertion)를 자체 데이터 생성 + `@Transactional` 롤백 방식의 통합 테스트로 재작성(시드/하드코딩 ID 의존 제거). 회원가입 2건(원자적 저장·중복 거부), 장바구니 2건(DTO 단가/라인합계, 동일 상품 재담기 수량 증가). `gradlew build` 전체 통과 복구.

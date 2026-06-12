@@ -1,17 +1,16 @@
-<!-- templates/admin/inventory.html : 관리자 재고 조회 -->
+<!-- templates/admin/orders.html : 관리자 배송 관리 -->
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>재고 관리</title>
+  <title>배송 관리</title>
 
   <style>
     :root{
       --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
       --card:#fffaf5; --ink:#443c33; --muted:#7a6f66;
       --accent1:#f4a261; --accent2:#e76f51;
-      --ring:rgba(244,162,97,.35);
       --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
     }
     *{box-sizing:border-box}
@@ -48,6 +47,7 @@
       text-decoration:none; font-size:14px;
     }
     .btn.outline{background:#fff; color:#6e6259; border:1px solid #eadfd6; box-shadow:none}
+    .btn.small{padding:6px 12px; font-size:13px}
 
     .flash{
       margin-bottom:14px; padding:12px 16px; border-radius:10px; font-size:14px;
@@ -62,15 +62,16 @@
     tbody tr td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
     tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
     .right{text-align:right}
-    .qty-zero{color:#c0392b; font-weight:800}
     .hint{color:var(--muted); font-size:12px}
 
     .status-badge{
       display:inline-block; padding:3px 10px; border-radius:999px;
       font-size:12px; font-weight:800;
     }
-    .status-badge.ordered{color:#8a6d3b; background:#fcf6e8; border:1px solid #e7d3a1}
-    .status-badge.received{color:#2e7d32; background:#f1f8ef; border:1px solid #b7d9b0}
+    .status-badge.order{color:#8a6d3b; background:#fcf6e8; border:1px solid #e7d3a1}
+    .status-badge.cancel{color:#c0392b; background:#fdf3f1; border:1px solid #e3b4ac}
+    .status-badge.ready{color:#1f5f8b; background:#eef6fb; border:1px solid #b5d4e8}
+    .status-badge.comp{color:#2e7d32; background:#f1f8ef; border:1px solid #b7d9b0}
 
     @media (prefers-color-scheme: dark){
       body{background:linear-gradient(180deg,#1b1917,#26211d)}
@@ -85,11 +86,11 @@
 <div class="container">
   <div class="page-head">
     <div>
-      <div class="page-title">재고 관리</div>
-      <div class="page-desc">전체 상품의 현재 보유 수량입니다. 조정은 메인의 재고(관리자) 탭에서 할 수 있습니다.</div>
+      <div class="page-title">배송 관리</div>
+      <div class="page-desc">전체 주문 목록입니다. 배송 전(READY) 주문만 배송완료 처리할 수 있습니다.</div>
     </div>
     <div style="display:flex; gap:8px;">
-      <a class="btn outline" th:href="@{/admin/orders}">배송 관리</a>
+      <a class="btn outline" th:href="@{/admin/inventory}">재고 관리</a>
       <a class="btn outline" th:href="@{/main}">메인으로</a>
     </div>
   </div>
@@ -101,57 +102,40 @@
     <table>
       <thead>
       <tr>
-        <th style="width:80px">ID</th>
-        <th>상품명</th>
-        <th class="right">가격</th>
-        <th class="right">보유 수량</th>
+        <th style="width:90px">주문번호</th>
+        <th>주문자</th>
+        <th style="width:100px">주문상태</th>
+        <th style="width:100px">배송상태</th>
+        <th class="right" style="width:120px">주문금액</th>
+        <th style="width:150px">주문일시</th>
+        <th style="width:120px">처리</th>
       </tr>
       </thead>
       <tbody>
-      <tr th:each="p : ${products}">
-        <td th:text="${p.id}">1</td>
-        <td th:text="${p.name}">상품1</td>
-        <td class="right"><span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">10,000</span>원</td>
-        <td class="right">
-          <span th:text="${p.inventory.onHandQty}" th:classappend="${p.inventory.onHandQty == 0} ? 'qty-zero'">15</span>개
-        </td>
-      </tr>
-      <tr th:if="${#lists.isEmpty(products)}">
-        <td colspan="4" class="hint">등록된 상품이 없습니다.</td>
-      </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <h2 style="margin:4px 0 12px; font-size:18px;">발주 현황</h2>
-    <table>
-      <thead>
-      <tr>
-        <th style="width:90px">발주번호</th>
-        <th style="width:110px">상태</th>
-        <th>품목</th>
-        <th>메모</th>
-        <th style="width:150px">발주일시</th>
-      </tr>
-      </thead>
-      <tbody>
-      <tr th:each="po : ${purchaseOrders}">
-        <td th:text="${po.id}">1</td>
+      <tr th:each="o : ${orders}">
+        <td th:text="${o.id}">101</td>
+        <td th:text="${o.memberName}">주문자A</td>
         <td>
-          <span class="status-badge" th:classappend="${po.status.name() == 'RECEIVED'} ? 'received' : 'ordered'"
-                th:text="${po.status.name() == 'RECEIVED'} ? '입고완료' : '입고대기'">입고대기</span>
+          <span class="status-badge" th:classappend="${o.status.name() == 'CANCEL'} ? 'cancel' : 'order'"
+                th:text="${o.status}">ORDER</span>
         </td>
         <td>
-          <span th:each="item, stat : ${po.items}">
-            <span th:text="|${item.product.name} x${item.quantity}|">상품1 x10</span><span th:if="${!stat.last}">, </span>
-          </span>
+          <span class="status-badge" th:classappend="${o.deliveryStatus.name() == 'COMP'} ? 'comp' : 'ready'"
+                th:text="${o.deliveryStatus}">READY</span>
         </td>
-        <td class="hint" th:text="${po.memo}">긴급 발주</td>
-        <td class="hint" th:text="${#temporals.format(po.createdAt,'yyyy-MM-dd HH:mm')}">2026-06-11 10:00</td>
+        <td class="right"><span th:text="${#numbers.formatInteger(o.totalPrice,3,'COMMA')}">23,000</span>원</td>
+        <td th:text="${#temporals.format(o.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</td>
+        <td>
+          <form th:if="${o.completable}" th:action="@{/admin/orders/complete-delivery}" method="post"
+                onsubmit="return confirm('이 주문을 배송완료 처리하시겠습니까?');">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <input type="hidden" name="orderId" th:value="${o.id}" />
+            <button class="btn small" type="submit">배송완료</button>
+          </form>
+        </td>
       </tr>
-      <tr th:if="${#lists.isEmpty(purchaseOrders)}">
-        <td colspan="5" class="hint">발주 내역이 없습니다. 메인의 재고(관리자) 탭에서 발주를 생성하세요.</td>
+      <tr th:if="${#lists.isEmpty(orders)}">
+        <td colspan="7" class="hint">주문 내역이 없습니다.</td>
       </tr>
       </tbody>
     </table>

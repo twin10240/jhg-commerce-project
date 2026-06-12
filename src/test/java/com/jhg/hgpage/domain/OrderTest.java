@@ -69,4 +69,33 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
     }
+
+    @Test
+    void 배송완료_처리하면_배송상태가_COMP가_된다() {
+        Order order = createOrder(productWithStock(10), 2);
+
+        order.completeDelivery();
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
+    }
+
+    @Test
+    void 취소된_주문은_배송완료_처리할_수_없다() {
+        Order order = createOrder(productWithStock(10), 2);
+        order.cancel();
+
+        assertThatThrownBy(order::completeDelivery)
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
+    }
+
+    @Test
+    void 이미_배송완료된_주문은_다시_처리할_수_없다() {
+        Order order = createOrder(productWithStock(10), 2);
+        order.completeDelivery();
+
+        assertThatThrownBy(order::completeDelivery)
+                .isInstanceOf(IllegalStateException.class);
+    }
 }

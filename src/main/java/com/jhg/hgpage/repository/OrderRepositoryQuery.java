@@ -29,6 +29,15 @@ public class OrderRepositoryQuery {
                 .fetch();
     }
 
+    // 관리자 배송 관리 목록 — ToOne(member/delivery)만 fetch join, orderItems는 batch fetch에 맡긴다
+    public List<Order> findAllForAdmin() {
+        return jpaQueryFactory.selectFrom(order)
+                .join(order.member, member).fetchJoin()
+                .join(order.delivery, delivery).fetchJoin()
+                .orderBy(order.id.desc())
+                .fetch();
+    }
+
     // 주문 상세 페이지용 단건 조회 (인가 체크를 위해 member도 함께 로딩)
     public Optional<Order> findDetailById(Long orderId) {
         return Optional.ofNullable(jpaQueryFactory.selectFrom(order)

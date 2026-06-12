@@ -1,0 +1,87 @@
+package com.jhg.hgpage.service;
+
+import com.jhg.hgpage.domain.Address;
+import com.jhg.hgpage.domain.Delivery;
+import com.jhg.hgpage.domain.Inventory;
+import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.domain.Order;
+import com.jhg.hgpage.domain.OrderItem;
+import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.domain.dto.view.AdminOrderDto;
+import com.jhg.hgpage.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.exception.EntityNotFoundException;
+import com.jhg.hgpage.repository.OrderRepository;
+import com.jhg.hgpage.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.repository.ProductRepository;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class OrderServiceAdminTest {
+
+    @Mock MemberService memberService;
+    @Mock ProductRepository productRepository;
+    @Mock OrderRepository orderRepository;
+    @Mock OrderRepositoryQuery orderRepositoryQuery;
+    @Mock CartService cartService;
+    @InjectMocks OrderService orderService;
+
+    private Order newOrder(String memberName) {
+        Member member = Member.createUser(memberName, "010-0000-0000", new Address("서울", "관악구", "500"));
+        Product product = new Product();
+        product.setName("테스트상품");
+        product.setPrice(10000);
+        Inventory inventory = new Inventory();
+        inventory.setOnHandQty(10);
+        product.setInventory(inventory);
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        return Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
+    }
+
+    @Test
+    void 전체_주문을_관리자용_DTO로_매핑한다() {
+        Order active = newOrder("회원A");
+        Order canceled = newOrder("회원B");
+        canceled.cancel();
+        when(orderRepositoryQuery.findAllForAdmin()).thenReturn(List.of(active, canceled));
+
+        List<AdminOrderDto> result = orderService.findAllForAdmin();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getMemberName()).isEqualTo("회원A");
+        assertThat(result.get(0).getTotalPrice()).isEqualTo(20000);
+        assertThat(result.get(0).isCompletable()).isTrue();   // ORDER + READY → 배송완료 버튼 노출
+        assertThat(result.get(1).getStatus()).isEqualTo(OrderStatus.CANCEL);
+        assertThat(result.get(1).isCompletable()).isFalse();  // 취소된 주문은 처리 불가
+    }
+
+    @Test
+    void 배송완료_처리하면_배송상태가_COMP가_된다() {
+        Order order = newOrder("회원A");
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        orderService.completeDelivery(10L);
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
+    }
+
+    @Test
+    void 없는_주문의_배송완료는_EntityNotFoundException을_던진다() {
+        when(orderRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.completeDelivery(99L))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+}

@@ -1,6 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.*;
+import com.jhg.hgpage.domain.dto.view.AdminOrderDto;
 import com.jhg.hgpage.domain.dto.view.OrderDetailDto;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
 import com.jhg.hgpage.exception.EntityNotFoundException;
@@ -64,6 +65,20 @@ public class OrderService {
 
     public OrderDetailDto findOrderDetail(Long orderId, Long memberId) {
         return OrderDetailDto.from(findOwnedOrder(orderId, memberId));
+    }
+
+    // 관리자 배송 관리 목록
+    public List<AdminOrderDto> findAllForAdmin() {
+        return orderRepositoryQuery.findAllForAdmin().stream()
+                .map(AdminOrderDto::from)
+                .toList();
+    }
+
+    @Transactional
+    public void completeDelivery(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+        order.completeDelivery();
     }
 
     @Transactional

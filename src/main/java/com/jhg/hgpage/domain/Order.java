@@ -84,6 +84,17 @@ public class Order {
         }
     }
 
+    // 관리자 배송완료 처리. 취소된 주문(재고 이미 복구됨)과 중복 처리를 거부한다.
+    public void completeDelivery() {
+        if (this.status == OrderStatus.CANCEL) {
+            throw new IllegalStateException("취소된 주문은 배송완료 처리할 수 없습니다.");
+        }
+        if (delivery.getStatus() == DeliveryStatus.COMP) {
+            throw new IllegalStateException("이미 배송완료된 주문입니다.");
+        }
+        delivery.setStatus(DeliveryStatus.COMP);
+    }
+
     public int getTotalPrice() {
         return orderItems.stream().mapToInt(OrderItem::getTotalPrice).sum();
     }

@@ -3,6 +3,7 @@ package com.jhg.hgpage.controller.admin;
 import com.jhg.hgpage.controller.form.PurchaseOrderForm;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.service.InventoryService;
+import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.service.ProductService;
 import com.jhg.hgpage.service.PurchaseOrderService;
 import com.jhg.hgpage.service.PurchaseOrderService.PurchaseOrderLine;
@@ -24,6 +25,28 @@ public class AdminController {
     private final InventoryService inventoryService;
     private final ProductService productService;
     private final PurchaseOrderService purchaseOrderService;
+    private final OrderService orderService;
+
+    @GetMapping("/admin/orders")
+    public String orders(Model model) {
+        model.addAttribute("orders", orderService.findAllForAdmin());
+        return "admin/orders";
+    }
+
+    // HTML 폼 제약 때문에 path variable 대신 orderId 파라미터를 받는다 (발주 입고와 동일 패턴)
+    @PostMapping("/admin/orders/complete-delivery")
+    public String completeDelivery(@RequestParam Long orderId,
+                                   RedirectAttributes redirectAttributes) {
+        try {
+            orderService.completeDelivery(orderId);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "배송완료 처리되었습니다. (주문 #" + orderId + ")");
+        } catch (IllegalStateException | EntityNotFoundException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+
+        return "redirect:/admin/orders";
+    }
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
