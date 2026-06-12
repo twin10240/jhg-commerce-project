@@ -41,7 +41,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 > 주의: `bootRun` 전에 H2 TCP 서버가 `localhost`에 떠 있어야 한다(`application.yml`의 datasource URL 참고).
 > 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돈다.
 > QueryDSL Q타입(`QMember`, `QCartItem` 등)은 `annotationProcessor`가 빌드 시 `generated/`에 생성한다.
-> `build/reports/problems/problems-report.html` 권한 문제(삭제 불가 ACL)로 빌드가 `FileAlreadyExistsException`으로 실패하면 `--no-problems-report` 플래그를 붙여 실행한다.
+> `build/reports/problems/problems-report.html`이 깨진 ACL로 삭제 불가라 Gradle이 리포트를 못 덮어써 `FileAlreadyExistsException`이 났었음. `gradle.properties`의 `org.gradle.problems.report=false`로 리포트 생성을 꺼서 우회 중(플래그 불필요). 근본 해결은 관리자 권한 터미널에서 해당 파일 삭제.
 
 ## 아키텍처 (계층 구조)
 
@@ -60,7 +60,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - `api/` — `CartApiController` (장바구니 REST: 담기/수량변경/삭제/카운트)
 - `config/` — `SecurityConfig`, `QueryDslConfig`
 - `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO)
-- `domain/` — JPA 엔티티 + `dto/`(view·form), `enums/`(Role/OrderStatus/DeliveryStatus)
+- `domain/` — JPA 엔티티 + `dto/view`(응답 DTO), `enums/`(Role/OrderStatus/DeliveryStatus)
 - `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
 - `repository/` — Spring Data 인터페이스 + QueryDSL 구현 클래스
 - `service/` — 비즈니스 로직
@@ -93,7 +93,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - 엔티티는 정적 팩토리 메서드로 생성(`Member.createUser`, `Order.createOrder`, `OrderItem.createOrderItem`).
 - 엔티티 기본 생성자는 `@NoArgsConstructor(access = PROTECTED)`로 막음.
 - 복잡한 조회는 Spring Data 파생 쿼리 대신 `*RepositoryQuery` QueryDSL 클래스에 작성.
-- 응답 DTO는 `domain/dto/view`, 요청 폼은 `controller/form` 또는 `domain/dto/form`.
+- 응답 DTO는 `domain/dto/view`, 요청 폼은 `controller/form`.
 - ID 조회 실패는 `Optional.get()` 대신 `orElseThrow(() -> new EntityNotFoundException(대상, id))`. 전역 예외 처리는 `exception/GlobalExceptionHandler`(`/api/**`는 ProblemDetail JSON, 화면은 `error.html` 또는 flash 리다이렉트).
 - 빌드/테스트 실행 시 `JAVA_HOME`이 JDK 17+를 가리켜야 함(시스템 기본이 Java 8): `$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"`.
 
@@ -101,12 +101,14 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 테스트는 두 세대가 공존한다. 신규 테스트는 **신세대 패턴**을 따를 것.
 
-- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존. `AccountServiceTest`, `ProductServiceTest`는 `@Rollback(false)`로 DB에 데이터를 남기는 데이터 입력용 스크립트에 가까움. (2026-06-12부터 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돌고 실 DB를 오염시키지 않지만, 시드 데이터·하드코딩 ID 의존은 그대로.) **2건은 확정 실패**(2026-06-12 확인): `AccountServiceTest.SignupAndJoinTest`는 initDb가 시드하는 이메일을 재가입시켜 `DuplicateEmailException`(중복 검사 도입 이후 항상 실패), `CartServiceTest.장바구니목록테스트`는 `productPrice`(단가) 합이 라인합계 합(116000)이길 기대하는 낡은 assertion. 둘 다 신세대 교체 대상.
-- **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`). 격리되어 있고 검증이 명확함.
+- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존(`ProductServiceTest`, `MemberServiceTest`, `OrderServiceTest`, repository 테스트 등). (2026-06-12부터 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돌고 실 DB를 오염시키지 않는다.) 빌드를 막던 확정 실패 2건(`AccountServiceTest`, `CartServiceTest`)은 2026-06-12 신세대 통합 테스트로 교체 완료 — 현재 `gradlew build` 전체 통과.
+- **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`), 임베디드 H2 통합(`AccountServiceTest`, `CartServiceTest`, `InitDbTest` — 자체 데이터 생성 + 롤백). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-12)
+- ~~구세대 확정 실패 2건이 빌드 차단~~: `AccountServiceTest`(시드 이메일 재가입 → `DuplicateEmailException`)와 `CartServiceTest`(단가 합을 라인합계 합으로 기대한 낡은 assertion)를 자체 데이터 생성 + `@Transactional` 롤백 방식의 통합 테스트로 재작성(시드/하드코딩 ID 의존 제거). 회원가입 2건(원자적 저장·중복 거부), 장바구니 2건(DTO 단가/라인합계, 동일 상품 재담기 수량 증가). `gradlew build` 전체 통과 복구.
+- ~~죽은 코드/중복/오타/백업 파일 청소 (#8, #11, #14, #16, #20)~~: 주석 코드 제거(`OrderController.createOrder`, `CartService` 매핑 블록, `OrderRepositoryQuery.findOrders(SearchOption)`+member.name 필터 버그였던 `productLike`), 미사용 제거(`OrderService` 단건 주문 오버로드, `CartService.firstOrElseGet`, `CartRepositoryQuery`의 미사용 5개 메서드, `OrderCreateForm` 클래스, `Member.setCart/removeCart`, `Account.enabled`/수동 `getRole()`/email unique 이중 선언), `getTotalPice`→`getTotalPrice` 오타 수정(`OrderItem`+`Order`, `CartItem` 쪽은 미사용이라 삭제), 백업 템플릿 3종(`backup.html`, `backup2.html`, `cart_backup.html`) 삭제. `GET /orders/me` 매핑은 main.html 검색 폼이 사용하므로 유지. 동작 불변 — 전체 테스트로 회귀 없음 확인. `OptionalTest`/`PassWordTest`는 사용자 요청으로 보존.
 - ~~`ddl-auto: create` 데이터 소실 (#1)~~: 기본 `ddl-auto: update`(데이터 보존) + `local` 프로파일만 `create`(리셋용, `--spring.profiles.active=local`). `initDb`는 멱등 가드 추가(Account 존재 시 skip)로 update 환경에서 재시작해도 중복 시드/기동 실패 없음. `src/test/resources/application.yml` 신설로 테스트는 임베디드 H2(`mem:hgpage-test`, create-drop) 사용 — 구세대 테스트의 H2 TCP 서버 의존 제거, 테스트가 실 DB를 오염시키지 않음. 실부트 3회(update 기동/재기동 보존/local 리셋+재시드)로 검증. 테스트: `InitDbTest`(`@DataJpaTest`, 멱등성). 주의: `update`는 컬럼 타입 변경/삭제를 반영하지 못하므로 엔티티 구조 변경 후 스키마가 어긋나면 `local`로 리셋할 것.
 - ~~주문 후 장바구니 미정리 (#6)~~: `CheckOutForm.fromCart`(hidden, 주문서 생성 시 장바구니 경유면 true)로 출처를 구분해, 장바구니발 주문은 `OrderService.orderFromCart()`가 주문 생성 + 주문된 상품만 장바구니 제거를 **단일 트랜잭션**으로 수행(주문 실패 시 장바구니 불변). 바로 구매는 장바구니를 건드리지 않는다. `Cart.removeItems(productIds)` 도메인 메서드 신규, `CartService.removeCartItems`는 상품별 재조회 루프(#9 일부)에서 장바구니 1회 조회 + 일괄 제거로 재작성. 테스트: `CartTest`, `CartServiceRemoveItemsTest`, `OrderServiceOrderFromCartTest`, `OrderControllerMvcTest`(fromCart 분기 4건).
 - ~~`OrderRepositoryQuery.findOrders` distinct 누락 (#17)~~: `select(order).distinct()` 명시. Hibernate 6이 fetch join 중복을 자동 제거하긴 하지만 의도를 코드에 명시. 컬렉션 fetch join + `limit(100)` 조합은 limit이 메모리 적용되는 문제(HHH90003004)가 남아 있음 — #9 페이징 개선 때 함께 다룰 것.
@@ -128,20 +130,16 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 중간
 7. **`TimeTraceAop` 포인트컷 과다**: `execution(* com.jhg.hgpage..*(..))` — 모든 메서드를 감싸 로그 폭증/성능 저하(`System.out.println` 사용). 서비스·컨트롤러로 한정 권장.
-8. **죽은 코드/주석 코드 다수**: `OrderController.createOrder`(주석), `CartService` 주석 블록, `OrderRepositoryQuery.findOrders(SearchOption)`(주석). `productLike()`는 product가 아닌 **member.name으로 필터링하는 버그**(주석 상태). `OrderService`의 단건 주문 오버로드는 사실상 미사용.
 9. **N+1성 루프**: `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩(컬렉션 fetch join과 함께라 limit이 메모리 적용됨 — HHH90003004), `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음(미사용 메서드).
 10. **`CartItemDto` 필드 중복**: `productPrice/cartPrice/unitPrice/lineTotalPrice` + `getTotalPrice()`가 사실상 동일 값. 정리 필요.
-11. **중복 선언**: `Member.setCart`/`createCart`, `CartRepositoryQuery`의 JPQL/QueryDSL 중복. `Account` email unique 이중 선언(`@Column` + `@Table(@Index)`), `getRole()`도 `@Getter`와 중복 정의.
 12. **`@GeneratedValue` 전략 불일치**: Account/Product/Cart/CartItem은 IDENTITY, Member/Order/OrderItem/Delivery/Inventory는 AUTO.
 
 ### 심각도 낮음
 13. 회원가입 서버 검증 부족: `SignUpForm.passwordConfirm`이 서버에서 password와 비교되지 않음(화면 JS로만 검증). name/phone/address 서버 검증 없음.
-14. `getTotalPice()` 오타(`CartItem`/`OrderItem` — getTotalPrice가 맞음).
 15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거.
-16. `templates/backup.html`, `cart_backup.html`, `backup2.html` 등 백업 파일이 저장소에 포함됨.
-19. `OrderController.restoreCheckOutDisplay`(line 124~) — 주문서 검증 실패 시 폼의 상품마다 `productRepository.findById()` 루프 호출. `findAllById()` 일괄 조회로 개선 가능. (2026-06-12 발견)
-20. `Account.enabled` 필드 미사용 — 선언만 있고 어디서도 읽지 않음. 계정 비활성화 기능을 붙이거나 제거할 것. (2026-06-12 발견)
+19. `OrderController.restoreCheckOutDisplay` — 주문서 검증 실패 시 폼의 상품마다 `productRepository.findById()` 루프 호출. `findAllById()` 일괄 조회로 개선 가능. (2026-06-12 발견)
+21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. AOP 포인트컷 범위 축소, 죽은 코드/백업 파일/중복 메서드 제거
-2. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 구세대 테스트를 신세대 패턴으로 점진 교체(확정 실패 2건 우선)
+1. `TimeTraceAop` 포인트컷 범위 축소(#7)
+2. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 남은 구세대 테스트를 신세대 패턴으로 점진 교체
