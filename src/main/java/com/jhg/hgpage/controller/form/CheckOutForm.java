@@ -23,6 +23,10 @@ public class CheckOutForm {
     @Size(min = 1, message = "주문할 상품이 없습니다.")
     private List<ProductDto> product = new ArrayList<>();
 
+    // 장바구니에서 온 주문서인지 여부. true면 주문 확정 시 주문된 상품을 장바구니에서 제거한다.
+    // (조작해도 자기 장바구니의 정리 여부만 달라지므로 보안 영향 없음)
+    private boolean fromCart;
+
     public int getProductCount() {
         return product.size();
     }

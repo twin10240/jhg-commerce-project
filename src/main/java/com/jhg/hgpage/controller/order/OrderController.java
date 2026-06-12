@@ -62,6 +62,7 @@ public class OrderController {
             Product product = findProduct(req.getProductId());
             checkOutForm.getProduct().add(new CheckOutForm.ProductDto(req.getProductId(), product.getName(), product.getPrice(), req.getQty()));
         } else {
+            checkOutForm.setFromCart(true);
             List<OrderRequest.OrderItem> selectedItems = req.getItems().stream()
                     .filter(item -> Boolean.TRUE.equals(item.getSelected()))
                     .toList();
@@ -110,7 +111,11 @@ public class OrderController {
                 .map(product -> new OrderService.OrderLine(product.getId(), product.getQuantity()))
                 .toList();
 
-        orderService.order(user.getId(), deliveryAddress, lines);
+        if (form.isFromCart()) {
+            orderService.orderFromCart(user.getId(), deliveryAddress, lines);
+        } else {
+            orderService.order(user.getId(), deliveryAddress, lines);
+        }
 
         return "redirect:/main";
     }

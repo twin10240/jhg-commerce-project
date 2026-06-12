@@ -59,7 +59,8 @@ public class CartService {
 
     @Transactional
     public void removeCartItems(Long memberId, List<Long> productIds) {
-        productIds.forEach(productId -> removeCartItem(memberId, productId));
+        Cart cart = cartRepository.findCartByMemberId(memberId);
+        cart.removeItems(productIds);
     }
 
     private <T> T firstOrElseGet(List<T> list, Supplier<T> supplier) {

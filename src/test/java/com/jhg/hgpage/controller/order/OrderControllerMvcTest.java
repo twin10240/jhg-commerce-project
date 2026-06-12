@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasProperty;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -187,6 +189,93 @@ class OrderControllerMvcTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/main"))
                 .andExpect(flash().attributeExists("errorMessage"));
+    }
+
+    @Test
+    void 장바구니발_주문이면_orderFromCart로_체크된_상품만_주문한다() throws Exception {
+        mockMvc.perform(post("/orders/checkout")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("fromCart", "true")
+                        .param("delivery.city", "서울")
+                        .param("delivery.street", "관악구")
+                        .param("delivery.zipcode", "500")
+                        .param("product[0].id", "1")
+                        .param("product[0].quantity", "2")
+                        .param("product[0].selected", "true")
+                        .param("product[1].id", "2")
+                        .param("product[1].quantity", "3")
+                        .param("product[1].selected", "false"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/main"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(orderService).orderFromCart(eq(1L), any(Address.class), linesCaptor.capture());
+        verify(orderService, never()).order(anyLong(), any(Address.class), anyList());
+
+        List<OrderService.OrderLine> lines = linesCaptor.getValue();
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).productId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 바로구매_주문이면_장바구니_정리없이_주문한다() throws Exception {
+        mockMvc.perform(post("/orders/checkout")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("delivery.city", "서울")
+                        .param("delivery.street", "관악구")
+                        .param("delivery.zipcode", "500")
+                        .param("product[0].id", "1")
+                        .param("product[0].quantity", "2"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/main"));
+
+        verify(orderService).order(eq(1L), any(Address.class), anyList());
+        verify(orderService, never()).orderFromCart(anyLong(), any(Address.class), anyList());
+    }
+
+    @Test
+    void 장바구니에서_주문서를_만들면_fromCart가_true다() throws Exception {
+        when(memberService.findMember(1L)).thenReturn(
+                Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        product.setId(1L);
+        product.setName("상품1");
+        product.setPrice(10000);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        mockMvc.perform(post("/orders/checkout-form")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("items[0].productId", "1")
+                        .param("items[0].qty", "2")
+                        .param("items[0].selected", "true"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orderdetail"))
+                .andExpect(model().attribute("checkout", hasProperty("fromCart", is(true))));
+    }
+
+    @Test
+    void 바로구매_주문서는_fromCart가_false다() throws Exception {
+        when(memberService.findMember(1L)).thenReturn(
+                Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        product.setId(1L);
+        product.setName("상품1");
+        product.setPrice(10000);
+        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+
+        mockMvc.perform(post("/orders/checkout-form")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("productId", "1")
+                        .param("qty", "1"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orderdetail"))
+                .andExpect(model().attribute("checkout", hasProperty("fromCart", is(false))));
     }
 
     @Test

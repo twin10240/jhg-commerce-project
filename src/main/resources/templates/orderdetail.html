@@ -151,6 +151,8 @@
   <form th:action="@{/orders/checkout}" th:object="${checkout}" method="post">
     <!-- CSRF -->
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+    <!-- 장바구니발 주문 여부: 주문 확정 시 장바구니 정리에 사용 -->
+    <input type="hidden" th:field="*{fromCart}"/>
 
     <div class="layout">
       <!-- 좌측: 주문 정보 흐름 -->

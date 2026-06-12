@@ -22,6 +22,7 @@ public class OrderService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final OrderRepositoryQuery orderRepositoryQuery;
+    private final CartService cartService;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
@@ -59,6 +60,20 @@ public class OrderService {
         Order order = orderRepository.save(Order.createOrder(member, delivery, orderItems));
 
         return order.getId();
+    }
+
+    // 장바구니발 주문: 주문 생성과 장바구니 정리를 한 트랜잭션으로 묶는다.
+    // 주문이 실패(재고 부족 등)하면 장바구니는 건드리지 않는다.
+    @Transactional
+    public Long orderFromCart(Long memberId, Address address, List<OrderLine> lines) {
+        Long orderId = order(memberId, address, lines);
+
+        List<Long> orderedProductIds = lines.stream()
+                .map(OrderLine::productId)
+                .toList();
+        cartService.removeCartItems(memberId, orderedProductIds);
+
+        return orderId;
     }
 
     private Product findProduct(Long productId) {

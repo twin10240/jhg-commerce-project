@@ -53,6 +53,14 @@ public class Cart {
             return match;
         });
     }
+
+    public void removeItems(List<Long> productIds) {
+        cartItems.removeIf(cartItem -> {
+            boolean match = productIds.contains(cartItem.getProduct().getId());
+            if (match) cartItem.detach();
+            return match;
+        });
+    }
     public void changeItemQuantity(Product product, int quantity) {
         CartItem cartItem = cartItems.stream()
                 .filter(it -> it.isSameProduct(product))

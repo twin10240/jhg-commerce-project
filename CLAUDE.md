@@ -37,6 +37,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 
 > 주의: 실행 전 H2 TCP 서버가 `localhost`에 떠 있어야 한다(`application.yml`의 datasource URL 참고).
 > QueryDSL Q타입(`QMember`, `QCartItem` 등)은 `annotationProcessor`가 빌드 시 `generated/`에 생성한다.
+> `build/reports/problems/problems-report.html` 권한 문제(삭제 불가 ACL)로 빌드가 `FileAlreadyExistsException`으로 실패하면 `--no-problems-report` 플래그를 붙여 실행한다.
 
 ## 아키텍처 (계층 구조)
 
@@ -73,7 +74,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **로그인**: `AccountService.loadUserByUsername`(email 조회) → `UserPrincipal`. 로그인 파라미터는 `email`/`password`, 성공 시 `/main`. 로그인 화면 템플릿은 `home.html`.
 - **메인**: `GET /main` — 상품 페이징·검색(`keyword`, size=10, sort=id) + 내 주문 목록 + (ADMIN이면) 전체 재고 목록. 페이지 네비게이션은 숫자 클릭형(`이전 | 1 … 4 [5] 6 … 12 | 다음`, 윈도우 최대 5개) — 컨트롤러가 0-based `beginPage`/`endPage`를 모델로 내려준다.
 - **장바구니**: `CartApiController`(REST) — fetch 호출용. 담기/수량변경/삭제/카운트. 모든 응답에 최신 장바구니 count 반환.
-- **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. `GET /orders/me`는 미구현(`redirect:/main`).
+- **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. 장바구니에서 온 주문서는 `CheckOutForm.fromCart`(hidden) = true — 주문 확정 시 `OrderService.orderFromCart()`가 주문 생성과 함께 주문된 상품만 장바구니에서 제거(단일 트랜잭션). 바로 구매는 장바구니 불변. `GET /orders/me`는 미구현(`redirect:/main`).
 - **가격 정책**: 가격은 항상 서버에서 `Product`를 재조회해 사용한다. 클라이언트가 보낸 가격을 신뢰하지 않는다. 주문/장바구니에 당시 가격을 스냅샷(`orderPrice`/`productPrice`)으로 저장.
 
 ### 초기 시드 계정 (`initDb`)
@@ -95,10 +96,15 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 테스트는 두 세대가 공존한다. 신규 테스트는 **신세대 패턴**을 따를 것.
 
-- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존. `AccountServiceTest`, `ProductServiceTest`는 `@Rollback(false)`로 실제 DB에 데이터를 남기는 데이터 입력용 스크립트에 가까움. H2 TCP 서버 + 시드 데이터 전제라 CI에서 못 돈다.
+- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존. `AccountServiceTest`, `ProductServiceTest`는 `@Rollback(false)`로 실제 DB에 데이터를 남기는 데이터 입력용 스크립트에 가까움. H2 TCP 서버 + 시드 데이터 전제라 CI에서 못 돈다. **H2가 떠 있어도 2건은 확정 실패**(2026-06-12 확인): `AccountServiceTest.SignupAndJoinTest`는 initDb가 시드하는 이메일을 재가입시켜 `DuplicateEmailException`(중복 검사 도입 이후 항상 실패), `CartServiceTest.장바구니목록테스트`는 `productPrice`(단가) 합이 라인합계 합(116000)이길 기대하는 낡은 assertion. 둘 다 신세대 교체 대상.
 - **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
+
+### 해결됨 (2026-06-12)
+- ~~주문 후 장바구니 미정리 (#6)~~: `CheckOutForm.fromCart`(hidden, 주문서 생성 시 장바구니 경유면 true)로 출처를 구분해, 장바구니발 주문은 `OrderService.orderFromCart()`가 주문 생성 + 주문된 상품만 장바구니 제거를 **단일 트랜잭션**으로 수행(주문 실패 시 장바구니 불변). 바로 구매는 장바구니를 건드리지 않는다. `Cart.removeItems(productIds)` 도메인 메서드 신규, `CartService.removeCartItems`는 상품별 재조회 루프(#9 일부)에서 장바구니 1회 조회 + 일괄 제거로 재작성. 테스트: `CartTest`, `CartServiceRemoveItemsTest`, `OrderServiceOrderFromCartTest`, `OrderControllerMvcTest`(fromCart 분기 4건).
+- ~~`OrderRepositoryQuery.findOrders` distinct 누락 (#17)~~: `select(order).distinct()` 명시. Hibernate 6이 fetch join 중복을 자동 제거하긴 하지만 의도를 코드에 명시. 컬렉션 fetch join + `limit(100)` 조합은 limit이 메모리 적용되는 문제(HHH90003004)가 남아 있음 — #9 페이징 개선 때 함께 다룰 것.
+- ~~메인 관리자 재고 목록 fetch join 미사용 (#18)~~: `MainController`의 ADMIN 분기를 `productService.findAll()` → `findAllWithInventory()`로 교체. `/admin/inventory`와 조회 경로 일관화, OSIV 의존 제거. `MainControllerMvcTest`의 mock 검증도 `findAllWithInventory()`로 갱신.
 
 ### 해결됨 (2026-06-11)
 - ~~발주/입고 백엔드 부재 (B-2)~~: `PurchaseOrder`(`ORDERED`→`RECEIVED`, 정적 팩토리, `@Enumerated(STRING)`) + `PurchaseOrderItem` 도메인 신규. `receive()`는 중복 입고를 `IllegalStateException`으로 거부(재고 이중 증가 방지). `PurchaseOrderService.create/receive/findAllWithItems`(fetch join) + `AdminController` 매핑. 입고는 HTML 폼 제약 때문에 path variable 대신 `POST /admin/purchase-orders/receive`(param `poId`) 채택, main.html의 깨진 `th:action`(`${poId}` 미존재)과 주석 CSRF 복원. 재고 페이지에 발주 현황 테이블 추가. 테스트: `PurchaseOrderTest`, `PurchaseOrderServiceTest`, `PurchaseOrderRepositoryTest`, `AdminControllerMvcTest`.
@@ -115,10 +121,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 1. **`ddl-auto: create`**: 재시작마다 스키마 DROP & 재생성 → 데이터 소실. 운영 시 `validate`/`update` 또는 Flyway 필요.
 
 ### 심각도 중간
-6. **주문 후 장바구니 미정리**: 장바구니에서 주문해도 장바구니 아이템이 남음.
 7. **`TimeTraceAop` 포인트컷 과다**: `execution(* com.jhg.hgpage..*(..))` — 모든 메서드를 감싸 로그 폭증/성능 저하(`System.out.println` 사용). 서비스·컨트롤러로 한정 권장.
 8. **죽은 코드/주석 코드 다수**: `OrderController.createOrder`(주석), `CartService` 주석 블록, `OrderRepositoryQuery.findOrders(SearchOption)`(주석). `productLike()`는 product가 아닌 **member.name으로 필터링하는 버그**(주석 상태). `OrderService`의 단건 주문 오버로드는 사실상 미사용.
-9. **N+1성 루프**: `CartService.removeCartItems`가 상품별로 Cart 재조회, `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩, `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음.
+9. **N+1성 루프**: `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩(컬렉션 fetch join과 함께라 limit이 메모리 적용됨 — HHH90003004), `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음(미사용 메서드).
 10. **`CartItemDto` 필드 중복**: `productPrice/cartPrice/unitPrice/lineTotalPrice` + `getTotalPrice()`가 사실상 동일 값. 정리 필요.
 11. **중복 선언**: `Member.setCart`/`createCart`, `CartRepositoryQuery`의 JPQL/QueryDSL 중복. `Account` email unique 이중 선언(`@Column` + `@Table(@Index)`), `getRole()`도 `@Getter`와 중복 정의.
 12. **`@GeneratedValue` 전략 불일치**: Account/Product/Cart/CartItem은 IDENTITY, Member/Order/OrderItem/Delivery/Inventory는 AUTO.
@@ -128,6 +133,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 14. `getTotalPice()` 오타(`CartItem`/`OrderItem` — getTotalPrice가 맞음).
 15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거.
 16. `templates/backup.html`, `cart_backup.html`, `backup2.html` 등 백업 파일이 저장소에 포함됨.
+19. `OrderController.restoreCheckOutDisplay`(line 124~) — 주문서 검증 실패 시 폼의 상품마다 `productRepository.findById()` 루프 호출. `findAllById()` 일괄 조회로 개선 가능. (2026-06-12 발견)
+20. `Account.enabled` 필드 미사용 — 선언만 있고 어디서도 읽지 않음. 계정 비활성화 기능을 붙이거나 제거할 것. (2026-06-12 발견)
 
 ### 개선 우선순위
 1. `ddl-auto` 정리 + 시드 로직 프로파일 분리(`@Profile("local")`)
