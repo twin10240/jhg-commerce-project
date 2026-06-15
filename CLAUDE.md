@@ -123,6 +123,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
+### 해결됨 (2026-06-15)
+- ~~주문 취소 시 백오더 자동 승격 누락~~: 백오더 승격(`BackorderAllocator`)은 입고(`PurchaseOrderService.receive`)·재고 +조정(`InventoryService.adjust`)에서만 트리거됐고, **`ORDER` 취소로 예약(`release`)이 풀려 가용분이 늘어도** 그 상품을 기다리던 백오더는 방치됐다. `OrderService.cancelOrder`가 취소 직전 상태가 `ORDER`였을 때만(= 실제로 예약이 풀린 경우) 해당 주문 상품 id들로 `backorderAllocator.allocate()`를 호출하도록 수정. `BACKORDERED` 취소는 풀릴 예약이 없어 트리거하지 않음. 취소된 주문 자신은 이미 `CANCEL`이라 승격 후보(BACKORDERED 조회)에서 제외되어 안전. 테스트: `OrderServiceCancelTest`(ORDER 취소 트리거·BACKORDERED 취소 미트리거·다품목 id 전달 3건). `gradlew build` 전체 통과.
+
 ### 해결됨 (2026-06-12)
 - ~~Phase 1: 주문 즉시 차감 → 예약/백오더 모델 전환~~: 4커밋(Phase1-1~4)으로 구현. ① `Inventory.reserve/release/ship/getAvailableQty` ② `Order.allocate()`(전부-아니면-백오더) + 취소=예약해제 + 출고 시 실물차감(`ship`), `OrderStatus.BACKORDERED` 추가, `OrderItem.createOrderItem` 순수화, 재고 부족 주문도 정상 접수라 장바구니 정리 수행 ③ `BackorderAllocator`(FIFO 승격) — 발주 입고·재고 증가 조정이 트리거, 조정 감소는 예약 침범 거부, 백오더 조회는 fetch join 컬렉션 잘림 회피 2단계 쿼리(`findBackordersContaining`) ④ 메인 카드 가용수량 기준 + "입고 대기"(버튼 활성), 상세/관리자 BACKORDERED 배지, 백오더도 취소 가능(`cancelable`). `Product.removeStock` 제거(`addStock`은 입고용 유지). 주의: 동시 주문이 같은 가용분을 두고 경합하면 늦은 쪽 `reserve()`가 `NotEnoughStockException`/낙관적 락으로 실패할 수 있음(재시도하면 백오더로 접수됨) — 기존 GlobalExceptionHandler가 처리.
 - ~~배송 상태가 영원히 READY (관리자 배송 처리 부재)~~: `Order.completeDelivery()`(취소된 주문 거부 + 중복 처리 거부 가드) + `GET /admin/orders`(`admin/orders.html` — 전체 주문 목록, READY 건에만 배송완료 버튼) + `POST /admin/orders/complete-delivery`(param `orderId`, flash 안내). 목록은 `OrderRepositoryQuery.findAllForAdmin()`(member/delivery fetch join, orderItems는 batch fetch, id desc) → `AdminOrderDto`(completable 포함). 진입점: 메인 재고 탭·재고 관리 페이지에 "배송관리" 링크. 이로써 "배송완료 시 취소 불가" 가드와 상세 페이지 취소 버튼 숨김이 실전 동작. 테스트: `OrderTest`(+3), `OrderRepositoryAdminListTest`, `OrderServiceAdminTest`, `AdminControllerMvcTest`(+4, USER 403 포함).
@@ -154,6 +157,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 9. **N+1성 루프**: `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩(컬렉션 fetch join과 함께라 limit이 메모리 적용됨 — HHH90003004), `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음(미사용 메서드).
 10. **`CartItemDto` 필드 중복**: `productPrice/cartPrice/unitPrice/lineTotalPrice` + `getTotalPrice()`가 사실상 동일 값. 정리 필요.
 12. **`@GeneratedValue` 전략 불일치**: Account/Product/Cart/CartItem은 IDENTITY, Member/Order/OrderItem/Delivery/Inventory는 AUTO.
+
+### 알려진 한계 (의도된 동작 — 추후 정책 재검토 대상)
+22. **백오더 FIFO 부분 기아(starvation)**: 승격은 "전부-아니면-백오더 + 부분출고 없음" 정책이라, 앞선 큰 수량 백오더가 가용분으로 못 채워지면 뒤쪽의 더 작은(채울 수 있는) 주문도 계속 BACKORDERED로 대기한다. 현재는 학습용으로 단순 FIFO를 유지(의도된 동작). 추후 부분 할당/우선순위/타임아웃 등 할당 정책 도입 시 재검토.
 
 ### 심각도 낮음
 13. 회원가입 서버 검증 부족: `SignUpForm.passwordConfirm`이 서버에서 password와 비교되지 않음(화면 JS로만 검증). name/phone/address 서버 검증 없음.

@@ -35,6 +35,7 @@ class OrderServiceDetailTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
+    @Mock BackorderAllocator backorderAllocator;
     @InjectMocks OrderService orderService;
 
     private Product product;
