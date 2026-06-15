@@ -31,6 +31,10 @@ public class AuthController {
 
     @PostMapping("/signup")
     public String signUp(@Valid SignUpForm form, BindingResult result) {
+        // 비밀번호 일치는 서버에서 확인한다(화면 JS만으로는 우회 가능).
+        if (form.getPassword() != null && !form.getPassword().equals(form.getPasswordConfirm())) {
+            result.rejectValue("passwordConfirm", "mismatch", "비밀번호가 일치하지 않습니다.");
+        }
         if(result.hasErrors()){
             return "signup";
         }

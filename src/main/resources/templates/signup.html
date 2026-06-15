@@ -196,12 +196,15 @@
             <div class="grid-2">
                 <div class="control">
                     <input class="input" type="text" th:field="*{zipcode}" placeholder="우편번호" />
+                    <div class="error" th:if="${#fields.hasErrors('zipcode')}" th:errors="*{zipcode}"></div>
                 </div>
                 <div class="control">
                     <input class="input" type="text" th:field="*{city}" placeholder="도시" />
+                    <div class="error" th:if="${#fields.hasErrors('city')}" th:errors="*{city}"></div>
                 </div>
                 <div class="control" style="grid-column:1 / -1;">
                     <input class="input" type="text" th:field="*{street}" placeholder="도로명/번지" />
+                    <div class="error" th:if="${#fields.hasErrors('street')}" th:errors="*{street}"></div>
                 </div>
             </div>
         </div>

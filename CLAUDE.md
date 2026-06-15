@@ -124,6 +124,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-15)
+- ~~회원가입 서버 검증 부족 (#13)~~: `passwordConfirm`이 화면 JS로만 검증되고 name/phone/주소는 서버 검증이 없던 문제 해결. `SignUpForm`의 `passwordConfirm/name/phone/city/street/zipcode`에 `@NotBlank` 추가(email/password의 기존 `@NotEmpty`는 유지), `AuthController.signUp`에서 `@Valid` 직후 `password != passwordConfirm`이면 `result.rejectValue("passwordConfirm", ...)`로 비밀번호 일치를 서버 검증(이메일 중복 처리와 동일 패턴). `signup.html`의 주소 3필드(zipcode/city/street)에 `th:errors` 표시 블록 추가(name/phone과 동일 패턴). 테스트: `AuthControllerMvcTest`(+2 — 비밀번호 불일치 시 passwordConfirm 필드에러·가입 미시도, name/phone/주소 공백 시 필드에러·가입 미시도). `gradlew build` 전체 통과.
 - ~~`CartItemDto` 필드 중복 (#10)~~: 3개 이름으로 2개 개념을 중복 표현하던 가격 필드를 정리. `productPrice`(= unitPrice, 미사용)·`cartPrice`(= lineTotalPrice, 컨트롤러 합계에서만 사용)·`getTotalPrice()`(= lineTotalPrice, 죽은 메서드)·`idx`(미사용 — 화면은 Thymeleaf `stat.index` 사용) 제거. 남은 필드: `memberId/cartId/productId/productName/unitPrice/lineTotalPrice/quantity`. `CartController`는 `getCartPrice()`→`getLineTotalPrice()`로 교체. `idx` 제거로 무의미해진 `CartService.findCartItemByMemberId`의 DTO 재빌드 루프를 리포지토리 결과 직접 반환으로 단순화(미사용 `IntStream`/`Collectors` import 제거). 사용처 0이 된 `@Builder`/`@AllArgsConstructor`도 제거(QueryDSL은 `@QueryProjection` 생성자만 사용). `@QueryProjection` 생성자 시그니처 불변이라 `QCartItemDto`·리포지토리 수정 불필요. 리팩터링(동작 불변) — 안전망인 `CartServiceTest`(단가/라인합계/합계) green 유지 + `gradlew build` 전체 통과.
 - ~~`TimeTraceAop` 포인트컷 과다 + `System.out.println` (#7)~~: 포인트컷을 `com.jhg.hgpage..*`(전 메서드) → **service/controller/api 계층으로 한정**(`execution(* ...service..*) || ...controller..* || ...api..*`)해 domain getter·DTO·repository 트레이스로 인한 로그 폭증/성능 저하 제거. `System.out.println` → **SLF4J 로거(`@Slf4j`, `log.info`)** 로 전환(로그 레벨로 on/off 가능, 운영 시 `logging.level.com.jhg.hgpage.aop=WARN`으로 끔), `joinPoint.toString()` → `getSignature()`로 출력 간소화. 테스트: `TimeTraceAopTest`(AspectJProxyFactory + logback ListAppender — 서비스 계층 트레이스됨 / domain 계층 트레이스 안 됨 2건, 픽스처는 `service`/`domain` 패키지의 비-컴포넌트 클래스). `gradlew build` 전체 통과.
 - ~~주문 취소 시 백오더 자동 승격 누락~~: 백오더 승격(`BackorderAllocator`)은 입고(`PurchaseOrderService.receive`)·재고 +조정(`InventoryService.adjust`)에서만 트리거됐고, **`ORDER` 취소로 예약(`release`)이 풀려 가용분이 늘어도** 그 상품을 기다리던 백오더는 방치됐다. `OrderService.cancelOrder`가 취소 직전 상태가 `ORDER`였을 때만(= 실제로 예약이 풀린 경우) 해당 주문 상품 id들로 `backorderAllocator.allocate()`를 호출하도록 수정. `BACKORDERED` 취소는 풀릴 예약이 없어 트리거하지 않음. 취소된 주문 자신은 이미 `CANCEL`이라 승격 후보(BACKORDERED 조회)에서 제외되어 안전. 테스트: `OrderServiceCancelTest`(ORDER 취소 트리거·BACKORDERED 취소 미트리거·다품목 id 전달 3건). `gradlew build` 전체 통과.
@@ -164,11 +165,10 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 22. **백오더 FIFO 부분 기아(starvation)**: 승격은 "전부-아니면-백오더 + 부분출고 없음" 정책이라, 앞선 큰 수량 백오더가 가용분으로 못 채워지면 뒤쪽의 더 작은(채울 수 있는) 주문도 계속 BACKORDERED로 대기한다. 현재는 학습용으로 단순 FIFO를 유지(의도된 동작). 추후 부분 할당/우선순위/타임아웃 등 할당 정책 도입 시 재검토.
 
 ### 심각도 낮음
-13. 회원가입 서버 검증 부족: `SignUpForm.passwordConfirm`이 서버에서 password와 비교되지 않음(화면 JS로만 검증). name/phone/address 서버 검증 없음.
+13. ~~회원가입 서버 검증 부족~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
 15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거.
 19. `OrderController.restoreCheckOutDisplay` — 주문서 검증 실패 시 폼의 상품마다 `productRepository.findById()` 루프 호출. `findAllById()` 일괄 조회로 개선 가능. (2026-06-12 발견)
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. 회원가입 비밀번호 확인 서버 검증 추가(#13)
-2. 남은 구세대 테스트를 신세대 패턴으로 점진 교체
+1. 남은 구세대 테스트를 신세대 패턴으로 점진 교체

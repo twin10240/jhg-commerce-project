@@ -79,6 +79,47 @@ class AuthControllerMvcTest {
     }
 
     @Test
+    void 비밀번호와_확인이_다르면_passwordConfirm_필드에러를_보여주고_가입하지_않는다() throws Exception {
+        mockMvc.perform(post("/signup")
+                        .with(anonymous())
+                        .with(csrf())
+                        .param("email", "user@example.com")
+                        .param("password", "1111")
+                        .param("passwordConfirm", "2222")
+                        .param("name", "테스터")
+                        .param("phone", "010-0000-0000")
+                        .param("city", "서울")
+                        .param("street", "관악구")
+                        .param("zipcode", "500"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("signup"))
+                .andExpect(model().attributeHasFieldErrors("signUpForm", "passwordConfirm"));
+
+        verify(accountService, never()).signUp(any(Member.class), any(Account.class));
+    }
+
+    @Test
+    void 이름_연락처_주소가_비어있으면_필드에러를_보여주고_가입하지_않는다() throws Exception {
+        mockMvc.perform(post("/signup")
+                        .with(anonymous())
+                        .with(csrf())
+                        .param("email", "user@example.com")
+                        .param("password", "1111")
+                        .param("passwordConfirm", "1111")
+                        .param("name", "")
+                        .param("phone", "")
+                        .param("city", "")
+                        .param("street", "")
+                        .param("zipcode", ""))
+                .andExpect(status().isOk())
+                .andExpect(view().name("signup"))
+                .andExpect(model().attributeHasFieldErrors("signUpForm",
+                        "name", "phone", "city", "street", "zipcode"));
+
+        verify(accountService, never()).signUp(any(Member.class), any(Account.class));
+    }
+
+    @Test
     void 필수값이_비어있으면_가입을_시도하지_않는다() throws Exception {
         mockMvc.perform(post("/signup")
                         .with(anonymous())
