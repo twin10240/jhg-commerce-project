@@ -13,8 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 @Service
 @RequiredArgsConstructor
@@ -67,24 +65,6 @@ public class CartService {
     }
 
     public List<CartItemDto> findCartItemByMemberId(Long memberId) {
-        List<CartItemDto> cartItems = cartRepositoryQuery.findCartItemByMemberId(memberId);
-
-        return IntStream.range(0, cartItems.size())
-                .mapToObj(i -> {
-                    CartItemDto ci = cartItems.get(i);
-                    return CartItemDto.builder()
-                            .memberId(ci.getMemberId())
-                            .cartId(ci.getCartId())
-                            .productId(ci.getProductId())
-                            .idx(i +1)
-                            .productName(ci.getProductName())
-                            .cartPrice(ci.getLineTotalPrice())
-                            .productPrice(ci.getUnitPrice())
-                            .unitPrice(ci.getUnitPrice())
-                            .lineTotalPrice(ci.getLineTotalPrice())
-                            .quantity(ci.getQuantity())
-                            .build();
-                })
-                .collect(Collectors.toList());
+        return cartRepositoryQuery.findCartItemByMemberId(memberId);
     }
 }

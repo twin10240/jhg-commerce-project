@@ -22,7 +22,7 @@ public class CartController {
         List<CartItemDto> cartItems = cartService.findCartItemByMemberId(user.getId());
         model.addAttribute("cartItems", cartItems);
 
-        int totalPrice = cartItems.stream().mapToInt(ci -> ci.getCartPrice()).sum();
+        int totalPrice = cartItems.stream().mapToInt(CartItemDto::getLineTotalPrice).sum();
         model.addAttribute("totalPrice", totalPrice);
 
         return "cart";
