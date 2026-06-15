@@ -124,6 +124,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-15)
+- ~~`TimeTraceAop` 포인트컷 과다 + `System.out.println` (#7)~~: 포인트컷을 `com.jhg.hgpage..*`(전 메서드) → **service/controller/api 계층으로 한정**(`execution(* ...service..*) || ...controller..* || ...api..*`)해 domain getter·DTO·repository 트레이스로 인한 로그 폭증/성능 저하 제거. `System.out.println` → **SLF4J 로거(`@Slf4j`, `log.info`)** 로 전환(로그 레벨로 on/off 가능, 운영 시 `logging.level.com.jhg.hgpage.aop=WARN`으로 끔), `joinPoint.toString()` → `getSignature()`로 출력 간소화. 테스트: `TimeTraceAopTest`(AspectJProxyFactory + logback ListAppender — 서비스 계층 트레이스됨 / domain 계층 트레이스 안 됨 2건, 픽스처는 `service`/`domain` 패키지의 비-컴포넌트 클래스). `gradlew build` 전체 통과.
 - ~~주문 취소 시 백오더 자동 승격 누락~~: 백오더 승격(`BackorderAllocator`)은 입고(`PurchaseOrderService.receive`)·재고 +조정(`InventoryService.adjust`)에서만 트리거됐고, **`ORDER` 취소로 예약(`release`)이 풀려 가용분이 늘어도** 그 상품을 기다리던 백오더는 방치됐다. `OrderService.cancelOrder`가 취소 직전 상태가 `ORDER`였을 때만(= 실제로 예약이 풀린 경우) 해당 주문 상품 id들로 `backorderAllocator.allocate()`를 호출하도록 수정. `BACKORDERED` 취소는 풀릴 예약이 없어 트리거하지 않음. 취소된 주문 자신은 이미 `CANCEL`이라 승격 후보(BACKORDERED 조회)에서 제외되어 안전. 테스트: `OrderServiceCancelTest`(ORDER 취소 트리거·BACKORDERED 취소 미트리거·다품목 id 전달 3건). `gradlew build` 전체 통과.
 
 ### 해결됨 (2026-06-12)
@@ -153,7 +154,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - 없음 (2026-06-12 기준. 운영 배포 단계가 되면 `update` 대신 Flyway 마이그레이션 도입 검토)
 
 ### 심각도 중간
-7. **`TimeTraceAop` 포인트컷 과다**: `execution(* com.jhg.hgpage..*(..))` — 모든 메서드를 감싸 로그 폭증/성능 저하(`System.out.println` 사용). 서비스·컨트롤러로 한정 권장.
+7. ~~**`TimeTraceAop` 포인트컷 과다**~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
 9. **N+1성 루프**: `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩(컬렉션 fetch join과 함께라 limit이 메모리 적용됨 — HHH90003004), `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음(미사용 메서드).
 10. **`CartItemDto` 필드 중복**: `productPrice/cartPrice/unitPrice/lineTotalPrice` + `getTotalPrice()`가 사실상 동일 값. 정리 필요.
 12. **`@GeneratedValue` 전략 불일치**: Account/Product/Cart/CartItem은 IDENTITY, Member/Order/OrderItem/Delivery/Inventory는 AUTO.
@@ -168,5 +169,6 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. `TimeTraceAop` 포인트컷 범위 축소(#7)
-2. `CartItemDto` 필드 정리, 회원가입 비밀번호 확인 서버 검증 추가, 남은 구세대 테스트를 신세대 패턴으로 점진 교체
+1. `CartItemDto` 필드 정리(#10)
+2. 회원가입 비밀번호 확인 서버 검증 추가(#13)
+3. 남은 구세대 테스트를 신세대 패턴으로 점진 교체
