@@ -116,14 +116,15 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ## 테스트 현황
 
-테스트는 두 세대가 공존한다. 신규 테스트는 **신세대 패턴**을 따를 것.
+신규 테스트는 **신세대 패턴**을 따를 것(Mockito 단위 / `@WebMvcTest` 슬라이스 / `@DataJpaTest` 자체 데이터 + 단언).
 
-- **구세대** (`service/`, `repository/`의 기존 `@SpringBootTest`): assertion 없이 출력만 하거나 initDb 시드·하드코딩 ID(2L)에 의존(`ProductServiceTest`, `MemberServiceTest`, `OrderServiceTest`, repository 테스트 등). (2026-06-12부터 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돌고 실 DB를 오염시키지 않는다.) 빌드를 막던 확정 실패 2건(`AccountServiceTest`, `CartServiceTest`)은 2026-06-12 신세대 통합 테스트로 교체 완료 — 현재 `gradlew build` 전체 통과.
+- **구세대 잔재**: 2026-06-15 전면 교체 완료. assertion 없이 출력만 하거나 시드·하드코딩 ID(2L)에 의존하던 `OrderServiceTest`·`ProductServiceTest`·`OrderRepositoryTest`·`CartRepositoryTest`·`MemberRepositoryTest`를 신세대로 교체(`MemberServiceTest`는 `MemberServiceFindMemberTest`와 중복이라 삭제, `ProductServiceTest`는 `ProductInventoryPersistenceTest`로 대체). 남은 예외는 `OptionalTest`(Java API 연습장)·`PassWordTest`(bcrypt 해시 출력)뿐 — 프로젝트 검증과 무관한 연습 테스트로 사용자 결정에 따라 보존(#21). (2026-06-12부터 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돌고 실 DB를 오염시키지 않는다.)
 - **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`), 임베디드 H2 통합(`AccountServiceTest`, `CartServiceTest`, `InitDbTest` — 자체 데이터 생성 + 롤백). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
 ### 해결됨 (2026-06-15)
+- ~~구세대 테스트 전면 교체~~: assertion 없이 출력만 하거나 시드·하드코딩 ID(2L)에 의존하던 구세대 테스트 6종을 신세대 패턴으로 교체. `OrderServiceTest`→`OrderService.findOrders` 매핑 검증(Mockito), `OrderRepositoryTest`→실제 쓰이는 `OrderRepositoryQuery.findOrders` 검증(`@DataJpaTest`, 미사용 `findOrdersByMemberId` 대신), `CartRepositoryTest`·`MemberRepositoryTest`→자체 데이터 + 단언(`@DataJpaTest`, 하드코딩 ID 제거), `ProductServiceTest`→`ProductInventoryPersistenceTest`(Product↔Inventory cascade 영속화, `@Rollback(false)` DB 오염 제거), `MemberServiceTest`→삭제(중복: `MemberServiceFindMemberTest`가 커버). `OptionalTest`/`PassWordTest`만 연습 테스트로 보존(#21). `gradlew build` 전체 통과.
 - ~~회원가입 서버 검증 부족 (#13)~~: `passwordConfirm`이 화면 JS로만 검증되고 name/phone/주소는 서버 검증이 없던 문제 해결. `SignUpForm`의 `passwordConfirm/name/phone/city/street/zipcode`에 `@NotBlank` 추가(email/password의 기존 `@NotEmpty`는 유지), `AuthController.signUp`에서 `@Valid` 직후 `password != passwordConfirm`이면 `result.rejectValue("passwordConfirm", ...)`로 비밀번호 일치를 서버 검증(이메일 중복 처리와 동일 패턴). `signup.html`의 주소 3필드(zipcode/city/street)에 `th:errors` 표시 블록 추가(name/phone과 동일 패턴). 테스트: `AuthControllerMvcTest`(+2 — 비밀번호 불일치 시 passwordConfirm 필드에러·가입 미시도, name/phone/주소 공백 시 필드에러·가입 미시도). `gradlew build` 전체 통과.
 - ~~`CartItemDto` 필드 중복 (#10)~~: 3개 이름으로 2개 개념을 중복 표현하던 가격 필드를 정리. `productPrice`(= unitPrice, 미사용)·`cartPrice`(= lineTotalPrice, 컨트롤러 합계에서만 사용)·`getTotalPrice()`(= lineTotalPrice, 죽은 메서드)·`idx`(미사용 — 화면은 Thymeleaf `stat.index` 사용) 제거. 남은 필드: `memberId/cartId/productId/productName/unitPrice/lineTotalPrice/quantity`. `CartController`는 `getCartPrice()`→`getLineTotalPrice()`로 교체. `idx` 제거로 무의미해진 `CartService.findCartItemByMemberId`의 DTO 재빌드 루프를 리포지토리 결과 직접 반환으로 단순화(미사용 `IntStream`/`Collectors` import 제거). 사용처 0이 된 `@Builder`/`@AllArgsConstructor`도 제거(QueryDSL은 `@QueryProjection` 생성자만 사용). `@QueryProjection` 생성자 시그니처 불변이라 `QCartItemDto`·리포지토리 수정 불필요. 리팩터링(동작 불변) — 안전망인 `CartServiceTest`(단가/라인합계/합계) green 유지 + `gradlew build` 전체 통과.
 - ~~`TimeTraceAop` 포인트컷 과다 + `System.out.println` (#7)~~: 포인트컷을 `com.jhg.hgpage..*`(전 메서드) → **service/controller/api 계층으로 한정**(`execution(* ...service..*) || ...controller..* || ...api..*`)해 domain getter·DTO·repository 트레이스로 인한 로그 폭증/성능 저하 제거. `System.out.println` → **SLF4J 로거(`@Slf4j`, `log.info`)** 로 전환(로그 레벨로 on/off 가능, 운영 시 `logging.level.com.jhg.hgpage.aop=WARN`으로 끔), `joinPoint.toString()` → `getSignature()`로 출력 간소화. 테스트: `TimeTraceAopTest`(AspectJProxyFactory + logback ListAppender — 서비스 계층 트레이스됨 / domain 계층 트레이스 안 됨 2건, 픽스처는 `service`/`domain` 패키지의 비-컴포넌트 클래스). `gradlew build` 전체 통과.
@@ -171,4 +172,5 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. 남은 구세대 테스트를 신세대 패턴으로 점진 교체
+1. N+1성 루프·페이징 개선(#9)
+2. `@GeneratedValue` 전략 통일(#12)
