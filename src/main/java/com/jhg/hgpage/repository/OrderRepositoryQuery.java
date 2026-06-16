@@ -23,9 +23,9 @@ public class OrderRepositoryQuery {
     private final JPAQueryFactory jpaQueryFactory;
 
     public List<Order> findOrders(Long memberId) {
-        return jpaQueryFactory.select(order).distinct()
-                .from(order)
-                .join(order.orderItems, orderItem).fetchJoin()
+        // 컬렉션 fetch join + limit은 limit이 메모리에 적용되므로(HHH90003004),
+        // 루트(order)만 limit으로 조회하고 orderItems는 batch fetch(default_batch_fetch_size)에 맡긴다(#9 ②).
+        return jpaQueryFactory.selectFrom(order)
                 .where(order.member.id.eq(memberId))
                 .limit(100)
                 .fetch();

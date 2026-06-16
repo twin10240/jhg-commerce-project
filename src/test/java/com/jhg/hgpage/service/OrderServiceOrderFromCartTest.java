@@ -16,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -53,8 +52,8 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 장바구니_주문이_성공하면_주문된_상품들이_장바구니에서_제거된다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10000, 10)));
-        when(productRepository.findById(2L)).thenReturn(Optional.of(productWithStock(2L, 20000, 10)));
+        when(productRepository.findAllById(any())).thenReturn(List.of(
+                productWithStock(1L, 10000, 10), productWithStock(2L, 20000, 10)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.orderFromCart(1L, ADDRESS, List.of(
@@ -68,7 +67,7 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 재고가_부족해도_백오더로_접수되고_장바구니는_정리된다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10000, 0)));
+        when(productRepository.findAllById(any())).thenReturn(List.of(productWithStock(1L, 10000, 0)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.orderFromCart(1L, ADDRESS, List.of(new OrderService.OrderLine(1L, 1)));
@@ -79,7 +78,7 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 주문이_실패하면_장바구니를_건드리지_않는다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findById(99L)).thenReturn(Optional.empty()); // 없는 상품 → 진짜 실패
+        when(productRepository.findAllById(any())).thenReturn(List.of()); // 없는 상품 → 진짜 실패
 
         assertThatThrownBy(() -> orderService.orderFromCart(1L, ADDRESS,
                 List.of(new OrderService.OrderLine(99L, 1))))
@@ -91,7 +90,7 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 일반_주문은_장바구니를_건드리지_않는다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findById(1L)).thenReturn(Optional.of(productWithStock(1L, 10000, 10)));
+        when(productRepository.findAllById(any())).thenReturn(List.of(productWithStock(1L, 10000, 10)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.order(1L, ADDRESS, List.of(new OrderService.OrderLine(1L, 1)));

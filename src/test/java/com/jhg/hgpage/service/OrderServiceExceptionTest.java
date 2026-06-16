@@ -12,9 +12,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,7 +28,7 @@ class OrderServiceExceptionTest {
 
     @Test
     void 없는_상품을_주문하면_EntityNotFoundException을_던진다() {
-        when(productRepository.findById(99L)).thenReturn(Optional.empty());
+        when(productRepository.findAllById(any())).thenReturn(List.of()); // 없는 상품
 
         assertThatThrownBy(() -> orderService.order(
                 1L,

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,9 +41,17 @@ public class OrderService {
         Delivery delivery = new Delivery();
         delivery.setAddress(address);
 
+        // 라인별 findById(N+1) 대신 한 번의 findAllById로 일괄 조회한다(#9 ①)
+        List<Long> productIds = lines.stream().map(OrderLine::productId).toList();
+        Map<Long, Product> products = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
         OrderItem[] orderItems = lines.stream()
                 .map(line -> {
-                    Product product = findProduct(line.productId());
+                    Product product = products.get(line.productId());
+                    if (product == null) {
+                        throw new EntityNotFoundException("Product", line.productId());
+                    }
                     return OrderItem.createOrderItem(product, product.getPrice(), line.quantity());
                 })
                 .toArray(OrderItem[]::new);
@@ -111,11 +121,6 @@ public class OrderService {
             throw new EntityNotFoundException("Order", orderId);
         }
         return order;
-    }
-
-    private Product findProduct(Long productId) {
-        return productRepository.findById(productId)
-                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
     }
 
     public record OrderLine(Long productId, int quantity) {}
