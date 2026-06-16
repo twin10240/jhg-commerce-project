@@ -24,6 +24,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -123,14 +127,20 @@ public class OrderController {
             form.getMember().setEmail(user.getEmail());
         }
 
+        // 라인별 findById(N+1) 대신 한 번의 findAllById로 일괄 조회한다(#19). 없는 상품은 그대로 둔다.
+        List<Long> ids = form.getProduct().stream()
+                .map(CheckOutForm.ProductDto::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        Map<Long, Product> products = productRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
         form.getProduct().forEach(item -> {
-            if (item.getId() == null) {
-                return;
-            }
-            productRepository.findById(item.getId()).ifPresent(product -> {
+            Product product = products.get(item.getId()); // id가 null이면 get(null)→null로 자연히 건너뛴다
+            if (product != null) {
                 item.setName(product.getName());
                 item.setPrice(product.getPrice());
-            });
+            }
         });
     }
 

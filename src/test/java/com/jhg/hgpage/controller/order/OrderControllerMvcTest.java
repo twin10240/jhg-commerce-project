@@ -409,4 +409,36 @@ class OrderControllerMvcTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(view().name("error"));
     }
+
+    @Test
+    void 검증_실패로_주문서를_다시_그릴때_상품을_findAllById로_일괄_조회한다() throws Exception {
+        com.jhg.hgpage.domain.Product p1 = new com.jhg.hgpage.domain.Product();
+        p1.setId(1L);
+        p1.setName("상품1");
+        p1.setPrice(10000);
+        com.jhg.hgpage.domain.Product p2 = new com.jhg.hgpage.domain.Product();
+        p2.setId(2L);
+        p2.setName("상품2");
+        p2.setPrice(20000);
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
+
+        // 전 상품 미선택 → 검증 실패 → restoreCheckOutDisplay로 주문서를 다시 렌더링한다
+        mockMvc.perform(post("/orders/checkout")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("delivery.city", "서울")
+                        .param("delivery.street", "관악구")
+                        .param("delivery.zipcode", "08001")
+                        .param("product[0].id", "1")
+                        .param("product[0].quantity", "1")
+                        .param("product[0].selected", "false")
+                        .param("product[1].id", "2")
+                        .param("product[1].quantity", "1")
+                        .param("product[1].selected", "false"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orderdetail"));
+
+        verify(productRepository).findAllById(any());
+        verify(productRepository, never()).findById(any()); // 라인별 단건 조회(N+1) 미사용
+    }
 }

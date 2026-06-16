@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 회원의 주문 목록 조회(QueryDSL `findOrders`) — 본인 주문만, orderItems를 fetch join으로 함께 반환한다.
  * (구 OrderRepositoryTest: assertion 없이 시드 ID(2L)에 의존해 출력만 하던 것을 자체 데이터 + 단언으로 교체.
- *  구 테스트가 호출하던 `findOrdersByMemberId`는 미사용 메서드(#9)라, 실제 쓰이는 `findOrders`를 검증한다.)
+ *  구 테스트가 호출하던 `findOrdersByMemberId`는 미사용 메서드(#9)라 제거됐고, 실제 쓰이는 `findOrders`를 검증한다.)
  */
 @DataJpaTest
 @Import({QueryDslConfig.class, OrderRepositoryQuery.class})
