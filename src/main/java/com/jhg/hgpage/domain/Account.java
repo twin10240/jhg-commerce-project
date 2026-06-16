@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @Table(indexes = @Index(name="ux_account_email", columnList="email", unique=true))
 public class Account {
 
-    // IDENTITY 전략은 em.persist()로 객체를 영속화 시키는 시점에 곧바로 insert 쿼리가 DB로 전송되고, 거기서 반환받은 식별자 값을 가지고 1차 캐시에 엔티티를 등록시켜 관리
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // ID 생성 전략은 프로젝트 전체를 AUTO(시퀀스)로 통일한다(#12)
+    @Id @GeneratedValue
     private Long id;
     // unique 제약은 @Table의 명명된 인덱스(ux_account_email)로만 선언
     @Column(nullable=false, length=190)
