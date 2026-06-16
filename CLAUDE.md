@@ -123,6 +123,11 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
 
+### 해결됨 (2026-06-16)
+- ~~N+1성 조회 루프 (#9)~~: `OrderService.order`가 주문 라인마다 `productRepository.findById`를 호출하던 N+1을 **`findAllById` 단건 일괄 조회(`Map<id,Product>`)**로 교체(누락 상품은 `EntityNotFoundException` 보존, 단일 사용처가 된 `findProduct` 헬퍼 제거). `OrderRepositoryQuery.findOrders`는 **컬렉션 fetch join + `limit(100)`** 조합이 limit을 메모리에 적용하던 문제(HHH90003004)를, 루트(`order`)만 limit으로 조회하고 `orderItems`는 batch fetch(`default_batch_fetch_size=100`, 운영·테스트 yml 모두 설정됨)에 맡기도록 재작성(컬렉션 fetch join·distinct 제거). #9가 함께 지적한 미사용 메서드 `OrderRepository.findOrdersByMemberId`(1:N fetch join + distinct 없음)도 죽은 코드라 제거. 둘 다 동작 불변·순수 성능 개선. 테스트(TDD RED→GREEN): `OrderServiceOrderTest`(신규 — `findAllById` 일괄 조회·`findById` 미사용 검증, 누락 상품 예외), `OrderRepositoryInMemoryPagingTest`(신규 `@DataJpaTest` + logback `ListAppender` — HHH90003004 메모리 페이징 경고 부재), `findById`를 스텁하던 기존 단위 테스트(`OrderServiceOrderFromCartTest`·`OrderServiceExceptionTest`)는 `findAllById` 스텁으로 갱신(동작 단언 불변). `gradlew build` 전체 통과.
+- ~~`restoreCheckOutDisplay` findById 루프 (#19)~~: 주문서 검증 실패 재렌더 시 폼 상품마다 `productRepository.findById`를 호출하던 루프(#9와 같은 결의 N+1)를 **`findAllById` 일괄 조회**로 교체(id가 null이거나 없는 상품은 그대로 둠 — 기존 `ifPresent` 의미 보존). 같은 컨트롤러의 주문서 생성(`checkout-form`) 경로 `findProduct` 루프는 별도 N+1로 남겨둠(후속 후보). 테스트(TDD): `OrderControllerMvcTest`(+1 — 전 상품 미선택으로 검증 실패 유도, `findAllById` 1회·`findById` 미사용 검증). `gradlew build` 전체 통과.
+- ~~`@GeneratedValue` 전략 불일치 (#12)~~: IDENTITY 4종(`Account`/`Product`/`Cart`/`CartItem`)을 다수(7종)가 쓰던 기본 `@GeneratedValue`(AUTO/시퀀스)로 통일(사용자 결정). JDBC 배치 인서트 가능·시퀀스 기반 일관성 확보. 임베디드 H2 테스트는 매 실행 create-drop이라 새 시퀀스 스키마로 생성되며 기존 영속성 테스트들이 4개 엔티티의 ID 생성을 모두 검증. **주의: 영속 H2(TCP) DB는 IDENTITY 컬럼→시퀀스 전환을 `ddl-auto: update`가 못 따라가므로 `local` 프로파일로 1회 리셋 필요**(`--spring.profiles.active=local`). `gradlew build` 전체 통과.
+
 ### 해결됨 (2026-06-15)
 - ~~구세대 테스트 전면 교체~~: assertion 없이 출력만 하거나 시드·하드코딩 ID(2L)에 의존하던 구세대 테스트 6종을 신세대 패턴으로 교체. `OrderServiceTest`→`OrderService.findOrders` 매핑 검증(Mockito), `OrderRepositoryTest`→실제 쓰이는 `OrderRepositoryQuery.findOrders` 검증(`@DataJpaTest`, 미사용 `findOrdersByMemberId` 대신), `CartRepositoryTest`·`MemberRepositoryTest`→자체 데이터 + 단언(`@DataJpaTest`, 하드코딩 ID 제거), `ProductServiceTest`→`ProductInventoryPersistenceTest`(Product↔Inventory cascade 영속화, `@Rollback(false)` DB 오염 제거), `MemberServiceTest`→삭제(중복: `MemberServiceFindMemberTest`가 커버). `OptionalTest`/`PassWordTest`만 연습 테스트로 보존(#21). `gradlew build` 전체 통과.
 - ~~회원가입 서버 검증 부족 (#13)~~: `passwordConfirm`이 화면 JS로만 검증되고 name/phone/주소는 서버 검증이 없던 문제 해결. `SignUpForm`의 `passwordConfirm/name/phone/city/street/zipcode`에 `@NotBlank` 추가(email/password의 기존 `@NotEmpty`는 유지), `AuthController.signUp`에서 `@Valid` 직후 `password != passwordConfirm`이면 `result.rejectValue("passwordConfirm", ...)`로 비밀번호 일치를 서버 검증(이메일 중복 처리와 동일 패턴). `signup.html`의 주소 3필드(zipcode/city/street)에 `th:errors` 표시 블록 추가(name/phone과 동일 패턴). 테스트: `AuthControllerMvcTest`(+2 — 비밀번호 불일치 시 passwordConfirm 필드에러·가입 미시도, name/phone/주소 공백 시 필드에러·가입 미시도). `gradlew build` 전체 통과.
@@ -158,9 +163,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 중간
 7. ~~**`TimeTraceAop` 포인트컷 과다**~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
-9. **N+1성 루프**: `OrderService.order`가 라인별 `findById` 호출. `OrderRepositoryQuery.findOrders`는 `limit(100)` 하드코딩(컬렉션 fetch join과 함께라 limit이 메모리 적용됨 — HHH90003004), `OrderRepository.findOrdersByMemberId`는 1:N fetch join에 distinct 없음(미사용 메서드).
+9. ~~**N+1성 루프**~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고). 단 `OrderController`의 주문서 생성(`checkout-form`) 경로 `findProduct` 루프는 별도 N+1로 남아 있음(후속 후보).
 10. ~~**`CartItemDto` 필드 중복**~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
-12. **`@GeneratedValue` 전략 불일치**: Account/Product/Cart/CartItem은 IDENTITY, Member/Order/OrderItem/Delivery/Inventory는 AUTO.
+12. ~~**`@GeneratedValue` 전략 불일치**~~ — 해결됨(2026-06-16, AUTO/시퀀스로 통일. 위 해결됨 섹션 참고).
 
 ### 알려진 한계 (의도된 동작 — 추후 정책 재검토 대상)
 22. **백오더 FIFO 부분 기아(starvation)**: 승격은 "전부-아니면-백오더 + 부분출고 없음" 정책이라, 앞선 큰 수량 백오더가 가용분으로 못 채워지면 뒤쪽의 더 작은(채울 수 있는) 주문도 계속 BACKORDERED로 대기한다. 현재는 학습용으로 단순 FIFO를 유지(의도된 동작). 추후 부분 할당/우선순위/타임아웃 등 할당 정책 도입 시 재검토.
@@ -168,9 +173,10 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ### 심각도 낮음
 13. ~~회원가입 서버 검증 부족~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
 15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거.
-19. `OrderController.restoreCheckOutDisplay` — 주문서 검증 실패 시 폼의 상품마다 `productRepository.findById()` 루프 호출. `findAllById()` 일괄 조회로 개선 가능. (2026-06-12 발견)
+19. ~~`OrderController.restoreCheckOutDisplay` findById 루프~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고).
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. N+1성 루프·페이징 개선(#9)
-2. `@GeneratedValue` 전략 통일(#12)
+1. **Phase 2 — `oms/`·`wms/` 모듈 경계 재배치** (로드맵 다음 단계)
+2. `OrderController` 주문서 생성(`checkout-form`) 경로 `findProduct` 루프 N+1 정리 (#9 잔여, 짧은 후속)
+3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
