@@ -125,7 +125,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 해결됨 (2026-06-16)
 - ~~N+1성 조회 루프 (#9)~~: `OrderService.order`가 주문 라인마다 `productRepository.findById`를 호출하던 N+1을 **`findAllById` 단건 일괄 조회(`Map<id,Product>`)**로 교체(누락 상품은 `EntityNotFoundException` 보존, 단일 사용처가 된 `findProduct` 헬퍼 제거). `OrderRepositoryQuery.findOrders`는 **컬렉션 fetch join + `limit(100)`** 조합이 limit을 메모리에 적용하던 문제(HHH90003004)를, 루트(`order`)만 limit으로 조회하고 `orderItems`는 batch fetch(`default_batch_fetch_size=100`, 운영·테스트 yml 모두 설정됨)에 맡기도록 재작성(컬렉션 fetch join·distinct 제거). #9가 함께 지적한 미사용 메서드 `OrderRepository.findOrdersByMemberId`(1:N fetch join + distinct 없음)도 죽은 코드라 제거. 둘 다 동작 불변·순수 성능 개선. 테스트(TDD RED→GREEN): `OrderServiceOrderTest`(신규 — `findAllById` 일괄 조회·`findById` 미사용 검증, 누락 상품 예외), `OrderRepositoryInMemoryPagingTest`(신규 `@DataJpaTest` + logback `ListAppender` — HHH90003004 메모리 페이징 경고 부재), `findById`를 스텁하던 기존 단위 테스트(`OrderServiceOrderFromCartTest`·`OrderServiceExceptionTest`)는 `findAllById` 스텁으로 갱신(동작 단언 불변). `gradlew build` 전체 통과.
-- ~~`restoreCheckOutDisplay` findById 루프 (#19)~~: 주문서 검증 실패 재렌더 시 폼 상품마다 `productRepository.findById`를 호출하던 루프(#9와 같은 결의 N+1)를 **`findAllById` 일괄 조회**로 교체(id가 null이거나 없는 상품은 그대로 둠 — 기존 `ifPresent` 의미 보존). 같은 컨트롤러의 주문서 생성(`checkout-form`) 경로 `findProduct` 루프는 별도 N+1로 남겨둠(후속 후보). 테스트(TDD): `OrderControllerMvcTest`(+1 — 전 상품 미선택으로 검증 실패 유도, `findAllById` 1회·`findById` 미사용 검증). `gradlew build` 전체 통과.
+- ~~`OrderController`의 findById 루프 N+1 (#19, #9 잔여)~~: `restoreCheckOutDisplay`(검증 실패 재렌더)와 `createCheckOutFrom`의 장바구니 분기(`checkout-form` 주문서 생성) 두 곳 모두 폼/선택 상품마다 `productRepository.findById`를 호출하던 루프를 **`findAllById` 일괄 조회**로 교체. `restoreCheckOutDisplay`는 id가 null이거나 없는 상품을 그대로 둠(기존 `ifPresent` 의미 보존), 장바구니 분기는 `order()`와 동일하게 없는 상품이면 `EntityNotFoundException`. 단건 구매 분기(`findProduct` 1회)는 N+1이 아니라 그대로 유지. 테스트(TDD): `OrderControllerMvcTest`(+2 — 검증 실패 재렌더·장바구니 다상품 주문서 생성에서 각각 `findAllById` 1회·`findById` 미사용 검증). `gradlew build` 전체 통과.
 - ~~`@GeneratedValue` 전략 불일치 (#12)~~: IDENTITY 4종(`Account`/`Product`/`Cart`/`CartItem`)을 다수(7종)가 쓰던 기본 `@GeneratedValue`(AUTO/시퀀스)로 통일(사용자 결정). JDBC 배치 인서트 가능·시퀀스 기반 일관성 확보. 임베디드 H2 테스트는 매 실행 create-drop이라 새 시퀀스 스키마로 생성되며 기존 영속성 테스트들이 4개 엔티티의 ID 생성을 모두 검증. **주의: 영속 H2(TCP) DB는 IDENTITY 컬럼→시퀀스 전환을 `ddl-auto: update`가 못 따라가므로 `local` 프로파일로 1회 리셋 필요**(`--spring.profiles.active=local`). `gradlew build` 전체 통과.
 
 ### 해결됨 (2026-06-15)
@@ -163,7 +163,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 중간
 7. ~~**`TimeTraceAop` 포인트컷 과다**~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
-9. ~~**N+1성 루프**~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고). 단 `OrderController`의 주문서 생성(`checkout-form`) 경로 `findProduct` 루프는 별도 N+1로 남아 있음(후속 후보).
+9. ~~**N+1성 루프**~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고). `OrderService.order`·`findOrders`·`OrderController`의 모든 findById 루프 제거 완료.
 10. ~~**`CartItemDto` 필드 중복**~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
 12. ~~**`@GeneratedValue` 전략 불일치**~~ — 해결됨(2026-06-16, AUTO/시퀀스로 통일. 위 해결됨 섹션 참고).
 
@@ -178,5 +178,4 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 개선 우선순위
 1. **Phase 2 — `oms/`·`wms/` 모듈 경계 재배치** (로드맵 다음 단계)
-2. `OrderController` 주문서 생성(`checkout-form`) 경로 `findProduct` 루프 N+1 정리 (#9 잔여, 짧은 후속)
-3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
+2. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
