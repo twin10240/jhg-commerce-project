@@ -62,8 +62,18 @@ public class OrderController {
                     .filter(item -> Boolean.TRUE.equals(item.getSelected()))
                     .toList();
 
+            // 라인별 findById(N+1) 대신 한 번의 findAllById로 일괄 조회한다(#9)
+            List<Long> productIds = selectedItems.stream()
+                    .map(OrderRequest.OrderItem::getProductId)
+                    .toList();
+            Map<Long, Product> products = productRepository.findAllById(productIds).stream()
+                    .collect(Collectors.toMap(Product::getId, Function.identity()));
+
             for (OrderRequest.OrderItem item : selectedItems) {
-                Product product = findProduct(item.getProductId());
+                Product product = products.get(item.getProductId());
+                if (product == null) {
+                    throw new EntityNotFoundException("Product", item.getProductId());
+                }
                 checkOutForm.getProduct().add(new CheckOutForm.ProductDto(
                         item.getProductId(),
                         product.getName(),

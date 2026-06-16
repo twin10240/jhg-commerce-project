@@ -250,7 +250,7 @@ class OrderControllerMvcTest {
         product.setId(1L);
         product.setName("상품1");
         product.setPrice(10000);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+        when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
         mockMvc.perform(post("/orders/checkout-form")
                         .with(user(principal()))
@@ -435,6 +435,36 @@ class OrderControllerMvcTest {
                         .param("product[1].id", "2")
                         .param("product[1].quantity", "1")
                         .param("product[1].selected", "false"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orderdetail"));
+
+        verify(productRepository).findAllById(any());
+        verify(productRepository, never()).findById(any()); // 라인별 단건 조회(N+1) 미사용
+    }
+
+    @Test
+    void 장바구니_주문서_생성시_상품을_findAllById로_일괄_조회한다() throws Exception {
+        when(memberService.findMember(1L)).thenReturn(
+                Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+        com.jhg.hgpage.domain.Product p1 = new com.jhg.hgpage.domain.Product();
+        p1.setId(1L);
+        p1.setName("상품1");
+        p1.setPrice(10000);
+        com.jhg.hgpage.domain.Product p2 = new com.jhg.hgpage.domain.Product();
+        p2.setId(2L);
+        p2.setName("상품2");
+        p2.setPrice(20000);
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
+
+        mockMvc.perform(post("/orders/checkout-form")
+                        .with(user(principal()))
+                        .with(csrf())
+                        .param("items[0].productId", "1")
+                        .param("items[0].qty", "1")
+                        .param("items[0].selected", "true")
+                        .param("items[1].productId", "2")
+                        .param("items[1].qty", "2")
+                        .param("items[1].selected", "true"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("orderdetail"));
 
