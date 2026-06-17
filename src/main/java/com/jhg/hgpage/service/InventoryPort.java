@@ -20,4 +20,10 @@ public interface InventoryPort {
      * 출고 시점에 비로소 실물이 빠진다.
      */
     void shipAll(Map<Long, Integer> qtyByProductId);
+
+    /**
+     * 예약 해제: 전 상품의 예약분을 되돌린다(가용분 복구).
+     * ORDER 주문 취소 시점에 호출한다.
+     */
+    void releaseAll(Map<Long, Integer> qtyByProductId);
 }

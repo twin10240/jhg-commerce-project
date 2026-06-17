@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,7 @@ class OrderServiceCancelTest {
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
     @Mock BackorderAllocator backorderAllocator;
+    @Mock InventoryPort inventoryPort;
     @InjectMocks OrderService orderService;
 
     private static final Address ADDRESS = new Address("서울", "관악구", "500");
@@ -78,6 +80,8 @@ class OrderServiceCancelTest {
         orderService.cancelOrder(10L, 1L);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        // 예약 해제는 도메인이 아니라 InventoryPort(WMS)에 위임한다
+        verify(inventoryPort).releaseAll(Map.of(7L, 3));
         verify(backorderAllocator).allocate(List.of(7L));
     }
 
@@ -93,6 +97,8 @@ class OrderServiceCancelTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         verifyNoInteractions(backorderAllocator);
+        // 풀릴 예약이 없으므로 재고 해제도 일어나지 않는다
+        verifyNoInteractions(inventoryPort);
     }
 
     @Test
@@ -108,6 +114,7 @@ class OrderServiceCancelTest {
 
         orderService.cancelOrder(10L, 1L);
 
+        verify(inventoryPort).releaseAll(Map.of(7L, 2, 8L, 1));
         verify(backorderAllocator).allocate(List.of(7L, 8L));
     }
 }

@@ -87,6 +87,8 @@ public class Order {
         this.status = OrderStatus.ORDER;
     }
 
+    // 취소는 상태 전이만 담당한다. 예약 해제(release)는 서비스 계층이 InventoryPort(WMS)에 위임한다.
+    // 예약은 ORDER 상태에만 존재하므로, 해제가 필요한지(취소 직전이 ORDER였는지)는 서비스가 판단한다.
     public void cancel() {
         if(delivery.getStatus() == DeliveryStatus.COMP){
             throw new IllegalStateException("이미 배송완료된 상품은 취소가 불가능합니다.");
@@ -94,13 +96,6 @@ public class Order {
         // 재취소를 막지 않으면 예약이 이중 해제된다
         if(this.status == OrderStatus.CANCEL){
             throw new IllegalStateException("이미 취소된 주문입니다.");
-        }
-
-        // 예약은 ORDER 상태에만 존재한다. BACKORDERED는 해제할 예약이 없다.
-        if (this.status == OrderStatus.ORDER) {
-            for (OrderItem orderItem : orderItems) {
-                orderItem.getProduct().getInventory().release(orderItem.getCount());
-            }
         }
         this.setStatus(OrderStatus.CANCEL);
     }

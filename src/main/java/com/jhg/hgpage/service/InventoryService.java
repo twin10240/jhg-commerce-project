@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -54,13 +55,25 @@ public class InventoryService implements InventoryPort {
         return adjusted;
     }
 
-    /**
-     * 출고(InventoryPort 구현): 상품들의 실물 재고를 일괄 차감한다.
-     * 라인별 재조회(N+1) 대신 findAllById로 한 번에 로드한다.
-     */
+    /** 출고(InventoryPort 구현): 상품들의 실물 재고를 일괄 차감한다. */
     @Override
     @Transactional
     public void shipAll(Map<Long, Integer> qtyByProductId) {
+        applyToInventories(qtyByProductId, Inventory::ship);
+    }
+
+    /** 예약 해제(InventoryPort 구현): 상품들의 예약분을 일괄 복구한다. */
+    @Override
+    @Transactional
+    public void releaseAll(Map<Long, Integer> qtyByProductId) {
+        applyToInventories(qtyByProductId, Inventory::release);
+    }
+
+    /**
+     * 상품 id→수량 맵의 각 재고에 연산을 적용한다.
+     * 라인별 재조회(N+1) 대신 findAllById로 한 번에 로드한다.
+     */
+    private void applyToInventories(Map<Long, Integer> qtyByProductId, BiConsumer<Inventory, Integer> operation) {
         Map<Long, Product> products = productRepository.findAllById(qtyByProductId.keySet()).stream()
                 .collect(Collectors.toMap(Product::getId, Function.identity()));
 
@@ -69,7 +82,7 @@ public class InventoryService implements InventoryPort {
             if (product == null) {
                 throw new EntityNotFoundException("Product", productId);
             }
-            product.getInventory().ship(qty);
+            operation.accept(product.getInventory(), qty);
         });
     }
 }

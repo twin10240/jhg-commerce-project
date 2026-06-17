@@ -97,14 +97,15 @@ class OrderTest {
     // ── 취소 ───────────────────────────────────────────────────────
 
     @Test
-    void ORDER_주문을_취소하면_예약이_해제된다() {
+    void ORDER_주문을_취소하면_CANCEL_상태가_되고_도메인은_재고를_건드리지_않는다() {
         Product product = productWithStock(10);
         Order order = createAllocatedOrder(product, 2); // 예약 2
 
         order.cancel();
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
-        assertThat(product.getInventory().getReservedQty()).isEqualTo(0);
+        // 예약 해제(release)는 서비스 계층이 InventoryPort(WMS)에 위임한다 — 도메인은 예약 불변
+        assertThat(product.getInventory().getReservedQty()).isEqualTo(2);
         assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
     }
 
@@ -137,12 +138,14 @@ class OrderTest {
     void 이미_취소된_주문은_다시_취소할_수_없다() {
         Product product = productWithStock(10);
         Order order = createAllocatedOrder(product, 2);
-        order.cancel(); // 예약 해제
+        order.cancel(); // CANCEL로 전이
 
         assertThatThrownBy(order::cancel)
                 .isInstanceOf(IllegalStateException.class);
 
-        assertThat(product.getInventory().getReservedQty()).isEqualTo(0); // 이중 해제 없음
+        // 도메인은 예약을 건드리지 않으며(서비스가 위임), 재취소 가드로 상태도 불변
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        assertThat(product.getInventory().getReservedQty()).isEqualTo(2);
     }
 
     // ── 출고(배송완료) ─────────────────────────────────────────────

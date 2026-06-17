@@ -21,10 +21,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,6 +38,7 @@ class OrderServiceDetailTest {
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
     @Mock BackorderAllocator backorderAllocator;
+    @Mock InventoryPort inventoryPort;
     @InjectMocks OrderService orderService;
 
     private Product product;
@@ -127,14 +130,14 @@ class OrderServiceDetailTest {
     }
 
     @Test
-    void 본인_주문을_취소하면_상태가_CANCEL이_되고_재고가_복구된다() {
+    void 본인_주문을_취소하면_CANCEL이_되고_예약_해제를_포트에_위임한다() {
         Order order = orderOwnedBy(1L);
         when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
 
         orderService.cancelOrder(10L, 1L);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
+        verify(inventoryPort).releaseAll(Map.of(7L, 2)); // 예약 해제는 WMS 포트에 위임
     }
 
     @Test

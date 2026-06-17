@@ -116,6 +116,8 @@ public class OrderService {
         boolean wasReserved = order.getStatus() == OrderStatus.ORDER;
         order.cancel();
         if (wasReserved) {
+            // 예약 해제(가용분 복구)를 WMS 포트에 위임한 뒤, 늘어난 가용분으로 백오더를 승격한다.
+            inventoryPort.releaseAll(toQtyByProductId(order));
             List<Long> productIds = order.getOrderItems().stream()
                     .map(orderItem -> orderItem.getProduct().getId())
                     .distinct()
