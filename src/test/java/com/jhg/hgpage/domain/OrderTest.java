@@ -124,13 +124,13 @@ class OrderTest {
     void 배송완료된_주문은_취소할_수_없다() {
         Product product = productWithStock(10);
         Order order = createAllocatedOrder(product, 2);
-        order.completeDelivery(); // 출고: onHand 10 -> 8
+        order.completeDelivery(); // 배송완료(COMP)로 전이 — 재고는 도메인이 건드리지 않음
 
         assertThatThrownBy(order::cancel)
                 .isInstanceOf(IllegalStateException.class);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(8);
+        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
     }
 
     @Test
@@ -148,15 +148,16 @@ class OrderTest {
     // ── 출고(배송완료) ─────────────────────────────────────────────
 
     @Test
-    void 출고하면_예약과_실물이_차감되고_배송상태가_COMP가_된다() {
+    void 출고_처리하면_배송상태가_COMP가_되고_도메인은_재고를_건드리지_않는다() {
         Product product = productWithStock(10);
         Order order = createAllocatedOrder(product, 2); // 예약 2
 
         order.completeDelivery();
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(8);
-        assertThat(product.getInventory().getReservedQty()).isEqualTo(0);
+        // 실물 차감(ship)은 서비스 계층이 InventoryPort(WMS)에 위임한다 — 도메인은 재고 불변
+        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
+        assertThat(product.getInventory().getReservedQty()).isEqualTo(2);
     }
 
     @Test
@@ -186,11 +187,11 @@ class OrderTest {
     void 이미_배송완료된_주문은_다시_처리할_수_없다() {
         Product product = productWithStock(10);
         Order order = createAllocatedOrder(product, 2);
-        order.completeDelivery(); // onHand 10 -> 8
+        order.completeDelivery(); // 1회차: COMP로 전이
 
         assertThatThrownBy(order::completeDelivery)
                 .isInstanceOf(IllegalStateException.class);
 
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(8); // 이중 차감 없음
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP); // 상태 불변(이중 처리 차단)
     }
 }

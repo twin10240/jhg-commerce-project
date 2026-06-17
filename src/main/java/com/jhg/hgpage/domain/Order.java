@@ -105,7 +105,8 @@ public class Order {
         this.setStatus(OrderStatus.CANCEL);
     }
 
-    // 관리자 출고(배송완료) 처리 — 이 시점에 비로소 실물 재고가 차감된다.
+    // 관리자 출고(배송완료) 처리 — 상태 전이만 담당한다.
+    // 실물 재고 차감(ship)은 서비스 계층이 InventoryPort(WMS)에 위임한다(객체 그래프 결합 제거).
     public void completeDelivery() {
         if (this.status == OrderStatus.CANCEL) {
             throw new IllegalStateException("취소된 주문은 배송완료 처리할 수 없습니다.");
@@ -115,9 +116,6 @@ public class Order {
         }
         if (delivery.getStatus() == DeliveryStatus.COMP) {
             throw new IllegalStateException("이미 배송완료된 주문입니다.");
-        }
-        for (OrderItem orderItem : orderItems) {
-            orderItem.getProduct().getInventory().ship(orderItem.getCount());
         }
         delivery.setStatus(DeliveryStatus.COMP);
     }

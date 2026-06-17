@@ -21,10 +21,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -35,11 +37,13 @@ class OrderServiceAdminTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
+    @Mock InventoryPort inventoryPort;
     @InjectMocks OrderService orderService;
 
     private Order newOrder(String memberName) {
         Member member = Member.createUser(memberName, "010-0000-0000", new Address("서울", "관악구", "500"));
         Product product = new Product();
+        product.setId(1L);
         product.setName("테스트상품");
         product.setPrice(10000);
         Inventory inventory = new Inventory();
@@ -70,13 +74,16 @@ class OrderServiceAdminTest {
     }
 
     @Test
-    void 배송완료_처리하면_배송상태가_COMP가_된다() {
-        Order order = newOrder("회원A");
+    void 배송완료_처리하면_배송상태가_COMP가_되고_재고_출고를_포트에_위임한다() {
+        Order order = newOrder("회원A"); // 상품1, 수량 2
+
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
 
         orderService.completeDelivery(10L);
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
+        // 실물 차감은 도메인이 아니라 InventoryPort(WMS)에 위임한다
+        verify(inventoryPort).shipAll(Map.of(1L, 2));
     }
 
     @Test

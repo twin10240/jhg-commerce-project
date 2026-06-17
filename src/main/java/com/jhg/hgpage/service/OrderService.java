@@ -29,6 +29,7 @@ public class OrderService {
     private final OrderRepositoryQuery orderRepositoryQuery;
     private final CartService cartService;
     private final BackorderAllocator backorderAllocator;
+    private final InventoryPort inventoryPort;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
@@ -93,7 +94,17 @@ public class OrderService {
     public void completeDelivery(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+        // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.completeDelivery();
+        inventoryPort.shipAll(toQtyByProductId(order));
+    }
+
+    // 주문 라인을 상품 id→수량 맵으로 집계한다(같은 상품 중복 라인은 합산).
+    private Map<Long, Integer> toQtyByProductId(Order order) {
+        return order.getOrderItems().stream()
+                .collect(Collectors.groupingBy(
+                        orderItem -> orderItem.getProduct().getId(),
+                        Collectors.summingInt(OrderItem::getCount)));
     }
 
     @Transactional

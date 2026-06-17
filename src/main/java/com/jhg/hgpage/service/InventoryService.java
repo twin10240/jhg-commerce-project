@@ -10,12 +10,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class InventoryService {
+public class InventoryService implements InventoryPort {
 
     private final ProductRepository productRepository;
     private final StockReplenishedHandler stockReplenishedHandler;
@@ -49,5 +52,24 @@ public class InventoryService {
         }
 
         return adjusted;
+    }
+
+    /**
+     * 출고(InventoryPort 구현): 상품들의 실물 재고를 일괄 차감한다.
+     * 라인별 재조회(N+1) 대신 findAllById로 한 번에 로드한다.
+     */
+    @Override
+    @Transactional
+    public void shipAll(Map<Long, Integer> qtyByProductId) {
+        Map<Long, Product> products = productRepository.findAllById(qtyByProductId.keySet()).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+
+        qtyByProductId.forEach((productId, qty) -> {
+            Product product = products.get(productId);
+            if (product == null) {
+                throw new EntityNotFoundException("Product", productId);
+            }
+            product.getInventory().ship(qty);
+        });
     }
 }
