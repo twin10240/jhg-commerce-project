@@ -16,7 +16,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 - ~~**Phase 1 — 주문 정책 전환 (OMS화, 모놀리스 내부)**~~ ✅ 완료(2026-06-12): 주문 시 즉시 차감 → 예약(reserve) 모델로 전환.
   `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
   실제 차감은 출고 시점, 입고 시 백오더 자동 할당(FIFO). 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
-- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신. (사전작업 2026-06-17: 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 — 순환 의존 제거. 아래 해결됨 참고.)
+- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신. (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출(결합점 1)을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 남은 일: 가용 재고 조회 포트화 → `oms/`·`wms/` 패키지 물리 분리. 아래 해결됨 참고.)
 - **Phase 3 — WMS 물리 분리**: 별도 Spring Boot 앱 + REST 통신(출고 요청/재고 조회/입고 통지/출고 콜백).
   재고의 단일 진실 공급원은 WMS, OMS는 판매가용 재고. 멱등 API·보상 처리 학습 포인트.
 - (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
@@ -78,14 +78,14 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - `domain/` — JPA 엔티티 + `dto/view`(응답 DTO), `enums/`(Role/OrderStatus/DeliveryStatus)
 - `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
 - `repository/` — Spring Data 인터페이스 + QueryDSL 구현 클래스
-- `service/` — 비즈니스 로직
+- `service/` — 비즈니스 로직. **OMS↔WMS는 인터페이스로만 통신**(Phase 2 사전 정지작업): `InventoryPort`(OMS→WMS 재고 예약/해제/출고, 구현 `InventoryService`), `OrderAllocationService`(OMS 할당 정책: reserve 결과로 ORDER/BACKORDERED), `InventoryAdjustmentService`(관리자 재고 조정 + 재고증가 시 승격 트리거 — `InventoryPort` 구현체와 분리해 순환 회피), `StockReplenishedHandler`(WMS→OMS 재고 보충 통지 포트, 구현 `BackorderAllocator`).
 - `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드 (멱등: Account가 하나라도 있으면 skip)
 
 ### 도메인 모델 핵심
 - **Account ↔ Member (1:1 분리)**: 인증정보(Account: email/password/role)와 회원정보(Member: name/phone/address)를 분리. `UserPrincipal`이 둘을 합쳐 Spring Security 주체로 동작.
 - **Member → Cart (1:1, cascade ALL)**: `Member.createUser()` 시 장바구니 자동 생성, `createAdmin()`은 장바구니 없음.
-- **Order → OrderItem → Product / Delivery**: 주문은 **예약/백오더 모델** — `Order.allocate()`가 전 라인 가용 시 예약(ORDER), 하나라도 부족하면 예약 없이 `BACKORDERED` 접수(거부하지 않음). 취소는 예약 해제(ORDER만), 출고(`completeDelivery`)에서 비로소 실물 차감. 백오더는 출고 불가, 입고/재고증가 시 `BackorderAllocator`가 FIFO로 재할당해 ORDER로 승격.
-- **Product ↔ Inventory (1:1)**: 재고를 별도 엔티티로 분리. `onHandQty`(실물)/`reservedQty`(예약)/`availableQty`(가용=실물−예약, 계산값). 도메인 연산은 `reserve/release/ship`만 노출. `@Version` 낙관적 락.
+- **Order → OrderItem → Product / Delivery**: 주문은 **예약/백오더 모델** — `OrderAllocationService.allocate(order)`가 `InventoryPort.reserveAll`(원자적 전부-아니면-실패)로 전 라인 예약을 시도해 성공이면 ORDER, 부족하면 거부 없이 `BACKORDERED` 접수. **`Order` 도메인은 상태 전이(`markOrdered/markBackordered/cancel/completeDelivery`)만 담당하고 재고 연산(예약/해제/출고)은 모두 서비스가 `InventoryPort`(WMS)에 위임**한다(객체 그래프 `getProduct().getInventory()` 결합 제거 — Phase 2 사전 정지작업). 취소는 예약 해제(ORDER만), 출고(`completeDelivery`)에서 비로소 실물 차감. 백오더는 출고 불가, 입고/재고증가 시 `BackorderAllocator`가 FIFO로 재할당해 ORDER로 승격.
+- **Product ↔ Inventory (1:1)**: 재고를 별도 엔티티로 분리. `onHandQty`(실물)/`reservedQty`(예약)/`availableQty`(가용=실물−예약, 계산값). 도메인 연산은 `reserve/release/ship`만 노출(OMS는 `InventoryPort`를 통해서만 호출). `@Version` 낙관적 락.
 - **PurchaseOrder → PurchaseOrderItem → Product**: 관리자 발주(`ORDERED`) → 입고(`receive()`: 재고 증가 + `RECEIVED`). 중복 입고 거부.
 
 ### 주요 흐름
@@ -125,6 +125,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 해결됨 (2026-06-17)
 - ~~백오더 역방향 결합(WMS→OMS 직접 의존)~~ — **Phase 2 사전 정지작업**: 재고를 늘리는 WMS 측(`PurchaseOrderService.receive` 입고·`InventoryService.adjust` 재고 증가)이 OMS의 `BackorderAllocator`를 직접 주입·호출하던 역방향 의존을 **콜백 포트 인터페이스로 의존성 역전**. `StockReplenishedHandler.onReplenished(Collection<Long>)`(신설, "재고 보충됐다"는 사실만 통지 — 백오더 개념 모름)를 WMS 측이 의존하고 `BackorderAllocator`가 구현(`onReplenished`→기존 `allocate` 위임, 로직 불변). 이로써 의존 화살표가 WMS→OMS에서 OMS→WMS(정상 방향) 한 방향으로 정리돼 Phase 2 패키지 분리 시 순환 의존이 안 생긴다. Phase 3에서 이 포트가 "입고 후 OMS에 통지하는 콜백 REST"로 진화하는 지점. **`OrderService.cancelOrder`의 백오더 재할당은 OMS 내부 호출이라 구체 타입 `BackorderAllocator`·`allocate` 그대로 유지**(경계를 안 넘음). 순수 리팩터링 — 외부 동작·DB·화면 불변. 테스트(TDD RED→GREEN): `PurchaseOrderServiceTest`·`InventoryServiceTest`의 mock을 `StockReplenishedHandler`/`verify(...).onReplenished(...)`로 갱신(단언 의도 불변), `BackorderAllocatorTest`·`OrderServiceCancelTest`는 구체 타입이라 불변. `gradlew build` 전체 통과.
+- ~~결합점 1: OMS→WMS 재고 호출이 `Order` 엔티티 안 객체 그래프에 박혀 있음~~ — **Phase 2 사전 정지작업(3슬라이스)**: `Order.completeDelivery/cancel/allocate`가 `orderItem.getProduct().getInventory().ship/release/reserve`로 WMS 엔티티를 직접 타고 들던 것을 `InventoryPort`(배치형 `shipAll/releaseAll/reserveAll`, 구현 `InventoryService`)로 분리. ① 출고(ship) ② 예약 해제(release) ③ 예약(reserve)+할당 정책 순으로 진행. `Order`는 상태 전이(`markOrdered/markBackordered`)와 `quantitiesByProductId()` 집계만 남기고, 예약/가용성 판정은 신설 `OrderAllocationService`가 `InventoryPort.reserveAll`(원자적 전부-아니면-실패, check-then-act 경합 제거)로 수행. **순환 의존 제거**: reserve를 포트로 옮기면 `InventoryService.adjust→승격기→reserve→InventoryService` 생성자 순환이 생기므로, `adjust`+승격 트리거를 `InventoryAdjustmentService`로 분리해 `InventoryPort` 구현체가 `StockReplenishedHandler`에 의존하지 않게 함(되돌아오는 화살표 없음). 동작 불변 — 출고 시 실물 차감·취소 시 예약 해제·주문 시 예약/백오더 접수 모두 포트 경유로 동일. 테스트(TDD RED→GREEN): `InventoryPort`/포트 위임 검증, `OrderAllocationServiceTest`·`InventoryAdjustmentServiceTest` 신설, `InventoryServiceTest`·`BackorderAllocatorTest` 재작성(실 서비스 배선으로 실재고 FIFO·all-or-nothing 검증 보존), `OrderTest` 도메인은 상태/가드만. `gradlew build` 전체 통과(풀 컨텍스트 기동 = 순환 없음 확인). 다음: 결합점 잔여(가용 재고 조회) 정리 후 `oms/`·`wms/` 패키지 물리 분리.
 
 ### 해결됨 (2026-06-16)
 - ~~N+1성 조회 루프 (#9)~~: `OrderService.order`가 주문 라인마다 `productRepository.findById`를 호출하던 N+1을 **`findAllById` 단건 일괄 조회(`Map<id,Product>`)**로 교체(누락 상품은 `EntityNotFoundException` 보존, 단일 사용처가 된 `findProduct` 헬퍼 제거). `OrderRepositoryQuery.findOrders`는 **컬렉션 fetch join + `limit(100)`** 조합이 limit을 메모리에 적용하던 문제(HHH90003004)를, 루트(`order`)만 limit으로 조회하고 `orderItems`는 batch fetch(`default_batch_fetch_size=100`, 운영·테스트 yml 모두 설정됨)에 맡기도록 재작성(컬렉션 fetch join·distinct 제거). #9가 함께 지적한 미사용 메서드 `OrderRepository.findOrdersByMemberId`(1:N fetch join + distinct 없음)도 죽은 코드라 제거. 둘 다 동작 불변·순수 성능 개선. 테스트(TDD RED→GREEN): `OrderServiceOrderTest`(신규 — `findAllById` 일괄 조회·`findById` 미사용 검증, 누락 상품 예외), `OrderRepositoryInMemoryPagingTest`(신규 `@DataJpaTest` + logback `ListAppender` — HHH90003004 메모리 페이징 경고 부재), `findById`를 스텁하던 기존 단위 테스트(`OrderServiceOrderFromCartTest`·`OrderServiceExceptionTest`)는 `findAllById` 스텁으로 갱신(동작 단언 불변). `gradlew build` 전체 통과.
