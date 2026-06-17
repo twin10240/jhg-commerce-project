@@ -7,7 +7,7 @@ import com.jhg.hgpage.domain.PurchaseOrder;
 import com.jhg.hgpage.domain.PurchaseOrderItem;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
-import com.jhg.hgpage.service.InventoryService;
+import com.jhg.hgpage.service.InventoryAdjustmentService;
 import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.service.ProductService;
 import com.jhg.hgpage.service.PurchaseOrderService;
@@ -47,7 +47,7 @@ class AdminControllerMvcTest {
 
     @Autowired MockMvc mockMvc;
 
-    @MockBean InventoryService inventoryService;
+    @MockBean InventoryAdjustmentService inventoryAdjustmentService;
     @MockBean ProductService productService;
     @MockBean PurchaseOrderService purchaseOrderService;
     @MockBean OrderService orderService;
@@ -146,7 +146,7 @@ class AdminControllerMvcTest {
 
     @Test
     void 재고를_조정하면_조회페이지로_리다이렉트하고_성공메시지를_담는다() throws Exception {
-        when(inventoryService.adjust(1L, 5, "정기조사")).thenReturn(20);
+        when(inventoryAdjustmentService.adjust(1L, 5, "정기조사")).thenReturn(20);
 
         mockMvc.perform(post("/admin/inventory/adjust")
                         .with(user(admin()))
@@ -158,12 +158,12 @@ class AdminControllerMvcTest {
                 .andExpect(redirectedUrl("/admin/inventory"))
                 .andExpect(flash().attributeExists("successMessage"));
 
-        verify(inventoryService).adjust(1L, 5, "정기조사");
+        verify(inventoryAdjustmentService).adjust(1L, 5, "정기조사");
     }
 
     @Test
     void 재고가_음수가_되는_조정은_에러메시지와_함께_리다이렉트한다() throws Exception {
-        when(inventoryService.adjust(1L, -99, "조정"))
+        when(inventoryAdjustmentService.adjust(1L, -99, "조정"))
                 .thenThrow(new IllegalArgumentException("재고는 0 미만이 될 수 없습니다."));
 
         mockMvc.perform(post("/admin/inventory/adjust")
@@ -187,7 +187,7 @@ class AdminControllerMvcTest {
                         .param("reason", "조정"))
                 .andExpect(status().isForbidden());
 
-        verify(inventoryService, never()).adjust(anyLong(), anyInt(), anyString());
+        verify(inventoryAdjustmentService, never()).adjust(anyLong(), anyInt(), anyString());
     }
 
     @Test

@@ -296,7 +296,7 @@ class OrderControllerMvcTest {
         delivery.setAddress(new Address("서울", "관악구", "500"));
         com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
-        order.allocate(); // 재고 10 → 예약 2
+        order.markOrdered(); // ORDER 상태(예약 성공)
         if (canceled) {
             order.cancel();
         }
@@ -328,7 +328,7 @@ class OrderControllerMvcTest {
         delivery.setAddress(new Address("서울", "관악구", "500"));
         com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.domain.OrderItem.createOrderItem(scarce, 10000, 2));
-        order.allocate(); // BACKORDERED
+        order.markBackordered(); // 백오더 접수 상태
         when(orderService.findOrderDetail(10L, 1L))
                 .thenReturn(com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order));
 

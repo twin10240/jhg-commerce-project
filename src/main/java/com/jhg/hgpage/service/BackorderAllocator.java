@@ -22,6 +22,7 @@ import java.util.List;
 public class BackorderAllocator implements StockReplenishedHandler {
 
     private final OrderRepositoryQuery orderRepositoryQuery;
+    private final OrderAllocationService orderAllocationService;
 
     /** 재고 보충 통지를 받아 백오더 재할당으로 처리한다(포트 구현). */
     @Override
@@ -37,7 +38,7 @@ public class BackorderAllocator implements StockReplenishedHandler {
 
         int promoted = 0;
         for (Order order : backorders) {
-            order.allocate(); // 전부-아니면-백오더: 부족하면 BACKORDERED 유지
+            orderAllocationService.allocate(order); // 전부-아니면-백오더: 부족하면 BACKORDERED 유지
             if (order.getStatus() == OrderStatus.ORDER) {
                 promoted++;
                 log.info("백오더 승격: orderId={}", order.getId());

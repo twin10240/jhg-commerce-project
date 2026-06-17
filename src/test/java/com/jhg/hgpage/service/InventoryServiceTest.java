@@ -11,103 +11,96 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * InventoryPort 구현(예약/해제/출고) — 실제 Inventory 객체에 대한 재고 변경을 검증한다.
+ * 예약은 전부-아니면-실패(원자적)이며, 가용수량(onHand-reserved) 기준으로 판정한다.
+ */
 @ExtendWith(MockitoExtension.class)
 class InventoryServiceTest {
 
     @Mock ProductRepository productRepository;
-    @Mock StockReplenishedHandler stockReplenishedHandler;
     @InjectMocks InventoryService inventoryService;
 
-    private Product productWithStock(int stock) {
+    private Product productWithStock(long id, int onHand, int reserved) {
         Product product = new Product();
-        product.setId(1L);
-        product.setName("상품1");
+        product.setId(id);
+        product.setName("상품" + id);
         Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
+        inventory.setOnHandQty(onHand);
+        inventory.setReservedQty(reserved);
         product.setInventory(inventory);
         return product;
     }
 
     @Test
-    void 재고를_증가시킨다() {
-        Product product = productWithStock(10);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+    void 전_라인이_가용하면_모두_예약하고_true를_반환한다() {
+        Product p1 = productWithStock(1L, 10, 0);
+        Product p2 = productWithStock(2L, 10, 0);
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
 
-        int adjusted = inventoryService.adjust(1L, 5, "정기조사");
+        boolean reserved = inventoryService.reserveAll(Map.of(1L, 2, 2L, 1));
 
-        assertThat(adjusted).isEqualTo(15);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(15);
+        assertThat(reserved).isTrue();
+        assertThat(p1.getInventory().getReservedQty()).isEqualTo(2);
+        assertThat(p2.getInventory().getReservedQty()).isEqualTo(1);
     }
 
     @Test
-    void 재고를_감소시킨다() {
-        Product product = productWithStock(10);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+    void 한_라인이라도_부족하면_아무것도_예약하지_않고_false를_반환한다() {
+        Product p1 = productWithStock(1L, 10, 0);
+        Product p2 = productWithStock(2L, 1, 0); // 가용 1인데 5 요청 → 부족
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
 
-        int adjusted = inventoryService.adjust(1L, -3, "파손");
+        boolean reserved = inventoryService.reserveAll(Map.of(1L, 2, 2L, 5));
 
-        assertThat(adjusted).isEqualTo(7);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(7);
+        assertThat(reserved).isFalse();
+        assertThat(p1.getInventory().getReservedQty()).isEqualTo(0); // 가용 라인도 미예약
+        assertThat(p2.getInventory().getReservedQty()).isEqualTo(0);
     }
 
     @Test
-    void 재고가_음수가_되는_조정은_거부하고_재고를_보존한다() {
-        Product product = productWithStock(10);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+    void 예약은_가용수량_기준이며_예약분을_제외하고_판정한다() {
+        Product p = productWithStock(1L, 10, 8); // 가용 2
+        when(productRepository.findAllById(any())).thenReturn(List.of(p));
 
-        assertThatThrownBy(() -> inventoryService.adjust(1L, -11, "조정"))
-                .isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
+        assertThat(inventoryService.reserveAll(Map.of(1L, 2))).isTrue();
+        assertThat(p.getInventory().getReservedQty()).isEqualTo(10);
     }
 
     @Test
-    void 없는_상품을_조정하면_EntityNotFoundException을_던진다() {
-        when(productRepository.findById(99L)).thenReturn(Optional.empty());
+    void 출고하면_예약과_실물이_차감된다() {
+        Product p = productWithStock(1L, 10, 2);
+        when(productRepository.findAllById(any())).thenReturn(List.of(p));
 
-        assertThatThrownBy(() -> inventoryService.adjust(99L, 1, "조정"))
-                .isInstanceOf(EntityNotFoundException.class)
-                .hasMessageContaining("99");
+        inventoryService.shipAll(Map.of(1L, 2));
+
+        assertThat(p.getInventory().getOnHandQty()).isEqualTo(8);
+        assertThat(p.getInventory().getReservedQty()).isEqualTo(0);
     }
 
     @Test
-    void 재고를_증가시키면_백오더_할당을_트리거한다() {
-        Product product = productWithStock(10);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+    void 해제하면_예약분이_복구된다() {
+        Product p = productWithStock(1L, 10, 3);
+        when(productRepository.findAllById(any())).thenReturn(List.of(p));
 
-        inventoryService.adjust(1L, 5, "정기조사");
+        inventoryService.releaseAll(Map.of(1L, 3));
 
-        verify(stockReplenishedHandler).onReplenished(List.of(1L));
+        assertThat(p.getInventory().getReservedQty()).isEqualTo(0);
+        assertThat(p.getInventory().getOnHandQty()).isEqualTo(10);
     }
 
     @Test
-    void 재고_감소는_백오더_할당을_트리거하지_않는다() {
-        Product product = productWithStock(10);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
+    void 없는_상품을_예약하면_EntityNotFoundException을_던진다() {
+        when(productRepository.findAllById(any())).thenReturn(List.of()); // 없음
 
-        inventoryService.adjust(1L, -3, "파손");
-
-        verify(stockReplenishedHandler, never()).onReplenished(any());
-    }
-
-    @Test
-    void 예약된_수량_아래로_감소시키는_조정은_거부한다() {
-        Product product = productWithStock(10);
-        product.getInventory().setReservedQty(4); // 예약 4 → 실물을 4 미만으로 줄일 수 없음
-        when(productRepository.findById(1L)).thenReturn(Optional.of(product));
-
-        assertThatThrownBy(() -> inventoryService.adjust(1L, -7, "조정"))
-                .isInstanceOf(IllegalArgumentException.class);
-
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(10);
+        assertThatThrownBy(() -> inventoryService.reserveAll(Map.of(99L, 1)))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 }

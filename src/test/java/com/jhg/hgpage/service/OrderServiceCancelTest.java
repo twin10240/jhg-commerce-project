@@ -73,7 +73,7 @@ class OrderServiceCancelTest {
     void ORDER_취소로_예약이_풀리면_해당_상품의_백오더_재할당을_트리거한다() {
         Product product = productWithStock(7L, 3);
         Order order = orderOf(memberWithId(1L), OrderItem.createOrderItem(product, 10000, 3));
-        order.allocate(); // 재고 3 → 예약 3 (ORDER)
+        order.markOrdered(); // ORDER 상태(예약 성공)
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
         when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
 
@@ -89,7 +89,7 @@ class OrderServiceCancelTest {
     void BACKORDERED_취소는_풀릴_예약이_없어_재할당을_트리거하지_않는다() {
         Product product = productWithStock(8L, 0);
         Order order = orderOf(memberWithId(1L), OrderItem.createOrderItem(product, 10000, 2));
-        order.allocate(); // 재고 0 → BACKORDERED (예약 없음)
+        order.markBackordered(); // 백오더 접수 상태(예약 없음)
         assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
         when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
 
@@ -108,7 +108,7 @@ class OrderServiceCancelTest {
         Order order = orderOf(memberWithId(1L),
                 OrderItem.createOrderItem(p1, 10000, 2),
                 OrderItem.createOrderItem(p2, 10000, 1));
-        order.allocate(); // 둘 다 가용 → ORDER
+        order.markOrdered(); // 둘 다 예약 성공 → ORDER
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
         when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
 

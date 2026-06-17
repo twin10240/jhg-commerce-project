@@ -5,54 +5,45 @@ import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Slf4j
+/**
+ * InventoryPort 구현(WMS 재고 변경: 예약/해제/출고).
+ * <p>OMS의 백오더 승격을 트리거하는 책임(재고 증가 통지)은 의도적으로 갖지 않는다.
+ * 그 책임은 {@link InventoryAdjustmentService}에 분리해, 이 빈이 {@link StockReplenishedHandler}에
+ * 의존하지 않게 한다 — 그래야 "예약(reserve)을 제공하는 빈 ↔ 승격기" 사이의 생성자 순환이 생기지 않는다.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class InventoryService implements InventoryPort {
 
     private final ProductRepository productRepository;
-    private final StockReplenishedHandler stockReplenishedHandler;
 
     /**
-     * 관리자 재고 수동 조정(+/-). 조정 후 수량을 반환한다.
-     * 감사 테이블이 없으므로 사유(reason)는 로그로만 남긴다.
-     * 동시 예약과의 충돌은 Inventory의 @Version 낙관적 락이 보호한다.
+     * 예약(InventoryPort 구현, 전부-아니면-실패): 전 상품이 가용하면 모두 예약하고 true,
+     * 하나라도 부족하면 아무것도 예약하지 않고 false를 반환한다.
      */
+    @Override
     @Transactional
-    public int adjust(Long productId, int delta, String reason) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
+    public boolean reserveAll(Map<Long, Integer> qtyByProductId) {
+        Map<Long, Product> products = loadProducts(qtyByProductId.keySet());
 
-        Inventory inventory = product.getInventory();
-        int adjusted = inventory.getOnHandQty() + delta;
-        if (adjusted < 0) {
-            throw new IllegalArgumentException("재고는 0 미만이 될 수 없습니다. (현재 " + inventory.getOnHandQty() + "개)");
+        // 먼저 전 라인 가용성을 검사하고(부분 예약 방지), 모두 가용할 때만 예약한다.
+        boolean allAvailable = qtyByProductId.entrySet().stream()
+                .allMatch(e -> products.get(e.getKey()).getInventory().getAvailableQty() >= e.getValue());
+        if (!allAvailable) {
+            return false;
         }
-        // 예약분(주문이 잡아둔 수량)을 침범하는 감소는 거부 — 가용 수량이 음수가 되는 것을 방지
-        if (adjusted < inventory.getReservedQty()) {
-            throw new IllegalArgumentException("예약된 수량(" + inventory.getReservedQty() + "개) 미만으로 줄일 수 없습니다.");
-        }
-
-        inventory.setOnHandQty(adjusted);
-        log.info("재고 조정: productId={}, delta={}, adjusted={}, reason={}", productId, delta, adjusted, reason);
-
-        // 가용분이 늘었으면 통지한다(백오더 승격은 OMS 구현체가 처리)
-        if (delta > 0) {
-            stockReplenishedHandler.onReplenished(List.of(productId));
-        }
-
-        return adjusted;
+        qtyByProductId.forEach((productId, qty) -> products.get(productId).getInventory().reserve(qty));
+        return true;
     }
 
     /** 출고(InventoryPort 구현): 상품들의 실물 재고를 일괄 차감한다. */
@@ -69,20 +60,24 @@ public class InventoryService implements InventoryPort {
         applyToInventories(qtyByProductId, Inventory::release);
     }
 
-    /**
-     * 상품 id→수량 맵의 각 재고에 연산을 적용한다.
-     * 라인별 재조회(N+1) 대신 findAllById로 한 번에 로드한다.
-     */
+    /** 상품 id→수량 맵의 각 재고에 연산을 적용한다(release/ship 공용). */
     private void applyToInventories(Map<Long, Integer> qtyByProductId, BiConsumer<Inventory, Integer> operation) {
-        Map<Long, Product> products = productRepository.findAllById(qtyByProductId.keySet()).stream()
-                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        Map<Long, Product> products = loadProducts(qtyByProductId.keySet());
+        qtyByProductId.forEach((productId, qty) -> operation.accept(products.get(productId).getInventory(), qty));
+    }
 
-        qtyByProductId.forEach((productId, qty) -> {
-            Product product = products.get(productId);
-            if (product == null) {
+    /**
+     * 상품들을 id→Product 맵으로 일괄 로드한다(라인별 재조회 N+1 회피).
+     * 누락된 id가 있으면 EntityNotFoundException.
+     */
+    private Map<Long, Product> loadProducts(Collection<Long> productIds) {
+        Map<Long, Product> products = productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, Function.identity()));
+        for (Long productId : productIds) {
+            if (!products.containsKey(productId)) {
                 throw new EntityNotFoundException("Product", productId);
             }
-            operation.accept(product.getInventory(), qty);
-        });
+        }
+        return products;
     }
 }

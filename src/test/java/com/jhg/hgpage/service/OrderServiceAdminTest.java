@@ -52,7 +52,7 @@ class OrderServiceAdminTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
-        order.allocate(); // 재고 10 → 예약 2
+        order.markOrdered(); // 예약 성공 상태(ORDER)로 둔다 — 예약 자체는 서비스/포트가 담당
         return order;
     }
 

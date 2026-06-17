@@ -31,6 +31,8 @@ class OrderServiceOrderFromCartTest {
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
+    @Mock BackorderAllocator backorderAllocator;
+    @Mock OrderAllocationService orderAllocationService;
     @InjectMocks OrderService orderService;
 
     private static final Address ADDRESS = new Address("서울", "관악구", "500");

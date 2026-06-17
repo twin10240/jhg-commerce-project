@@ -9,26 +9,41 @@ import com.jhg.hgpage.domain.OrderItem;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import com.jhg.hgpage.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.repository.ProductRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 /**
  * 입고/재고증가 시 백오더 자동 할당 — 오래된 주문(FIFO)부터 가용분을 배정해
  * 가능해진 주문을 ORDER로 승격한다.
+ *
+ * <p>승격은 BackorderAllocator → OrderAllocationService → InventoryPort 경로를 탄다.
+ * 실제 재고 변경(예약)을 검증하려고 실 InventoryService/OrderAllocationService를 그대로 엮고
+ * ProductRepository만 목으로 둔다(예약은 실제 Inventory 객체에 일어난다).
  */
 @ExtendWith(MockitoExtension.class)
 class BackorderAllocatorTest {
 
     @Mock OrderRepositoryQuery orderRepositoryQuery;
-    @InjectMocks BackorderAllocator backorderAllocator;
+    @Mock ProductRepository productRepository;
+
+    private BackorderAllocator backorderAllocator;
+
+    @BeforeEach
+    void setUp() {
+        InventoryService inventoryService = new InventoryService(productRepository);
+        OrderAllocationService orderAllocationService = new OrderAllocationService(inventoryService);
+        backorderAllocator = new BackorderAllocator(orderRepositoryQuery, orderAllocationService);
+    }
 
     private Product productWithStock(int stock) {
         Product product = new Product();
@@ -47,8 +62,7 @@ class BackorderAllocatorTest {
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery,
                 OrderItem.createOrderItem(product, product.getPrice(), quantity));
-        order.allocate();
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED); // 전제 확인
+        order.markBackordered(); // 접수 당시 가용분 부족으로 백오더 접수된 상태
         return order;
     }
 
@@ -58,6 +72,7 @@ class BackorderAllocatorTest {
         Order backorder = backorderOf(product, 3);
         product.getInventory().addOnHandQty(10); // 입고
         when(orderRepositoryQuery.findBackordersContaining(List.of(1L))).thenReturn(List.of(backorder));
+        when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
         int promoted = backorderAllocator.allocate(List.of(1L));
 
@@ -73,6 +88,7 @@ class BackorderAllocatorTest {
         Order newer = backorderOf(product, 4);
         product.getInventory().addOnHandQty(5); // 4개짜리 하나만 채울 수 있음
         when(orderRepositoryQuery.findBackordersContaining(List.of(1L))).thenReturn(List.of(older, newer));
+        when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
         int promoted = backorderAllocator.allocate(List.of(1L));
 
@@ -88,6 +104,7 @@ class BackorderAllocatorTest {
         Order backorder = backorderOf(product, 10);
         product.getInventory().addOnHandQty(3); // 부족
         when(orderRepositoryQuery.findBackordersContaining(List.of(1L))).thenReturn(List.of(backorder));
+        when(productRepository.findAllById(any())).thenReturn(List.of(product));
 
         int promoted = backorderAllocator.allocate(List.of(1L));
 

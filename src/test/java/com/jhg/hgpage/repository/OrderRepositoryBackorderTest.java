@@ -14,6 +14,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,7 +48,17 @@ class OrderRepositoryBackorderTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, items);
-        order.allocate();
+        // 할당(allocate)이 서비스로 이동했으므로, 조회 테스트용 상태/예약은 가용성 판정을 직접 재현해 만든다.
+        boolean allAvailable = Arrays.stream(items)
+                .allMatch(item -> item.getProduct().getInventory().getAvailableQty() >= item.getCount());
+        if (allAvailable) {
+            for (OrderItem item : items) {
+                item.getProduct().getInventory().reserve(item.getCount());
+            }
+            order.markOrdered();
+        } else {
+            order.markBackordered();
+        }
         em.persist(order);
         return order;
     }

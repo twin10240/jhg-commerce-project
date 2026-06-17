@@ -59,7 +59,7 @@ class OrderServiceDetailTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
-        order.allocate(); // 재고 10 → 예약 2
+        order.markOrdered(); // ORDER 상태(예약 성공)로 둔다
         return order;
     }
 
@@ -108,7 +108,7 @@ class OrderServiceDetailTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(scarce, 10000, 2));
-        order.allocate(); // BACKORDERED
+        order.markBackordered(); // 가용분 부족으로 백오더 접수된 상태
         when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
 
         OrderDetailDto detail = orderService.findOrderDetail(10L, 1L);

@@ -2,7 +2,7 @@ package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.controller.form.PurchaseOrderForm;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.service.InventoryService;
+import com.jhg.hgpage.service.InventoryAdjustmentService;
 import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.service.ProductService;
 import com.jhg.hgpage.service.PurchaseOrderService;
@@ -22,7 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AdminController {
 
-    private final InventoryService inventoryService;
+    private final InventoryAdjustmentService inventoryAdjustmentService;
     private final ProductService productService;
     private final PurchaseOrderService purchaseOrderService;
     private final OrderService orderService;
@@ -61,7 +61,7 @@ public class AdminController {
                                   @RequestParam(defaultValue = "") String reason,
                                   RedirectAttributes redirectAttributes) {
         try {
-            int adjusted = inventoryService.adjust(productId, delta, reason);
+            int adjusted = inventoryAdjustmentService.adjust(productId, delta, reason);
             redirectAttributes.addFlashAttribute("successMessage",
                     "재고가 조정되었습니다. (현재 " + adjusted + "개)");
         } catch (IllegalArgumentException e) {

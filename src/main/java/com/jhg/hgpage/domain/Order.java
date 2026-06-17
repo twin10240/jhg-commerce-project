@@ -8,6 +8,8 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static jakarta.persistence.FetchType.LAZY;
 
@@ -69,22 +71,22 @@ public class Order {
         return order;
     }
 
-    /**
-     * 재고 할당 (전부-아니면-백오더): 모든 라인이 가용하면 예약하고 ORDER,
-     * 하나라도 부족하면 아무것도 예약하지 않고 BACKORDERED로 접수한다.
-     * 입고 후 백오더 재할당(승격)에도 같은 메서드를 사용한다.
-     */
-    public void allocate() {
-        boolean allAvailable = orderItems.stream()
-                .allMatch(oi -> oi.getProduct().getInventory().getAvailableQty() >= oi.getCount());
-        if (!allAvailable) {
-            this.status = OrderStatus.BACKORDERED;
-            return;
-        }
-        for (OrderItem orderItem : orderItems) {
-            orderItem.getProduct().getInventory().reserve(orderItem.getCount());
-        }
+    // 할당 결과 상태 전이 — 예약/가용성 판정은 서비스(OrderAllocationService)가 InventoryPort로 수행하고,
+    // 그 결과(전 라인 예약 성공 여부)에 따라 아래 둘 중 하나로 표시한다.
+    public void markOrdered() {
         this.status = OrderStatus.ORDER;
+    }
+
+    public void markBackordered() {
+        this.status = OrderStatus.BACKORDERED;
+    }
+
+    /** 주문 라인을 상품 id→수량 맵으로 집계한다(같은 상품 중복 라인은 합산). 재고 연산(예약/해제/출고)의 입력. */
+    public Map<Long, Integer> quantitiesByProductId() {
+        return orderItems.stream()
+                .collect(Collectors.groupingBy(
+                        orderItem -> orderItem.getProduct().getId(),
+                        Collectors.summingInt(OrderItem::getCount)));
     }
 
     // 취소는 상태 전이만 담당한다. 예약 해제(release)는 서비스 계층이 InventoryPort(WMS)에 위임한다.

@@ -30,6 +30,7 @@ public class OrderService {
     private final CartService cartService;
     private final BackorderAllocator backorderAllocator;
     private final InventoryPort inventoryPort;
+    private final OrderAllocationService orderAllocationService;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
@@ -58,8 +59,8 @@ public class OrderService {
                 .toArray(OrderItem[]::new);
 
         Order order = Order.createOrder(member, delivery, orderItems);
-        // 가용분이 있으면 예약(ORDER), 부족하면 거부하지 않고 백오더(BACKORDERED)로 접수
-        order.allocate();
+        // 가용분이 있으면 예약(ORDER), 부족하면 거부하지 않고 백오더(BACKORDERED)로 접수 — WMS 포트에 위임
+        orderAllocationService.allocate(order);
         orderRepository.save(order);
 
         return order.getId();
@@ -96,15 +97,7 @@ public class OrderService {
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.completeDelivery();
-        inventoryPort.shipAll(toQtyByProductId(order));
-    }
-
-    // 주문 라인을 상품 id→수량 맵으로 집계한다(같은 상품 중복 라인은 합산).
-    private Map<Long, Integer> toQtyByProductId(Order order) {
-        return order.getOrderItems().stream()
-                .collect(Collectors.groupingBy(
-                        orderItem -> orderItem.getProduct().getId(),
-                        Collectors.summingInt(OrderItem::getCount)));
+        inventoryPort.shipAll(order.quantitiesByProductId());
     }
 
     @Transactional
@@ -117,7 +110,7 @@ public class OrderService {
         order.cancel();
         if (wasReserved) {
             // 예약 해제(가용분 복구)를 WMS 포트에 위임한 뒤, 늘어난 가용분으로 백오더를 승격한다.
-            inventoryPort.releaseAll(toQtyByProductId(order));
+            inventoryPort.releaseAll(order.quantitiesByProductId());
             List<Long> productIds = order.getOrderItems().stream()
                     .map(orderItem -> orderItem.getProduct().getId())
                     .distinct()
