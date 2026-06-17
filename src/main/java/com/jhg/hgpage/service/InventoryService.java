@@ -18,7 +18,7 @@ import java.util.List;
 public class InventoryService {
 
     private final ProductRepository productRepository;
-    private final BackorderAllocator backorderAllocator;
+    private final StockReplenishedHandler stockReplenishedHandler;
 
     /**
      * 관리자 재고 수동 조정(+/-). 조정 후 수량을 반환한다.
@@ -43,9 +43,9 @@ public class InventoryService {
         inventory.setOnHandQty(adjusted);
         log.info("재고 조정: productId={}, delta={}, adjusted={}, reason={}", productId, delta, adjusted, reason);
 
-        // 가용분이 늘었으면 이 상품을 기다리는 백오더를 재할당한다
+        // 가용분이 늘었으면 통지한다(백오더 승격은 OMS 구현체가 처리)
         if (delta > 0) {
-            backorderAllocator.allocate(List.of(productId));
+            stockReplenishedHandler.onReplenished(List.of(productId));
         }
 
         return adjusted;

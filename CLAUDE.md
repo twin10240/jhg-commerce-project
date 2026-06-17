@@ -16,7 +16,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 - ~~**Phase 1 — 주문 정책 전환 (OMS화, 모놀리스 내부)**~~ ✅ 완료(2026-06-12): 주문 시 즉시 차감 → 예약(reserve) 모델로 전환.
   `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
   실제 차감은 출고 시점, 입고 시 백오더 자동 할당(FIFO). 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
-- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.
+- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신. (사전작업 2026-06-17: 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 — 순환 의존 제거. 아래 해결됨 참고.)
 - **Phase 3 — WMS 물리 분리**: 별도 Spring Boot 앱 + REST 통신(출고 요청/재고 조회/입고 통지/출고 콜백).
   재고의 단일 진실 공급원은 WMS, OMS는 판매가용 재고. 멱등 API·보상 처리 학습 포인트.
 - (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
@@ -122,6 +122,9 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`), 임베디드 H2 통합(`AccountServiceTest`, `CartServiceTest`, `InitDbTest` — 자체 데이터 생성 + 롤백). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
+
+### 해결됨 (2026-06-17)
+- ~~백오더 역방향 결합(WMS→OMS 직접 의존)~~ — **Phase 2 사전 정지작업**: 재고를 늘리는 WMS 측(`PurchaseOrderService.receive` 입고·`InventoryService.adjust` 재고 증가)이 OMS의 `BackorderAllocator`를 직접 주입·호출하던 역방향 의존을 **콜백 포트 인터페이스로 의존성 역전**. `StockReplenishedHandler.onReplenished(Collection<Long>)`(신설, "재고 보충됐다"는 사실만 통지 — 백오더 개념 모름)를 WMS 측이 의존하고 `BackorderAllocator`가 구현(`onReplenished`→기존 `allocate` 위임, 로직 불변). 이로써 의존 화살표가 WMS→OMS에서 OMS→WMS(정상 방향) 한 방향으로 정리돼 Phase 2 패키지 분리 시 순환 의존이 안 생긴다. Phase 3에서 이 포트가 "입고 후 OMS에 통지하는 콜백 REST"로 진화하는 지점. **`OrderService.cancelOrder`의 백오더 재할당은 OMS 내부 호출이라 구체 타입 `BackorderAllocator`·`allocate` 그대로 유지**(경계를 안 넘음). 순수 리팩터링 — 외부 동작·DB·화면 불변. 테스트(TDD RED→GREEN): `PurchaseOrderServiceTest`·`InventoryServiceTest`의 mock을 `StockReplenishedHandler`/`verify(...).onReplenished(...)`로 갱신(단언 의도 불변), `BackorderAllocatorTest`·`OrderServiceCancelTest`는 구체 타입이라 불변. `gradlew build` 전체 통과.
 
 ### 해결됨 (2026-06-16)
 - ~~N+1성 조회 루프 (#9)~~: `OrderService.order`가 주문 라인마다 `productRepository.findById`를 호출하던 N+1을 **`findAllById` 단건 일괄 조회(`Map<id,Product>`)**로 교체(누락 상품은 `EntityNotFoundException` 보존, 단일 사용처가 된 `findProduct` 헬퍼 제거). `OrderRepositoryQuery.findOrders`는 **컬렉션 fetch join + `limit(100)`** 조합이 limit을 메모리에 적용하던 문제(HHH90003004)를, 루트(`order`)만 limit으로 조회하고 `orderItems`는 batch fetch(`default_batch_fetch_size=100`, 운영·테스트 yml 모두 설정됨)에 맡기도록 재작성(컬렉션 fetch join·distinct 제거). #9가 함께 지적한 미사용 메서드 `OrderRepository.findOrdersByMemberId`(1:N fetch join + distinct 없음)도 죽은 코드라 제거. 둘 다 동작 불변·순수 성능 개선. 테스트(TDD RED→GREEN): `OrderServiceOrderTest`(신규 — `findAllById` 일괄 조회·`findById` 미사용 검증, 누락 상품 예외), `OrderRepositoryInMemoryPagingTest`(신규 `@DataJpaTest` + logback `ListAppender` — HHH90003004 메모리 페이징 경고 부재), `findById`를 스텁하던 기존 단위 테스트(`OrderServiceOrderFromCartTest`·`OrderServiceExceptionTest`)는 `findAllById` 스텁으로 갱신(동작 단언 불변). `gradlew build` 전체 통과.

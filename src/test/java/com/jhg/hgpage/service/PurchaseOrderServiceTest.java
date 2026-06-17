@@ -31,7 +31,7 @@ class PurchaseOrderServiceTest {
 
     @Mock ProductRepository productRepository;
     @Mock PurchaseOrderRepository purchaseOrderRepository;
-    @Mock BackorderAllocator backorderAllocator;
+    @Mock StockReplenishedHandler stockReplenishedHandler;
     @InjectMocks PurchaseOrderService purchaseOrderService;
 
     private Product productWithStock(int stock) {
@@ -107,7 +107,7 @@ class PurchaseOrderServiceTest {
 
         purchaseOrderService.receive(7L);
 
-        verify(backorderAllocator).allocate(List.of(1L));
+        verify(stockReplenishedHandler).onReplenished(List.of(1L));
     }
 
     @Test
@@ -120,7 +120,7 @@ class PurchaseOrderServiceTest {
         assertThatThrownBy(() -> purchaseOrderService.receive(7L))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(backorderAllocator, never()).allocate(any());
+        verify(stockReplenishedHandler, never()).onReplenished(any());
     }
 
     @Test

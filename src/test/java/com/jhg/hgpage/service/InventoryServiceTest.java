@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
 class InventoryServiceTest {
 
     @Mock ProductRepository productRepository;
-    @Mock BackorderAllocator backorderAllocator;
+    @Mock StockReplenishedHandler stockReplenishedHandler;
     @InjectMocks InventoryService inventoryService;
 
     private Product productWithStock(int stock) {
@@ -86,7 +86,7 @@ class InventoryServiceTest {
 
         inventoryService.adjust(1L, 5, "정기조사");
 
-        verify(backorderAllocator).allocate(List.of(1L));
+        verify(stockReplenishedHandler).onReplenished(List.of(1L));
     }
 
     @Test
@@ -96,7 +96,7 @@ class InventoryServiceTest {
 
         inventoryService.adjust(1L, -3, "파손");
 
-        verify(backorderAllocator, never()).allocate(any());
+        verify(stockReplenishedHandler, never()).onReplenished(any());
     }
 
     @Test

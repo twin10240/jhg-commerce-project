@@ -19,9 +19,16 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class BackorderAllocator {
+public class BackorderAllocator implements StockReplenishedHandler {
 
     private final OrderRepositoryQuery orderRepositoryQuery;
+
+    /** 재고 보충 통지를 받아 백오더 재할당으로 처리한다(포트 구현). */
+    @Override
+    @Transactional
+    public void onReplenished(Collection<Long> productIds) {
+        allocate(productIds);
+    }
 
     /** @return 승격된 주문 수 */
     @Transactional

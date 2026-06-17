@@ -19,7 +19,7 @@ public class PurchaseOrderService {
 
     private final ProductRepository productRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
-    private final BackorderAllocator backorderAllocator;
+    private final StockReplenishedHandler stockReplenishedHandler;
 
     public record PurchaseOrderLine(Long productId, int quantity) {}
 
@@ -52,11 +52,11 @@ public class PurchaseOrderService {
 
         purchaseOrder.receive();
 
-        // 입고로 가용분이 생겼으니 이 상품들을 기다리는 백오더를 재할당한다
+        // 입고로 가용분이 생겼음을 통지한다(백오더 승격은 OMS 구현체가 처리)
         List<Long> productIds = purchaseOrder.getItems().stream()
                 .map(item -> item.getProduct().getId())
                 .toList();
-        backorderAllocator.allocate(productIds);
+        stockReplenishedHandler.onReplenished(productIds);
 
         return purchaseOrder.getId();
     }
