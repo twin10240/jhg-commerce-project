@@ -1,5 +1,7 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.InventoryPort;
+
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Delivery;
 import com.jhg.hgpage.domain.Member;

@@ -1,5 +1,7 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.StockReplenishedHandler;
+
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.PurchaseOrder;
 import com.jhg.hgpage.domain.PurchaseOrderItem;

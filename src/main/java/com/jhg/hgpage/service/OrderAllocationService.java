@@ -1,5 +1,7 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.InventoryPort;
+
 import com.jhg.hgpage.domain.Order;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

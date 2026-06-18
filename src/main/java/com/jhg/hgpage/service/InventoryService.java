@@ -1,5 +1,8 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.InventoryPort;
+import com.jhg.hgpage.contract.InventoryQueryPort;
+
 import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;

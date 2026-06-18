@@ -1,4 +1,4 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.contract;
 
 import java.util.Map;
 

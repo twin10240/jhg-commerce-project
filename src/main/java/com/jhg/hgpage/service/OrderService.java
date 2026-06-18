@@ -1,5 +1,7 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.InventoryPort;
+
 import com.jhg.hgpage.domain.*;
 import com.jhg.hgpage.domain.dto.view.AdminOrderDto;
 import com.jhg.hgpage.domain.dto.view.OrderDetailDto;

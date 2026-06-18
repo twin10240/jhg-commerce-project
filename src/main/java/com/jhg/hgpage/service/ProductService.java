@@ -1,5 +1,7 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.contract.InventoryQueryPort;
+
 import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.view.ProductCardDto;
 import com.jhg.hgpage.repository.ProductRepository;
