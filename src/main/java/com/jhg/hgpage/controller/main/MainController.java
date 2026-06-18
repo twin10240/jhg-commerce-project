@@ -1,7 +1,7 @@
 package com.jhg.hgpage.controller.main;
 
-import com.jhg.hgpage.domain.Product;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
+import com.jhg.hgpage.domain.dto.view.ProductCardDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.repository.SearchOption;
 import com.jhg.hgpage.service.MemberService;
@@ -33,8 +33,8 @@ public class MainController {
                         @RequestParam(defaultValue = "") String keyword,
                         @PageableDefault(size = 10, sort = "id") Pageable pageable,
                         Model model) {
-        // 사용자 상품 그리드: 검색 + 페이징 적용
-        Page<Product> productPage = productService.findPage(keyword, pageable);
+        // 사용자 상품 그리드: 검색 + 페이징 적용. 가용수량은 카드 DTO에 담겨 온다(재고 객체그래프 비노출)
+        Page<ProductCardDto> productPage = productService.findCardPage(keyword, pageable);
         model.addAttribute("productPage", productPage);
         model.addAttribute("keyword", keyword);
 

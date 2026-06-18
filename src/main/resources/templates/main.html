@@ -305,7 +305,7 @@
             <div class="grid" id="productGrid">
                 <!-- 가용수량(available = 실물 - 예약) 기준. 가용 0이어도 백오더로 주문 가능하므로 버튼을 막지 않는다 -->
                 <article class="product" th:each="p : ${productPage.content}"
-                         th:with="stock=${p.inventory != null ? p.inventory.availableQty : 0}">
+                         th:with="stock=${p.availableQty}">
                     <h3>
                         <span th:text="${p.name}">허니 라떼</span>
                         <span class="soldout-badge" th:if="${stock <= 0}">입고 대기</span>

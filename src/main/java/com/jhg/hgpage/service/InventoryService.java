@@ -23,9 +23,20 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class InventoryService implements InventoryPort {
+public class InventoryService implements InventoryPort, InventoryQueryPort {
 
     private final ProductRepository productRepository;
+
+    /**
+     * 가용수량 조회(InventoryQueryPort 구현): 상품 id별 availableQty(onHand−reserved)를 반환한다.
+     * 없는 id는 결과에서 제외된다(호출 측 getOrDefault(0)로 처리).
+     * 가용수량 계산을 WMS 안에 가둬, OMS가 Inventory를 객체 그래프로 직접 들추지 않게 한다.
+     */
+    @Override
+    public Map<Long, Integer> availableByProductIds(Collection<Long> productIds) {
+        return productRepository.findAllById(productIds).stream()
+                .collect(Collectors.toMap(Product::getId, p -> p.getInventory().getAvailableQty()));
+    }
 
     /**
      * 예약(InventoryPort 구현, 전부-아니면-실패): 전 상품이 가용하면 모두 예약하고 true,

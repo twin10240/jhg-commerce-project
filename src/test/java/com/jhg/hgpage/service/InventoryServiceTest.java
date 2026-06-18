@@ -103,4 +103,15 @@ class InventoryServiceTest {
         assertThatThrownBy(() -> inventoryService.reserveAll(Map.of(99L, 1)))
                 .isInstanceOf(EntityNotFoundException.class);
     }
+
+    @Test
+    void 가용수량을_상품id별로_조회한다() {
+        Product p1 = productWithStock(1L, 10, 3); // 가용 7
+        Product p2 = productWithStock(2L, 5, 5);  // 가용 0
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
+
+        Map<Long, Integer> available = inventoryService.availableByProductIds(List.of(1L, 2L));
+
+        assertThat(available).containsEntry(1L, 7).containsEntry(2L, 0);
+    }
 }

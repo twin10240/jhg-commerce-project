@@ -1,6 +1,7 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.domain.dto.view.ProductCardDto;
 import com.jhg.hgpage.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -17,6 +19,8 @@ import java.util.List;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    // 가용수량은 WMS 재고를 객체 그래프로 들추지 않고 조회 포트로만 얻는다(OMS→WMS 정상 방향)
+    private final InventoryQueryPort inventoryQueryPort;
 
     public List<Product> findAll() {
         return productRepository.findAll();
@@ -26,13 +30,22 @@ public class ProductService {
         return productRepository.findAllWithInventory();
     }
 
-    // keyword 가 비어있으면 전체 페이지, 있으면 이름(부분/대소문자무시) 검색 페이지.
-    // 상품 카드가 재고를 표시하므로 inventory를 fetch join으로 함께 로드한다.
-    public Page<Product> findPage(String keyword, Pageable pageable) {
-        if (!StringUtils.hasText(keyword)) {
-            return productRepository.findPageWithInventory(pageable);
-        }
-        return productRepository.findPageByNameWithInventory(keyword.trim(), pageable);
+    /**
+     * 메인 상품 그리드: 카탈로그 페이지(id/name/price)에 가용수량을 합쳐 카드로 반환한다.
+     * keyword가 비어있으면 전체, 있으면 이름(부분/대소문자무시) 검색. 가용수량은
+     * {@link InventoryQueryPort}로 상품 id 묶음을 한 번에 조회한다(라인별 N+1 회피).
+     */
+    public Page<ProductCardDto> findCardPage(String keyword, Pageable pageable) {
+        Page<Product> page = StringUtils.hasText(keyword)
+                ? productRepository.findByNameContainingIgnoreCase(keyword.trim(), pageable)
+                : productRepository.findAll(pageable);
+
+        List<Long> productIds = page.getContent().stream().map(Product::getId).toList();
+        Map<Long, Integer> availableByProductId = inventoryQueryPort.availableByProductIds(productIds);
+
+        return page.map(p -> new ProductCardDto(
+                p.getId(), p.getName(), p.getPrice(),
+                availableByProductId.getOrDefault(p.getId(), 0)));
     }
 
 }
