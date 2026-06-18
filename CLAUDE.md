@@ -58,6 +58,14 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 > QueryDSL Q타입(`QMember`, `QCartItem` 등)은 `annotationProcessor`가 빌드 시 `generated/`에 생성한다.
 > `build/reports/problems/problems-report.html`이 깨진 ACL로 삭제 불가라 Gradle이 리포트를 못 덮어써 `FileAlreadyExistsException`이 났었음. `gradle.properties`의 `org.gradle.problems.report=false`로 리포트 생성을 꺼서 우회 중(플래그 불필요). 근본 해결은 관리자 권한 터미널에서 해당 파일 삭제.
 
+## 배포 (Railway)
+
+- **빌드**: 루트 `Dockerfile`(멀티스테이지 — JDK17 빌드 / JRE17 실행). Railway는 Dockerfile 존재 시 Nixpacks 대신 이걸 사용. `.dockerignore`로 `build/`·`.git/` 등 제외(깨진 ACL `problems-report.html`도 컨텍스트에서 빠져 Docker 빌드는 `clean`이 무해).
+- **포트**: `application.yml`의 `server.port: ${PORT:8080}` — Railway가 주입하는 `${PORT}`에 바인딩(로컬은 8080).
+- **DB**: `prod` 프로파일(PostgreSQL). `SPRING_PROFILES_ACTIVE=prod` + Railway PostgreSQL 플러그인이 주입하는 `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` 참조. `ddl-auto: update`로 첫 기동 시 스키마 생성 → `initDb`가 빈 DB 시드. SQL 로깅·p6spy off. (로컬/테스트는 그대로 H2.)
+- **드라이버**: `build.gradle`에 `runtimeOnly 'org.postgresql:postgresql'`(H2와 공존, prod에서만 사용). `devtools`는 `developmentOnly`라 운영 jar에 미포함.
+- **보안 주의**: 시드 관리자 `admin@admin.com/1111`은 공개 배포 시 누구나 관리자 로그인 가능 — 운영 전 비밀번호 변경/환경변수화 필요. H2 콘솔은 prod에서 미사용(Postgres).
+
 ## 아키텍처 (계층 구조)
 
 ```
