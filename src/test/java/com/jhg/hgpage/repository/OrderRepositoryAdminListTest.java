@@ -1,7 +1,6 @@
 package com.jhg.hgpage.repository;
 
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
-
 import com.jhg.hgpage.config.QueryDslConfig;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;

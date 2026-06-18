@@ -1,7 +1,6 @@
 package com.jhg.hgpage.catalog;
 
 import com.jhg.hgpage.contract.InventoryQueryPort;
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

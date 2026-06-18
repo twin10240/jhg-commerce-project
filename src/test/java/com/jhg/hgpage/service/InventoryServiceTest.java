@@ -1,7 +1,6 @@
 package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.wms.service.InventoryService;
-
 import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;

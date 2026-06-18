@@ -1,7 +1,6 @@
 package com.jhg.hgpage.wms.domain;
 
 import com.jhg.hgpage.catalog.Product;
-
 import com.jhg.hgpage.exception.NotEnoughStockException;
 import jakarta.persistence.*;
 import lombok.Getter;

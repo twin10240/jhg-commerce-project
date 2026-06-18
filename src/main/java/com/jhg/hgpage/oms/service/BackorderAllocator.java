@@ -1,7 +1,6 @@
 package com.jhg.hgpage.oms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
-
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;

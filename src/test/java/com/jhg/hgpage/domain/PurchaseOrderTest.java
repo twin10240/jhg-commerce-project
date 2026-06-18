@@ -3,9 +3,7 @@ package com.jhg.hgpage.domain;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.wms.domain.Inventory;
-
 import com.jhg.hgpage.catalog.Product;
-
 import com.jhg.hgpage.wms.domain.enums.PurchaseOrderStatus;
 import org.junit.jupiter.api.Test;
 

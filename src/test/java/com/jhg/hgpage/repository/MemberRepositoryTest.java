@@ -1,7 +1,6 @@
 package com.jhg.hgpage.repository;
 
 import com.jhg.hgpage.oms.repository.MemberRepository;
-
 import com.jhg.hgpage.oms.domain.Account;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Member;

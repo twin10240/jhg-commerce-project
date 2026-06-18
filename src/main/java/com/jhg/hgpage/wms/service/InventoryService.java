@@ -2,7 +2,6 @@ package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
-
 import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;

@@ -1,7 +1,6 @@
 package com.jhg.hgpage.domain;
 
 import com.jhg.hgpage.wms.domain.Inventory;
-
 import jakarta.persistence.OptimisticLockException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

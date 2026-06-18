@@ -1,7 +1,6 @@
 package com.jhg.hgpage.oms.domain;
 
 import com.jhg.hgpage.catalog.Product;
-
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

@@ -1,7 +1,6 @@
 package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
-
 import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;
