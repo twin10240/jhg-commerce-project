@@ -64,7 +64,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 - **포트**: `application.yml`의 `server.port: ${PORT:8080}` — Railway가 주입하는 `${PORT}`에 바인딩(로컬은 8080).
 - **DB**: `prod` 프로파일(PostgreSQL). `SPRING_PROFILES_ACTIVE=prod` + Railway PostgreSQL 플러그인이 주입하는 `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` 참조. `ddl-auto: update`로 첫 기동 시 스키마 생성 → `initDb`가 빈 DB 시드. SQL 로깅·p6spy off. (로컬/테스트는 그대로 H2.)
 - **드라이버**: `build.gradle`에 `runtimeOnly 'org.postgresql:postgresql'`(H2와 공존, prod에서만 사용). `devtools`는 `developmentOnly`라 운영 jar에 미포함.
-- **보안 주의**: 시드 관리자 `admin@admin.com/1111`은 공개 배포 시 누구나 관리자 로그인 가능 — 운영 전 비밀번호 변경/환경변수화 필요. H2 콘솔은 prod에서 미사용(Postgres).
+- **관리자 비밀번호**: 코드에 박지 않고 `ADMIN_PASSWORD` 환경변수로 주입(`initDb`, 로컬 기본값 `1111`). 운영은 Railway 앱 서비스 Variables에 강한 값 설정. 시드는 빈 DB에만 돌므로 **기존 DB의 관리자 비번은 코드 수정만으로 안 바뀜** → 비번 적용엔 DB 리셋(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`) 후 재배포 필요. H2 콘솔은 prod에서 미사용(Postgres).
 
 ## 아키텍처 (계층 구조)
 
@@ -115,8 +115,8 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **가격 정책**: 가격은 항상 서버에서 `Product`를 재조회해 사용한다. 클라이언트가 보낸 가격을 신뢰하지 않는다. 주문/장바구니에 당시 가격을 스냅샷(`orderPrice`/`productPrice`)으로 저장.
 
 ### 초기 시드 계정 (`initDb`)
-- 관리자: `admin@admin.com` / `1111` (ROLE_ADMIN, 장바구니 없음)
-- 일반회원: `twin10240@naver.com` / `1111` (ROLE_USER)
+- 관리자: `admin@admin.com` / **`${ADMIN_PASSWORD:1111}`** (ROLE_ADMIN, 장바구니 없음). 비번은 `ADMIN_PASSWORD` env로 주입(로컬 기본 `1111`, 운영은 Railway에 강한 값). `initService` 생성자가 `@Value`로 받음 — 테스트는 생성자에 직접 주입.
+- 일반회원: `twin10240@naver.com` / `1111` (ROLE_USER, 데모 계정이라 하드코딩 유지)
 - 상품 20개("상품1"~"상품20", 가격 10000~29000) + 각 재고 자동 생성
 - **빈 DB에만 시드된다**(Account 존재 시 skip). 처음부터 다시 시드하려면 `local` 프로파일로 실행.
 

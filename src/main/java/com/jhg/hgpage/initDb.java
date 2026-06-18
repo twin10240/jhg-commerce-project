@@ -7,6 +7,7 @@ import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,10 +28,16 @@ public class initDb {
     }
 
     @Component
-    @RequiredArgsConstructor
     @Transactional
     static class initService {
         private final EntityManager em;
+        // 관리자 비밀번호는 코드에 박지 않는다. 운영(Railway)은 ADMIN_PASSWORD env로 주입, 로컬은 기본값 1111.
+        private final String adminPassword;
+
+        initService(EntityManager em, @Value("${ADMIN_PASSWORD:1111}") String adminPassword) {
+            this.em = em;
+            this.adminPassword = adminPassword;
+        }
 
         public boolean alreadySeeded() {
             Long count = em.createQuery("select count(a) from Account a", Long.class).getSingleResult();
@@ -41,7 +48,7 @@ public class initDb {
             Member admin = Member.createAdmin("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));
             em.persist(admin);
 
-            Account adminAccount = new Account("admin@admin.com",  new BCryptPasswordEncoder(12).encode("1111"), admin, Role.ADMIN);
+            Account adminAccount = new Account("admin@admin.com", new BCryptPasswordEncoder(12).encode(adminPassword), admin, Role.ADMIN);
             em.persist(adminAccount);
 
             Member member = Member.createUser("조형근", "010-6797-5587", new Address("서울", "관악구", "500"));
