@@ -1,5 +1,7 @@
 package com.jhg.hgpage.domain;
 
+import com.jhg.hgpage.wms.domain.Inventory;
+
 import com.jhg.hgpage.catalog.Product;
 
 import com.jhg.hgpage.domain.enums.DeliveryStatus;

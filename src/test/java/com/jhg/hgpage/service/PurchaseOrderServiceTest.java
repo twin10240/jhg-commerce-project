@@ -1,16 +1,18 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.wms.service.PurchaseOrderService;
+
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 
-import com.jhg.hgpage.domain.Inventory;
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.PurchaseOrder;
-import com.jhg.hgpage.domain.PurchaseOrderItem;
-import com.jhg.hgpage.domain.enums.PurchaseOrderStatus;
+import com.jhg.hgpage.wms.domain.PurchaseOrder;
+import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
+import com.jhg.hgpage.wms.domain.enums.PurchaseOrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
-import com.jhg.hgpage.repository.PurchaseOrderRepository;
-import com.jhg.hgpage.service.PurchaseOrderService.PurchaseOrderLine;
+import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
+import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

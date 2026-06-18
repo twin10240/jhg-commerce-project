@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain;
+package com.jhg.hgpage.wms.domain;
 
 import com.jhg.hgpage.catalog.Product;
 

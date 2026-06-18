@@ -2,6 +2,7 @@ package com.jhg.hgpage;
 
 import com.jhg.hgpage.domain.*;
 import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;

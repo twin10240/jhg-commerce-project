@@ -1,9 +1,11 @@
 package com.jhg.hgpage.repository;
 
-import com.jhg.hgpage.domain.Inventory;
+import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
+
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.PurchaseOrder;
-import com.jhg.hgpage.domain.PurchaseOrderItem;
+import com.jhg.hgpage.wms.domain.PurchaseOrder;
+import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

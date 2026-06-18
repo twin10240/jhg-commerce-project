@@ -1,6 +1,6 @@
-package com.jhg.hgpage.domain;
+package com.jhg.hgpage.wms.domain;
 
-import com.jhg.hgpage.domain.enums.PurchaseOrderStatus;
+import com.jhg.hgpage.wms.domain.enums.PurchaseOrderStatus;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;

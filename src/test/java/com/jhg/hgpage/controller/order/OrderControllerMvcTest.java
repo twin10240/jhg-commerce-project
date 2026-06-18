@@ -1,7 +1,7 @@
 package com.jhg.hgpage.controller.order;
 
 import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Inventory;
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;

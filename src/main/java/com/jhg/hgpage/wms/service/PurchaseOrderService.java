@@ -1,13 +1,13 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.PurchaseOrder;
-import com.jhg.hgpage.domain.PurchaseOrderItem;
+import com.jhg.hgpage.wms.domain.PurchaseOrder;
+import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
-import com.jhg.hgpage.repository.PurchaseOrderRepository;
+import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

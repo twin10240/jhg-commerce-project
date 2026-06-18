@@ -3,7 +3,7 @@ package com.jhg.hgpage.repository;
 import com.jhg.hgpage.config.QueryDslConfig;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Delivery;
-import com.jhg.hgpage.domain.Inventory;
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.OrderItem;

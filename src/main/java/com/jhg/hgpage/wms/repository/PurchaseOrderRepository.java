@@ -1,6 +1,6 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.wms.repository;
 
-import com.jhg.hgpage.domain.PurchaseOrder;
+import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

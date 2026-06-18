@@ -2,11 +2,11 @@ package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.controller.form.PurchaseOrderForm;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.service.InventoryAdjustmentService;
+import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
 import com.jhg.hgpage.service.OrderService;
 import com.jhg.hgpage.catalog.ProductService;
-import com.jhg.hgpage.service.PurchaseOrderService;
-import com.jhg.hgpage.service.PurchaseOrderService.PurchaseOrderLine;
+import com.jhg.hgpage.wms.service.PurchaseOrderService;
+import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
