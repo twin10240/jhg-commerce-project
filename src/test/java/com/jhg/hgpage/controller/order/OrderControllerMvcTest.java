@@ -7,7 +7,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.exception.NotEnoughStockException;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
 import org.junit.jupiter.api.Test;
@@ -246,7 +246,7 @@ class OrderControllerMvcTest {
     void 장바구니에서_주문서를_만들면_fromCart가_true다() throws Exception {
         when(memberService.findMember(1L)).thenReturn(
                 Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
-        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setId(1L);
         product.setName("상품1");
         product.setPrice(10000);
@@ -267,7 +267,7 @@ class OrderControllerMvcTest {
     void 바로구매_주문서는_fromCart가_false다() throws Exception {
         when(memberService.findMember(1L)).thenReturn(
                 Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
-        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setId(1L);
         product.setName("상품1");
         product.setPrice(10000);
@@ -286,7 +286,7 @@ class OrderControllerMvcTest {
     /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
     private com.jhg.hgpage.domain.dto.view.OrderDetailDto detailDto(boolean canceled) {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Product product = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setName("테스트상품");
         product.setPrice(10000);
         Inventory inventory = new Inventory();
@@ -318,7 +318,7 @@ class OrderControllerMvcTest {
     @Test
     void 백오더_주문_상세에는_입고대기_안내와_취소버튼이_보인다() throws Exception {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Product scarce = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product scarce = new com.jhg.hgpage.catalog.Product();
         scarce.setName("부족상품");
         scarce.setPrice(10000);
         Inventory inventory = new Inventory();
@@ -412,11 +412,11 @@ class OrderControllerMvcTest {
 
     @Test
     void 검증_실패로_주문서를_다시_그릴때_상품을_findAllById로_일괄_조회한다() throws Exception {
-        com.jhg.hgpage.domain.Product p1 = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product p1 = new com.jhg.hgpage.catalog.Product();
         p1.setId(1L);
         p1.setName("상품1");
         p1.setPrice(10000);
-        com.jhg.hgpage.domain.Product p2 = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product p2 = new com.jhg.hgpage.catalog.Product();
         p2.setId(2L);
         p2.setName("상품2");
         p2.setPrice(20000);
@@ -446,11 +446,11 @@ class OrderControllerMvcTest {
     void 장바구니_주문서_생성시_상품을_findAllById로_일괄_조회한다() throws Exception {
         when(memberService.findMember(1L)).thenReturn(
                 Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
-        com.jhg.hgpage.domain.Product p1 = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product p1 = new com.jhg.hgpage.catalog.Product();
         p1.setId(1L);
         p1.setName("상품1");
         p1.setPrice(10000);
-        com.jhg.hgpage.domain.Product p2 = new com.jhg.hgpage.domain.Product();
+        com.jhg.hgpage.catalog.Product p2 = new com.jhg.hgpage.catalog.Product();
         p2.setId(2L);
         p2.setName("상품2");
         p2.setPrice(20000);

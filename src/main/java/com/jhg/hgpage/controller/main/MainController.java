@@ -1,12 +1,12 @@
 package com.jhg.hgpage.controller.main;
 
 import com.jhg.hgpage.domain.dto.view.OrderDto;
-import com.jhg.hgpage.domain.dto.view.ProductCardDto;
+import com.jhg.hgpage.catalog.ProductCardDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.repository.SearchOption;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
-import com.jhg.hgpage.service.ProductService;
+import com.jhg.hgpage.catalog.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

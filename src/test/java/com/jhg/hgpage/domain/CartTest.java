@@ -1,5 +1,7 @@
 package com.jhg.hgpage.domain;
 
+import com.jhg.hgpage.catalog.Product;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

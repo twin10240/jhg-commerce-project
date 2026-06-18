@@ -4,7 +4,7 @@ import com.jhg.hgpage.controller.form.CheckOutForm;
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
 import jakarta.validation.ConstraintViolation;

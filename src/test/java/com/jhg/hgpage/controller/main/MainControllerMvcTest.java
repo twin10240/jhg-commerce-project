@@ -1,12 +1,12 @@
 package com.jhg.hgpage.controller.main;
 
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
-import com.jhg.hgpage.domain.dto.view.ProductCardDto;
+import com.jhg.hgpage.catalog.ProductCardDto;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.service.MemberService;
 import com.jhg.hgpage.service.OrderService;
-import com.jhg.hgpage.service.ProductService;
+import com.jhg.hgpage.catalog.ProductService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;

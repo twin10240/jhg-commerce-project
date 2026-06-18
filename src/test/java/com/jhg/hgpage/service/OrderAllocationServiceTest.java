@@ -7,7 +7,7 @@ import com.jhg.hgpage.domain.Delivery;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.OrderItem;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.enums.OrderStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

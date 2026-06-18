@@ -2,11 +2,11 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.PurchaseOrder;
 import com.jhg.hgpage.domain.PurchaseOrderItem;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

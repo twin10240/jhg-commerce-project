@@ -2,10 +2,10 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Address;
 import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.view.CartItemDto;
 import com.jhg.hgpage.repository.MemberRepository;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

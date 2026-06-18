@@ -14,7 +14,7 @@ import static com.jhg.hgpage.domain.QDelivery.delivery;
 import static com.jhg.hgpage.domain.QMember.member;
 import static com.jhg.hgpage.domain.QOrder.order;
 import static com.jhg.hgpage.domain.QOrderItem.orderItem;
-import static com.jhg.hgpage.domain.QProduct.product;
+import static com.jhg.hgpage.catalog.QProduct.product;
 
 @Repository
 @RequiredArgsConstructor

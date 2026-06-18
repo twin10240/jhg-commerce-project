@@ -1,10 +1,7 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.catalog;
 
 import com.jhg.hgpage.contract.InventoryQueryPort;
 
-import com.jhg.hgpage.domain.Product;
-import com.jhg.hgpage.domain.dto.view.ProductCardDto;
-import com.jhg.hgpage.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;

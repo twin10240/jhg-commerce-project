@@ -1,4 +1,7 @@
-package com.jhg.hgpage.domain;
+package com.jhg.hgpage.catalog;
+
+import com.jhg.hgpage.domain.CartItem;
+import com.jhg.hgpage.domain.Inventory;
 
 import jakarta.persistence.*;
 import lombok.Getter;

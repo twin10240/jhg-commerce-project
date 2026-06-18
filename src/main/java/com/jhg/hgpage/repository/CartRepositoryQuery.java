@@ -10,7 +10,7 @@ import java.util.List;
 
 import static com.jhg.hgpage.domain.QCart.cart;
 import static com.jhg.hgpage.domain.QCartItem.cartItem;
-import static com.jhg.hgpage.domain.QProduct.product;
+import static com.jhg.hgpage.catalog.QProduct.product;
 
 @Repository
 @RequiredArgsConstructor

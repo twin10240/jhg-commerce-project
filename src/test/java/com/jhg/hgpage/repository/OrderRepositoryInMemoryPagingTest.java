@@ -11,7 +11,7 @@ import com.jhg.hgpage.domain.Inventory;
 import com.jhg.hgpage.domain.Member;
 import com.jhg.hgpage.domain.Order;
 import com.jhg.hgpage.domain.OrderItem;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

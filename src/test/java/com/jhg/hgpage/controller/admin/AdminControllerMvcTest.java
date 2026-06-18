@@ -2,14 +2,14 @@ package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.domain.Inventory;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.PurchaseOrder;
 import com.jhg.hgpage.domain.PurchaseOrderItem;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.service.InventoryAdjustmentService;
 import com.jhg.hgpage.service.OrderService;
-import com.jhg.hgpage.service.ProductService;
+import com.jhg.hgpage.catalog.ProductService;
 import com.jhg.hgpage.service.PurchaseOrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

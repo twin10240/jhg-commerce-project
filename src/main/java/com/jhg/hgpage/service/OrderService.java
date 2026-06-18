@@ -3,6 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.contract.InventoryPort;
 
 import com.jhg.hgpage.domain.*;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.view.AdminOrderDto;
 import com.jhg.hgpage.domain.dto.view.OrderDetailDto;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
@@ -10,7 +11,7 @@ import com.jhg.hgpage.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.OrderRepository;
 import com.jhg.hgpage.repository.OrderRepositoryQuery;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

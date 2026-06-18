@@ -2,12 +2,12 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.domain.Cart;
 import com.jhg.hgpage.domain.CartItem;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.view.CartItemDto;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.repository.CartRepository;
 import com.jhg.hgpage.repository.CartRepositoryQuery;
-import com.jhg.hgpage.repository.ProductRepository;
+import com.jhg.hgpage.catalog.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

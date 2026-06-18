@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.dto.view;
+package com.jhg.hgpage.catalog;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

@@ -1,7 +1,7 @@
 package com.jhg.hgpage.repository;
 
 import com.jhg.hgpage.domain.Inventory;
-import com.jhg.hgpage.domain.Product;
+import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.PurchaseOrder;
 import com.jhg.hgpage.domain.PurchaseOrderItem;
 import org.hibernate.Hibernate;
