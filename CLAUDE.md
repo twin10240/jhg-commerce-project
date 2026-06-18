@@ -16,7 +16,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 - ~~**Phase 1 — 주문 정책 전환 (OMS화, 모놀리스 내부)**~~ ✅ 완료(2026-06-12): 주문 시 즉시 차감 → 예약(reserve) 모델로 전환.
   `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
   실제 차감은 출고 시점, 입고 시 백오더 자동 할당(FIFO). 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
-- **Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신. (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출(결합점 1)을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 남은 일: 가용 재고 조회 포트화 → `oms/`·`wms/` 패키지 물리 분리. 아래 해결됨 참고.)
+- ~~**Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.~~ ✅ **코어 재배치 완료(2026-06-18)**: domain·repository·service를 `contract/`·`catalog/`·`oms/`·`wms/`로 수직 분할, OMS↔WMS는 `contract/` 포트로만 통신(양방향 의존/순환 없음). (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 2026-06-18: ③ 가용 재고 조회를 `InventoryQueryPort`로 포트화 ④ 코어 패키지 물리 분리. 아래 해결됨 참고.) **남은 일(선택)**: 컨트롤러·DTO의 컨텍스트별 분리(현재 공용 web 계층에 유지).
 - **Phase 3 — WMS 물리 분리**: 별도 Spring Boot 앱 + REST 통신(출고 요청/재고 조회/입고 통지/출고 콜백).
   재고의 단일 진실 공급원은 WMS, OMS는 판매가용 재고. 멱등 API·보상 처리 학습 포인트.
 - (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
@@ -71,14 +71,22 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 ```
 
 ### 패키지 구조 (`src/main/java/com/jhg/hgpage`)
+
+**바운디드 컨텍스트 코어** (2026-06-18 Phase 2 코어 재배치 완료 — domain·repository·service를 컨텍스트별로 수직 분할):
+- `contract/` — **OMS↔WMS 경계 포트**(컨슈머가 아니라 공용에 둬 양방향 의존/순환 차단): `InventoryPort`(OMS→WMS 재고 예약/해제/출고), `InventoryQueryPort`(OMS→WMS 가용수량 조회, CQRS 읽기), `StockReplenishedHandler`(WMS→OMS 재고 보충 통지 콜백). oms·wms는 서로 직접 import하지 않고 contract에만 의존.
+- `catalog/` — 상품 카탈로그(OMS·WMS 공통 참조): `Product`, `ProductRepository`, `ProductService`(메인 그리드 카드 조립 — 카탈로그 + `InventoryQueryPort` 가용수량), `ProductCardDto`.
+- `oms/` — 주문·장바구니·고객. `domain/`(`Order`/`OrderItem`/`Delivery`/`Cart`/`CartItem`/`Account`/`Member`/`Address` + `enums/`(OrderStatus/DeliveryStatus)), `repository/`(주문·장바구니·회원 Spring Data + QueryDSL `*RepositoryQuery` + `SearchOption`), `service/`(`OrderService`/`OrderAllocationService`/`CartService`/`AccountService`/`MemberService`/`BackorderAllocator`).
+- `wms/` — 재고·발주·입고·출고. `domain/`(`Inventory`/`PurchaseOrder`/`PurchaseOrderItem` + `enums/PurchaseOrderStatus`), `repository/`(`PurchaseOrderRepository`), `service/`(`InventoryService`(=`InventoryPort`+`InventoryQueryPort` 구현)/`InventoryAdjustmentService`(재고조정+승격 트리거, 순환 회피 위해 `InventoryPort` 구현체와 분리)/`PurchaseOrderService`).
+
+> Phase 2는 **코어만 먼저** 분할(사용자 결정). 컨트롤러·DTO·설정은 아래 공용 web/infra 계층에 유지 — 필요 시 추후 컨텍스트별로 분리(Phase 3에서 WMS 물리 분리 시 자연스럽게 진행).
+
+**공용 web / 인프라** (컨텍스트 횡단 — 분할 보류):
 - `aop/` — `TimeTraceAop` (메서드 실행시간 로깅)
 - `api/` — `CartApiController`(장바구니 REST: 담기/수량변경/삭제/카운트), `OrderApiController`(내 주문 목록 JSON — 메인 새로고침 fetch용)
 - `config/` — `SecurityConfig`, `QueryDslConfig`
-- `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO)
-- `domain/` — JPA 엔티티 + `dto/view`(응답 DTO), `enums/`(Role/OrderStatus/DeliveryStatus)
+- `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO). `admin`은 WMS(재고조정·발주입고)와 OMS(배송완료)를 함께 다룸 — 컨텍스트별 컨트롤러 분리는 보류.
+- `domain/` — 공용 응답 DTO `dto/view`(`OrderDto`/`OrderDetailDto`/`AdminOrderDto`/`CartItemDto`), `dto`(`UserPrincipal`), `enums/`(`Role` — 인증 공용. OrderStatus/DeliveryStatus는 oms로, PurchaseOrderStatus는 wms로 이동). 엔티티는 모두 컨텍스트 패키지로 이동.
 - `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
-- `repository/` — Spring Data 인터페이스 + QueryDSL 구현 클래스
-- `service/` — 비즈니스 로직. **OMS↔WMS는 인터페이스로만 통신**(Phase 2 사전 정지작업): `InventoryPort`(OMS→WMS 재고 예약/해제/출고, 구현 `InventoryService`), `OrderAllocationService`(OMS 할당 정책: reserve 결과로 ORDER/BACKORDERED), `InventoryAdjustmentService`(관리자 재고 조정 + 재고증가 시 승격 트리거 — `InventoryPort` 구현체와 분리해 순환 회피), `StockReplenishedHandler`(WMS→OMS 재고 보충 통지 포트, 구현 `BackorderAllocator`).
 - `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드 (멱등: Account가 하나라도 있으면 skip)
 
 ### 도메인 모델 핵심
@@ -122,6 +130,10 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **신세대** (권장 패턴): `ProductServiceFindPageTest`(Mockito 단위), `OrderControllerTest`(Validator + ArgumentCaptor 단위), `OrderControllerMvcTest`/`MainControllerMvcTest`/`CartApiControllerMvcTest`(`@WebMvcTest` 슬라이스, Security `user()`·`csrf()` 포함), 예외 처리 단위 테스트(`MemberServiceFindMemberTest`, `CartServiceExceptionTest`, `OrderServiceExceptionTest`, `AccountServiceLoadUserTest`), 회원가입(`AccountServiceSignUpTest`, `AuthControllerMvcTest`), 임베디드 H2 통합(`AccountServiceTest`, `CartServiceTest`, `InitDbTest` — 자체 데이터 생성 + 롤백). 격리되어 있고 검증이 명확함.
 
 ## 알려진 이슈 / 기술 부채 (작업 시 참고)
+
+### 해결됨 (2026-06-18)
+- ~~가용 재고 조회 결합(OMS 판매 화면이 `Product→Inventory` 객체 그래프 직접 조회)~~ — **Phase 2 마지막 OMS→WMS 읽기 결합 제거**: 메인 상품 그리드가 `p.inventory.availableQty`로 WMS 재고를 객체 그래프로 들추던 것을 **조회 전용 포트 `InventoryQueryPort.availableByProductIds(ids)→Map`**(변경 포트 `InventoryPort`와 분리, CQRS)로 바꿈. `ProductService.findPage`(`Page<Product>`, 재고 fetch join) → **`findCardPage`**(`Page<ProductCardDto>`): 카탈로그 페이지(id/name/price) + 포트 가용수량을 합쳐 카드 DTO로 조립, 화면은 DTO만 보고 재고 객체그래프를 안 탐. 죽은 쿼리 `findPageWithInventory`/`findPageByNameWithInventory` + 그 테스트 제거. Phase 3의 "재고 조회 GET" REST와 1:1 대응. 순수 리팩터링 — 동작·DB·화면 불변. 테스트(TDD RED→GREEN): `InventoryServiceTest`(+가용수량 조회), `ProductServiceFindPageTest`(재작성 — 포트 합성·카드 매핑·품절 0 기본), `MainControllerMvcTest`(DTO 전환), `ProductRepositoryTest`(죽은 테스트 제거). `gradlew build` 전체 통과.
+- ~~코어 패키지 물리 분리 (Phase 2 본작업)~~ — domain·repository·service를 **바운디드 컨텍스트별 수직 분할**: `contract/`(경계 포트 3종 — 공용에 둬 oms↔wms 양방향 의존/순환 차단) → `catalog/`(Product 카탈로그, OMS·WMS 공통) → `wms/`(재고·발주: Inventory·PurchaseOrder*·해당 서비스/리포지토리) → `oms/`(주문·장바구니·고객: Order·Cart·Account·Member 등·해당 서비스/리포지토리). 4커밋으로 슬라이스 진행(각 `gradlew build` green). 컨텍스트별로 묶여 이동한 클래스는 same-package 참조 유지, 경계를 넘는 참조만 import 보강. **순수 이동 — 동작·DB·화면 불변**(Spring 컴포넌트 스캔은 루트 `com.jhg.hgpage` 기준이라 설정 변경 불필요, QueryDSL Q타입은 새 패키지로 재생성, `main.html`의 SpEL `T(...OrderStatus)` 경로 1곳 갱신). **사용자 결정: 코어만 먼저** — 컨트롤러·DTO·config·exception·initDb는 공용 web/infra 계층에 유지(`Role` enum은 인증 공용이라 `domain.enums`에 잔류). `admin` 컨트롤러는 WMS/OMS 혼재라 컨텍스트 분리 보류. 전체 테스트 그대로 green(171건).
 
 ### 해결됨 (2026-06-17)
 - ~~백오더 역방향 결합(WMS→OMS 직접 의존)~~ — **Phase 2 사전 정지작업**: 재고를 늘리는 WMS 측(`PurchaseOrderService.receive` 입고·`InventoryService.adjust` 재고 증가)이 OMS의 `BackorderAllocator`를 직접 주입·호출하던 역방향 의존을 **콜백 포트 인터페이스로 의존성 역전**. `StockReplenishedHandler.onReplenished(Collection<Long>)`(신설, "재고 보충됐다"는 사실만 통지 — 백오더 개념 모름)를 WMS 측이 의존하고 `BackorderAllocator`가 구현(`onReplenished`→기존 `allocate` 위임, 로직 불변). 이로써 의존 화살표가 WMS→OMS에서 OMS→WMS(정상 방향) 한 방향으로 정리돼 Phase 2 패키지 분리 시 순환 의존이 안 생긴다. Phase 3에서 이 포트가 "입고 후 OMS에 통지하는 콜백 REST"로 진화하는 지점. **`OrderService.cancelOrder`의 백오더 재할당은 OMS 내부 호출이라 구체 타입 `BackorderAllocator`·`allocate` 그대로 유지**(경계를 안 넘음). 순수 리팩터링 — 외부 동작·DB·화면 불변. 테스트(TDD RED→GREEN): `PurchaseOrderServiceTest`·`InventoryServiceTest`의 mock을 `StockReplenishedHandler`/`verify(...).onReplenished(...)`로 갱신(단언 의도 불변), `BackorderAllocatorTest`·`OrderServiceCancelTest`는 구체 타입이라 불변. `gradlew build` 전체 통과.
@@ -181,5 +193,6 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. **Phase 2 — `oms/`·`wms/` 모듈 경계 재배치** (로드맵 다음 단계)
-2. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
+1. **Phase 3 — WMS 물리 분리** (별도 Spring Boot 앱 + REST: 출고요청/재고조회/입고통지/출고콜백). `contract/` 포트가 REST 어댑터로 진화하는 지점. (로드맵 다음 단계)
+2. (선택) Phase 2 잔여 — 컨트롤러·DTO의 컨텍스트별 분리 + `admin` 컨트롤러 OMS/WMS 분리
+3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
