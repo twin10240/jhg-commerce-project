@@ -1,5 +1,10 @@
 package com.jhg.hgpage.domain;
 
+import com.jhg.hgpage.oms.domain.Member;
+
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Cart;
+
 import com.jhg.hgpage.catalog.Product;
 
 import org.junit.jupiter.api.Test;

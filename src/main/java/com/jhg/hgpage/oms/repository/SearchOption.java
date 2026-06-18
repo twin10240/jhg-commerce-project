@@ -1,6 +1,6 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.oms.repository;
 
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
 import lombok.Setter;
 

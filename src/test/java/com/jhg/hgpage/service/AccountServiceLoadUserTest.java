@@ -1,10 +1,12 @@
 package com.jhg.hgpage.service;
 
-import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.service.AccountService;
+
+import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
-import com.jhg.hgpage.repository.AccountRepository;
+import com.jhg.hgpage.oms.repository.AccountRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;

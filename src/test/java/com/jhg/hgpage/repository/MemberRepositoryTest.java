@@ -1,8 +1,10 @@
 package com.jhg.hgpage.repository;
 
-import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.repository.MemberRepository;
+
+import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -1,8 +1,10 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.oms.service.CartService;
+
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.repository.CartRepository;
-import com.jhg.hgpage.repository.CartRepositoryQuery;
+import com.jhg.hgpage.oms.repository.CartRepository;
+import com.jhg.hgpage.oms.repository.CartRepositoryQuery;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

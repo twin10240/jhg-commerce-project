@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.enums;
+package com.jhg.hgpage.oms.domain.enums;
 
 public enum DeliveryStatus {
     READY, COMP

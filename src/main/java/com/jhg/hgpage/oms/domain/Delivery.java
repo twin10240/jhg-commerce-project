@@ -1,7 +1,7 @@
-package com.jhg.hgpage.domain;
+package com.jhg.hgpage.oms.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.jhg.hgpage.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;

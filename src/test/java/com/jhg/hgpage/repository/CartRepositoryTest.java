@@ -1,8 +1,10 @@
 package com.jhg.hgpage.repository;
 
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.repository.CartRepository;
+
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Cart;
+import com.jhg.hgpage.oms.domain.Member;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;

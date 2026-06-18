@@ -1,10 +1,10 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.oms.service;
 
-import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Cart;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.repository.MemberRepository;
-import com.jhg.hgpage.repository.MemberRepositoryQuery;
+import com.jhg.hgpage.oms.repository.MemberRepository;
+import com.jhg.hgpage.oms.repository.MemberRepositoryQuery;
 import jakarta.persistence.NoResultException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

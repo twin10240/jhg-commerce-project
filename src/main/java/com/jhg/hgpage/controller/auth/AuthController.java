@@ -1,12 +1,12 @@
 package com.jhg.hgpage.controller.auth;
 
 import com.jhg.hgpage.controller.form.SignUpForm;
-import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.exception.DuplicateEmailException;
-import com.jhg.hgpage.service.AccountService;
+import com.jhg.hgpage.oms.service.AccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

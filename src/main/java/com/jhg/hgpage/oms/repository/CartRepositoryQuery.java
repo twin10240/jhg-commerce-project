@@ -1,4 +1,4 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.oms.repository;
 
 import com.jhg.hgpage.domain.dto.view.CartItemDto;
 import com.jhg.hgpage.domain.dto.view.QCartItemDto;
@@ -8,8 +8,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
-import static com.jhg.hgpage.domain.QCart.cart;
-import static com.jhg.hgpage.domain.QCartItem.cartItem;
+import static com.jhg.hgpage.oms.domain.QCart.cart;
+import static com.jhg.hgpage.oms.domain.QCartItem.cartItem;
 import static com.jhg.hgpage.catalog.QProduct.product;
 
 @Repository

@@ -1,16 +1,19 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.oms.service.BackorderAllocator;
+import com.jhg.hgpage.oms.service.OrderAllocationService;
+
 import com.jhg.hgpage.wms.service.InventoryService;
 
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Delivery;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.enums.OrderStatus;
-import com.jhg.hgpage.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

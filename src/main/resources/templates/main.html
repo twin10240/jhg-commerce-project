@@ -376,7 +376,7 @@
 
                         <select id="orderStatus" th:field="*{orderStatus}" class="form-control">
                             <option value="">주문상태</option>
-                            <option th:each="status : ${T(com.jhg.hgpage.domain.enums.OrderStatus).values()}"
+                            <option th:each="status : ${T(com.jhg.hgpage.oms.domain.enums.OrderStatus).values()}"
                                     th:value="${status}"
                                     th:text="${status}">option</option>
                         </select>

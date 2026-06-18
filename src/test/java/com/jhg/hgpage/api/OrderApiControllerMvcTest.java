@@ -2,9 +2,9 @@ package com.jhg.hgpage.api;
 
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.dto.view.OrderDto;
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.domain.enums.Role;
-import com.jhg.hgpage.service.OrderService;
+import com.jhg.hgpage.oms.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;

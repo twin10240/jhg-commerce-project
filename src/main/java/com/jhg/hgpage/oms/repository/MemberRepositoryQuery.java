@@ -1,13 +1,13 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.oms.repository;
 
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Member;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
-import static com.jhg.hgpage.domain.QAccount.account;
-import static com.jhg.hgpage.domain.QMember.member;
+import static com.jhg.hgpage.oms.domain.QAccount.account;
+import static com.jhg.hgpage.oms.domain.QMember.member;
 
 
 @Repository

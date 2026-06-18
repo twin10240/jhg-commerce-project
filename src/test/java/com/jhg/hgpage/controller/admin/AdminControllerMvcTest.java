@@ -8,7 +8,7 @@ import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.service.OrderService;
+import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.catalog.ProductService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import org.junit.jupiter.api.Test;
@@ -72,12 +72,12 @@ class AdminControllerMvcTest {
     }
 
     private com.jhg.hgpage.domain.dto.view.AdminOrderDto adminOrderDto() {
-        com.jhg.hgpage.domain.Member member = com.jhg.hgpage.domain.Member.createUser(
-                "주문자A", "010-0000-0000", new com.jhg.hgpage.domain.Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Delivery delivery = new com.jhg.hgpage.domain.Delivery();
-        delivery.setAddress(new com.jhg.hgpage.domain.Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
-                com.jhg.hgpage.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
+        com.jhg.hgpage.oms.domain.Member member = com.jhg.hgpage.oms.domain.Member.createUser(
+                "주문자A", "010-0000-0000", new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
+        delivery.setAddress(new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
         return com.jhg.hgpage.domain.dto.view.AdminOrderDto.from(order);
     }
 

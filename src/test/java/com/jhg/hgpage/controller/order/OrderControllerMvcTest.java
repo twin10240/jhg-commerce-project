@@ -1,15 +1,15 @@
 package com.jhg.hgpage.controller.order;
 
-import com.jhg.hgpage.domain.Address;
+import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.exception.NotEnoughStockException;
 import com.jhg.hgpage.catalog.ProductRepository;
-import com.jhg.hgpage.service.MemberService;
-import com.jhg.hgpage.service.OrderService;
+import com.jhg.hgpage.oms.service.MemberService;
+import com.jhg.hgpage.oms.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -292,10 +292,10 @@ class OrderControllerMvcTest {
         Inventory inventory = new Inventory();
         inventory.setOnHandQty(10);
         product.setInventory(inventory);
-        com.jhg.hgpage.domain.Delivery delivery = new com.jhg.hgpage.domain.Delivery();
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
-                com.jhg.hgpage.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
         order.markOrdered(); // ORDER 상태(예약 성공)
         if (canceled) {
             order.cancel();
@@ -324,10 +324,10 @@ class OrderControllerMvcTest {
         Inventory inventory = new Inventory();
         inventory.setOnHandQty(0);
         scarce.setInventory(inventory);
-        com.jhg.hgpage.domain.Delivery delivery = new com.jhg.hgpage.domain.Delivery();
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        com.jhg.hgpage.domain.Order order = com.jhg.hgpage.domain.Order.createOrder(member, delivery,
-                com.jhg.hgpage.domain.OrderItem.createOrderItem(scarce, 10000, 2));
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(scarce, 10000, 2));
         order.markBackordered(); // 백오더 접수 상태
         when(orderService.findOrderDetail(10L, 1L))
                 .thenReturn(com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order));

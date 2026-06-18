@@ -1,6 +1,6 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.oms.repository;
 
-import com.jhg.hgpage.domain.Order;
+import com.jhg.hgpage.oms.domain.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;

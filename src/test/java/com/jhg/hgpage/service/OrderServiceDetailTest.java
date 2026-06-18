@@ -1,20 +1,25 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.oms.service.BackorderAllocator;
+import com.jhg.hgpage.oms.service.CartService;
+import com.jhg.hgpage.oms.service.MemberService;
+import com.jhg.hgpage.oms.service.OrderService;
+
 import com.jhg.hgpage.contract.InventoryPort;
 
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Delivery;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.view.OrderDetailDto;
-import com.jhg.hgpage.domain.enums.DeliveryStatus;
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.repository.OrderRepository;
-import com.jhg.hgpage.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.oms.repository.OrderRepository;
+import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

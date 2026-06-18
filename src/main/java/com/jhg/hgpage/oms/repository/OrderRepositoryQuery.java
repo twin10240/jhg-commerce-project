@@ -1,7 +1,7 @@
-package com.jhg.hgpage.repository;
+package com.jhg.hgpage.oms.repository;
 
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -10,10 +10,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static com.jhg.hgpage.domain.QDelivery.delivery;
-import static com.jhg.hgpage.domain.QMember.member;
-import static com.jhg.hgpage.domain.QOrder.order;
-import static com.jhg.hgpage.domain.QOrderItem.orderItem;
+import static com.jhg.hgpage.oms.domain.QDelivery.delivery;
+import static com.jhg.hgpage.oms.domain.QMember.member;
+import static com.jhg.hgpage.oms.domain.QOrder.order;
+import static com.jhg.hgpage.oms.domain.QOrderItem.orderItem;
 import static com.jhg.hgpage.catalog.QProduct.product;
 
 @Repository

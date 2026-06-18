@@ -1,7 +1,7 @@
 package com.jhg.hgpage.api;
 
 import com.jhg.hgpage.domain.dto.UserPrincipal;
-import com.jhg.hgpage.service.CartService;
+import com.jhg.hgpage.oms.service.CartService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;

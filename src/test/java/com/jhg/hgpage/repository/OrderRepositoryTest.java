@@ -1,12 +1,14 @@
 package com.jhg.hgpage.repository;
 
+import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+
 import com.jhg.hgpage.config.QueryDslConfig;
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Delivery;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.domain.Member;
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

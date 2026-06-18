@@ -1,12 +1,12 @@
 package com.jhg.hgpage.controller.order;
 
 import com.jhg.hgpage.controller.form.CheckOutForm;
-import com.jhg.hgpage.domain.Address;
+import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.catalog.ProductRepository;
-import com.jhg.hgpage.service.MemberService;
-import com.jhg.hgpage.service.OrderService;
+import com.jhg.hgpage.oms.service.MemberService;
+import com.jhg.hgpage.oms.service.OrderService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;

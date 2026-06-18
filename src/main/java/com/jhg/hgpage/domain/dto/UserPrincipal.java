@@ -1,7 +1,7 @@
 package com.jhg.hgpage.domain.dto;
 
-import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.enums.Role;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;

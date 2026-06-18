@@ -1,11 +1,13 @@
 package com.jhg.hgpage.service;
 
-import com.jhg.hgpage.domain.Address;
-import com.jhg.hgpage.domain.Cart;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.service.CartService;
+
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Cart;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.repository.CartRepository;
-import com.jhg.hgpage.repository.CartRepositoryQuery;
+import com.jhg.hgpage.oms.repository.CartRepository;
+import com.jhg.hgpage.oms.repository.CartRepositoryQuery;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -1,7 +1,7 @@
-package com.jhg.hgpage.domain;
+package com.jhg.hgpage.oms.domain;
 
-import com.jhg.hgpage.domain.enums.DeliveryStatus;
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
 

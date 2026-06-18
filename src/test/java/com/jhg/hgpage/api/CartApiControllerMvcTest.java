@@ -4,7 +4,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.exception.NotEnoughStockException;
-import com.jhg.hgpage.service.CartService;
+import com.jhg.hgpage.oms.service.CartService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;

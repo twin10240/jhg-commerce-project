@@ -1,8 +1,8 @@
 package com.jhg.hgpage.domain.dto.view;
 
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.enums.DeliveryStatus;
-import com.jhg.hgpage.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
 
 import java.time.LocalDateTime;

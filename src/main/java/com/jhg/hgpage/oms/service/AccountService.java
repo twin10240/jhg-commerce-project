@@ -1,11 +1,11 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.oms.service;
 
-import com.jhg.hgpage.domain.Account;
-import com.jhg.hgpage.domain.Member;
+import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.exception.DuplicateEmailException;
-import com.jhg.hgpage.repository.AccountRepository;
-import com.jhg.hgpage.repository.MemberRepository;
+import com.jhg.hgpage.oms.repository.AccountRepository;
+import com.jhg.hgpage.oms.repository.MemberRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

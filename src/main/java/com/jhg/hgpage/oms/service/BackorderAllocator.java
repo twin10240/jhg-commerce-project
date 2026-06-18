@@ -1,10 +1,10 @@
-package com.jhg.hgpage.service;
+package com.jhg.hgpage.oms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 
-import com.jhg.hgpage.domain.Order;
-import com.jhg.hgpage.domain.enums.OrderStatus;
-import com.jhg.hgpage.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.enums;
+package com.jhg.hgpage.oms.domain.enums;
 
 public enum OrderStatus {
     ORDER,       // 접수 + 재고 예약 완료
