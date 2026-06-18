@@ -1,1 +1,8 @@
+plugins {
+	// Gradle 툴체인 자동 프로비저닝: 빌드 환경에 JDK 17이 없으면 내려받는다.
+	// (Railway Nixpacks처럼 JDK가 toolchain 버전과 안 맞는 환경에서 "Toolchain download
+	//  repositories have not been configured" 실패를 막는다. 로컬은 이미 설치돼 있어 무영향.)
+	id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
 rootProject.name = 'hgpage'
