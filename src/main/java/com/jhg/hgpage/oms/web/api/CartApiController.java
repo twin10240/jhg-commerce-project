@@ -1,4 +1,4 @@
-package com.jhg.hgpage.api;
+package com.jhg.hgpage.oms.web.api;
 
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.oms.service.CartService;

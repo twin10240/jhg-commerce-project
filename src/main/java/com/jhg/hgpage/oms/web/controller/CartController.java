@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.cart;
+package com.jhg.hgpage.oms.web.controller;
 
 import com.jhg.hgpage.oms.dto.CartItemDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;

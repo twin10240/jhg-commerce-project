@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.auth;
+package com.jhg.hgpage.oms.web.controller;
 
 import com.jhg.hgpage.oms.web.form.SignUpForm;
 import com.jhg.hgpage.oms.domain.Account;

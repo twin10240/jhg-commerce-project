@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.order;
+package com.jhg.hgpage.oms.web.controller;
 
 import com.jhg.hgpage.oms.web.form.CheckOutForm;
 import com.jhg.hgpage.oms.web.form.OrderRequest;
