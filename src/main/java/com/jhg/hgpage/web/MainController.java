@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.main;
+package com.jhg.hgpage.web;
 
 import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.catalog.ProductCardDto;
