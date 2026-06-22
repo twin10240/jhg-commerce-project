@@ -16,7 +16,7 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 - ~~**Phase 1 — 주문 정책 전환 (OMS화, 모놀리스 내부)**~~ ✅ 완료(2026-06-12): 주문 시 즉시 차감 → 예약(reserve) 모델로 전환.
   `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
   실제 차감은 출고 시점, 입고 시 백오더 자동 할당(FIFO). 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
-- ~~**Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.~~ ✅ **코어 재배치 완료(2026-06-18)**: domain·repository·service를 `contract/`·`catalog/`·`oms/`·`wms/`로 수직 분할, OMS↔WMS는 `contract/` 포트로만 통신(양방향 의존/순환 없음). (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 2026-06-18: ③ 가용 재고 조회를 `InventoryQueryPort`로 포트화 ④ 코어 패키지 물리 분리. 아래 해결됨 참고.) **남은 일(선택)**: 컨트롤러·DTO의 컨텍스트별 분리(현재 공용 web 계층에 유지).
+- ~~**Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.~~ ✅ **코어 재배치 완료(2026-06-18)**: domain·repository·service를 `contract/`·`catalog/`·`oms/`·`wms/`로 수직 분할, OMS↔WMS는 `contract/` 포트로만 통신(양방향 의존/순환 없음). (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 2026-06-18: ③ 가용 재고 조회를 `InventoryQueryPort`로 포트화 ④ 코어 패키지 물리 분리. 아래 해결됨 참고.) **web 계층 분리 완료(2026-06-22)**: 컨트롤러·폼·뷰DTO도 컨텍스트별로 수직 분할 — 응답 DTO→`oms/dto`, 폼→`oms/web/form`·`wms/web/form`, OMS 컨트롤러·api→`oms/web/{controller,api}`, `AdminController`→`OrderAdminController`(oms)+`InventoryAdminController`(wms) 분할, 교차/중립 `Home`·`Main`→공용 `web/`. 순수 이동(동작·DB·화면·URL 불변).
 - **Phase 3 — WMS 물리 분리**: 별도 Spring Boot 앱 + REST 통신(출고 요청/재고 조회/입고 통지/출고 콜백).
   재고의 단일 진실 공급원은 WMS, OMS는 판매가용 재고. 멱등 API·보상 처리 학습 포인트.
 - (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
@@ -80,20 +80,19 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 패키지 구조 (`src/main/java/com/jhg/hgpage`)
 
-**바운디드 컨텍스트 코어** (2026-06-18 Phase 2 코어 재배치 완료 — domain·repository·service를 컨텍스트별로 수직 분할):
+**바운디드 컨텍스트 코어** (2026-06-18 코어 재배치 + 2026-06-22 web 계층 분리 완료 — domain·repository·service·web을 컨텍스트별로 수직 분할):
 - `contract/` — **OMS↔WMS 경계 포트**(컨슈머가 아니라 공용에 둬 양방향 의존/순환 차단): `InventoryPort`(OMS→WMS 재고 예약/해제/출고), `InventoryQueryPort`(OMS→WMS 가용수량 조회, CQRS 읽기), `StockReplenishedHandler`(WMS→OMS 재고 보충 통지 콜백). oms·wms는 서로 직접 import하지 않고 contract에만 의존.
 - `catalog/` — 상품 카탈로그(OMS·WMS 공통 참조): `Product`, `ProductRepository`, `ProductService`(메인 그리드 카드 조립 — 카탈로그 + `InventoryQueryPort` 가용수량), `ProductCardDto`.
-- `oms/` — 주문·장바구니·고객. `domain/`(`Order`/`OrderItem`/`Delivery`/`Cart`/`CartItem`/`Account`/`Member`/`Address` + `enums/`(OrderStatus/DeliveryStatus)), `repository/`(주문·장바구니·회원 Spring Data + QueryDSL `*RepositoryQuery` + `SearchOption`), `service/`(`OrderService`/`OrderAllocationService`/`CartService`/`AccountService`/`MemberService`/`BackorderAllocator`).
-- `wms/` — 재고·발주·입고·출고. `domain/`(`Inventory`/`PurchaseOrder`/`PurchaseOrderItem` + `enums/PurchaseOrderStatus`), `repository/`(`PurchaseOrderRepository`), `service/`(`InventoryService`(=`InventoryPort`+`InventoryQueryPort` 구현)/`InventoryAdjustmentService`(재고조정+승격 트리거, 순환 회피 위해 `InventoryPort` 구현체와 분리)/`PurchaseOrderService`).
+- `oms/` — 주문·장바구니·고객. `domain/`(`Order`/`OrderItem`/`Delivery`/`Cart`/`CartItem`/`Account`/`Member`/`Address` + `enums/`(OrderStatus/DeliveryStatus)), `repository/`(주문·장바구니·회원 Spring Data + QueryDSL `*RepositoryQuery` + `SearchOption`), `service/`(`OrderService`/`OrderAllocationService`/`CartService`/`AccountService`/`MemberService`/`BackorderAllocator`), `dto/`(응답 뷰DTO `OrderDto`/`OrderDetailDto`/`AdminOrderDto`/`CartItemDto` — repository→web 역의존 회피 위해 web 밑이 아닌 컨텍스트 레벨), `web/`(`controller/`: `AuthController`/`CartController`/`OrderController`/`OrderAdminController`, `api/`: `CartApiController`/`OrderApiController`, `form/`: `CheckOutForm`/`OrderRequest`/`SignUpForm`).
+- `wms/` — 재고·발주·입고·출고. `domain/`(`Inventory`/`PurchaseOrder`/`PurchaseOrderItem` + `enums/PurchaseOrderStatus`), `repository/`(`PurchaseOrderRepository`), `service/`(`InventoryService`(=`InventoryPort`+`InventoryQueryPort` 구현)/`InventoryAdjustmentService`(재고조정+승격 트리거, 순환 회피 위해 `InventoryPort` 구현체와 분리)/`PurchaseOrderService`), `web/`(`controller/InventoryAdminController`(재고조정·발주·입고), `form/PurchaseOrderForm`).
 
-> Phase 2는 **코어만 먼저** 분할(사용자 결정). 컨트롤러·DTO·설정은 아래 공용 web/infra 계층에 유지 — 필요 시 추후 컨텍스트별로 분리(Phase 3에서 WMS 물리 분리 시 자연스럽게 진행).
+> `AdminController`는 OMS(배송)·WMS(재고·발주) 혼재를 2026-06-22에 `OrderAdminController`(oms)·`InventoryAdminController`(wms)로 분할. URL은 전부 불변(`/admin/orders*`→oms, `/admin/inventory*`·`/admin/purchase-orders*`→wms).
 
-**공용 web / 인프라** (컨텍스트 횡단 — 분할 보류):
+**공용 web / 인프라** (컨텍스트 횡단):
 - `aop/` — `TimeTraceAop` (메서드 실행시간 로깅)
-- `api/` — `CartApiController`(장바구니 REST: 담기/수량변경/삭제/카운트), `OrderApiController`(내 주문 목록 JSON — 메인 새로고침 fetch용)
+- `web/` — 교차/중립(BFF 성격) 화면 컨트롤러 `HomeController`(`/`), `MainController`(`/main` — 상품 그리드 + 내 주문 + ADMIN 재고). 특정 컨텍스트에 속하지 않아 공용에 둠.
 - `config/` — `SecurityConfig`, `QueryDslConfig`
-- `controller/` — 화면 컨트롤러 (`auth`, `main`, `cart`, `order`, `admin`) + `form/` (요청 폼 DTO). `admin`은 WMS(재고조정·발주입고)와 OMS(배송완료)를 함께 다룸 — 컨텍스트별 컨트롤러 분리는 보류.
-- `domain/` — 공용 응답 DTO `dto/view`(`OrderDto`/`OrderDetailDto`/`AdminOrderDto`/`CartItemDto`), `dto`(`UserPrincipal`), `enums/`(`Role` — 인증 공용. OrderStatus/DeliveryStatus는 oms로, PurchaseOrderStatus는 wms로 이동). 엔티티는 모두 컨텍스트 패키지로 이동.
+- `domain/` — `dto`(`UserPrincipal`), `enums/`(`Role` — 인증 공용. OrderStatus/DeliveryStatus는 oms로, PurchaseOrderStatus는 wms로 이동). 엔티티·뷰DTO는 모두 컨텍스트 패키지로 이동.
 - `exception/` — `NotEnoughStockException`, `EntityNotFoundException`, `DuplicateEmailException`, `GlobalExceptionHandler`
 - `initDb.java` — `@PostConstruct`로 초기 계정/상품 시드 (멱등: Account가 하나라도 있으면 skip)
 
@@ -126,7 +125,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - 엔티티는 정적 팩토리 메서드로 생성(`Member.createUser`, `Order.createOrder`, `OrderItem.createOrderItem`).
 - 엔티티 기본 생성자는 `@NoArgsConstructor(access = PROTECTED)`로 막음.
 - 복잡한 조회는 Spring Data 파생 쿼리 대신 `*RepositoryQuery` QueryDSL 클래스에 작성.
-- 응답 DTO는 `domain/dto/view`, 요청 폼은 `controller/form`.
+- 응답 DTO는 컨텍스트 레벨 `oms/dto`(repository→web 역의존 회피), 요청 폼은 web 계층 `oms/web/form`·`wms/web/form`.
 - ID 조회 실패는 `Optional.get()` 대신 `orElseThrow(() -> new EntityNotFoundException(대상, id))`. 전역 예외 처리는 `exception/GlobalExceptionHandler`(`/api/**`는 ProblemDetail JSON, 화면은 `error.html` 또는 flash 리다이렉트).
 - 빌드/테스트 실행 시 `JAVA_HOME`이 JDK 17+를 가리켜야 함(시스템 기본이 Java 8): `$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"`.
 
