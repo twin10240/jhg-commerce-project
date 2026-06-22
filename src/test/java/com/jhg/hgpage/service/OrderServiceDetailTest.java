@@ -12,7 +12,7 @@ import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.dto.view.OrderDetailDto;
+import com.jhg.hgpage.oms.dto.OrderDetailDto;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;

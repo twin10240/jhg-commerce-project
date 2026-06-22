@@ -4,7 +4,7 @@ import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.oms.dto.CartItemDto;
 import com.jhg.hgpage.oms.repository.MemberRepository;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;

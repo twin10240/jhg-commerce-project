@@ -71,14 +71,14 @@ class AdminControllerMvcTest {
         return product;
     }
 
-    private com.jhg.hgpage.domain.dto.view.AdminOrderDto adminOrderDto() {
+    private com.jhg.hgpage.oms.dto.AdminOrderDto adminOrderDto() {
         com.jhg.hgpage.oms.domain.Member member = com.jhg.hgpage.oms.domain.Member.createUser(
                 "주문자A", "010-0000-0000", new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
         com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
         delivery.setAddress(new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
-        return com.jhg.hgpage.domain.dto.view.AdminOrderDto.from(order);
+        return com.jhg.hgpage.oms.dto.AdminOrderDto.from(order);
     }
 
     @Test

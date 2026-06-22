@@ -11,7 +11,7 @@ import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.dto.view.OrderDto;
+import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;

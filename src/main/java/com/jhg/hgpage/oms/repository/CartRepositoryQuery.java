@@ -1,7 +1,7 @@
 package com.jhg.hgpage.oms.repository;
 
-import com.jhg.hgpage.domain.dto.view.CartItemDto;
-import com.jhg.hgpage.domain.dto.view.QCartItemDto;
+import com.jhg.hgpage.oms.dto.CartItemDto;
+import com.jhg.hgpage.oms.dto.QCartItemDto;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

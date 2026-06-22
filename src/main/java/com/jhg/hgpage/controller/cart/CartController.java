@@ -1,6 +1,6 @@
 package com.jhg.hgpage.controller.cart;
 
-import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.oms.dto.CartItemDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.oms.service.CartService;
 import lombok.RequiredArgsConstructor;
