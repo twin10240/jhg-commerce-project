@@ -1,6 +1,6 @@
 package com.jhg.hgpage.controller.admin;
 
-import com.jhg.hgpage.controller.form.PurchaseOrderForm;
+import com.jhg.hgpage.wms.web.form.PurchaseOrderForm;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
 import com.jhg.hgpage.oms.service.OrderService;

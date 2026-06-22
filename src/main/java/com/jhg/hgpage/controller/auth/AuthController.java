@@ -1,6 +1,6 @@
 package com.jhg.hgpage.controller.auth;
 
-import com.jhg.hgpage.controller.form.SignUpForm;
+import com.jhg.hgpage.oms.web.form.SignUpForm;
 import com.jhg.hgpage.oms.domain.Account;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Member;

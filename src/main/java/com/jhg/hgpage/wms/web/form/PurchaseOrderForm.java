@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.form;
+package com.jhg.hgpage.wms.web.form;
 
 import lombok.Getter;
 import lombok.Setter;
