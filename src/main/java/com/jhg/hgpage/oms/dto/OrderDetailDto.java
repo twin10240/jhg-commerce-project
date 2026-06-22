@@ -1,4 +1,4 @@
-package com.jhg.hgpage.domain.dto.view;
+package com.jhg.hgpage.oms.dto;
 
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Order;

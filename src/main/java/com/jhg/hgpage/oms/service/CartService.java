@@ -3,7 +3,7 @@ package com.jhg.hgpage.oms.service;
 import com.jhg.hgpage.oms.domain.Cart;
 import com.jhg.hgpage.oms.domain.CartItem;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.domain.dto.view.CartItemDto;
+import com.jhg.hgpage.oms.dto.CartItemDto;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.CartRepository;
 import com.jhg.hgpage.oms.repository.CartRepositoryQuery;

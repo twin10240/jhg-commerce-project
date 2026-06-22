@@ -1,12 +1,11 @@
-package com.jhg.hgpage.controller.admin;
+package com.jhg.hgpage.wms.web.controller;
 
-import com.jhg.hgpage.controller.form.PurchaseOrderForm;
+import com.jhg.hgpage.catalog.ProductService;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.oms.service.OrderService;
-import com.jhg.hgpage.catalog.ProductService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
+import com.jhg.hgpage.wms.web.form.PurchaseOrderForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,33 +19,11 @@ import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
-public class AdminController {
+public class InventoryAdminController {
 
     private final InventoryAdjustmentService inventoryAdjustmentService;
     private final ProductService productService;
     private final PurchaseOrderService purchaseOrderService;
-    private final OrderService orderService;
-
-    @GetMapping("/admin/orders")
-    public String orders(Model model) {
-        model.addAttribute("orders", orderService.findAllForAdmin());
-        return "admin/orders";
-    }
-
-    // HTML 폼 제약 때문에 path variable 대신 orderId 파라미터를 받는다 (발주 입고와 동일 패턴)
-    @PostMapping("/admin/orders/complete-delivery")
-    public String completeDelivery(@RequestParam Long orderId,
-                                   RedirectAttributes redirectAttributes) {
-        try {
-            orderService.completeDelivery(orderId);
-            redirectAttributes.addFlashAttribute("successMessage",
-                    "배송완료 처리되었습니다. (주문 #" + orderId + ")");
-        } catch (IllegalStateException | EntityNotFoundException e) {
-            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-        }
-
-        return "redirect:/admin/orders";
-    }
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
@@ -67,7 +44,6 @@ public class AdminController {
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
-
         return "redirect:/admin/inventory";
     }
 
@@ -77,7 +53,6 @@ public class AdminController {
         List<PurchaseOrderLine> lines = form.getItems().stream()
                 .map(item -> new PurchaseOrderLine(item.getProductId(), item.getQuantity()))
                 .toList();
-
         try {
             Long poId = purchaseOrderService.create(lines, form.getMemo());
             redirectAttributes.addFlashAttribute("successMessage",
@@ -85,7 +60,6 @@ public class AdminController {
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
-
         return "redirect:/admin/inventory";
     }
 
@@ -100,7 +74,6 @@ public class AdminController {
         } catch (IllegalStateException | EntityNotFoundException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
-
         return "redirect:/admin/inventory";
     }
 }

@@ -1,7 +1,7 @@
-package com.jhg.hgpage.controller.order;
+package com.jhg.hgpage.oms.web.controller;
 
-import com.jhg.hgpage.controller.form.CheckOutForm;
-import com.jhg.hgpage.controller.form.OrderRequest;
+import com.jhg.hgpage.oms.web.form.CheckOutForm;
+import com.jhg.hgpage.oms.web.form.OrderRequest;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.catalog.Product;

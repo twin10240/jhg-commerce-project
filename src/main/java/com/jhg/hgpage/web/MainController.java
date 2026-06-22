@@ -1,6 +1,6 @@
-package com.jhg.hgpage.controller.main;
+package com.jhg.hgpage.web;
 
-import com.jhg.hgpage.domain.dto.view.OrderDto;
+import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.catalog.ProductCardDto;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.oms.repository.SearchOption;

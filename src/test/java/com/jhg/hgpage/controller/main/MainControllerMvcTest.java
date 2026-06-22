@@ -1,4 +1,5 @@
 package com.jhg.hgpage.controller.main;
+import com.jhg.hgpage.web.MainController;
 
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;

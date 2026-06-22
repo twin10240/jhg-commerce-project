@@ -1,4 +1,5 @@
 package com.jhg.hgpage.controller.auth;
+import com.jhg.hgpage.oms.web.controller.AuthController;
 
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.oms.domain.Account;

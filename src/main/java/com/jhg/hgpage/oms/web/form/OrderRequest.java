@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller.form;
+package com.jhg.hgpage.oms.web.form;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;

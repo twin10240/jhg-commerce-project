@@ -1,7 +1,8 @@
 package com.jhg.hgpage.api;
+import com.jhg.hgpage.oms.web.api.OrderApiController;
 
 import com.jhg.hgpage.domain.dto.UserPrincipal;
-import com.jhg.hgpage.domain.dto.view.OrderDto;
+import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.service.OrderService;

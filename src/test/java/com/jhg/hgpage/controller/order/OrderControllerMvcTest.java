@@ -1,4 +1,5 @@
 package com.jhg.hgpage.controller.order;
+import com.jhg.hgpage.oms.web.controller.OrderController;
 
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.wms.domain.Inventory;
@@ -284,7 +285,7 @@ class OrderControllerMvcTest {
     }
 
     /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
-    private com.jhg.hgpage.domain.dto.view.OrderDetailDto detailDto(boolean canceled) {
+    private com.jhg.hgpage.oms.dto.OrderDetailDto detailDto(boolean canceled) {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setName("테스트상품");
@@ -300,7 +301,7 @@ class OrderControllerMvcTest {
         if (canceled) {
             order.cancel();
         }
-        return com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order);
+        return com.jhg.hgpage.oms.dto.OrderDetailDto.from(order);
     }
 
     @Test
@@ -330,7 +331,7 @@ class OrderControllerMvcTest {
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(scarce, 10000, 2));
         order.markBackordered(); // 백오더 접수 상태
         when(orderService.findOrderDetail(10L, 1L))
-                .thenReturn(com.jhg.hgpage.domain.dto.view.OrderDetailDto.from(order));
+                .thenReturn(com.jhg.hgpage.oms.dto.OrderDetailDto.from(order));
 
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())

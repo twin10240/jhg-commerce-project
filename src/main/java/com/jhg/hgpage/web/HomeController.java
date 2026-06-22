@@ -1,4 +1,4 @@
-package com.jhg.hgpage.controller;
+package com.jhg.hgpage.web;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

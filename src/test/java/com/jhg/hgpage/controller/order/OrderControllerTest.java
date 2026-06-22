@@ -1,6 +1,7 @@
 package com.jhg.hgpage.controller.order;
+import com.jhg.hgpage.oms.web.controller.OrderController;
 
-import com.jhg.hgpage.controller.form.CheckOutForm;
+import com.jhg.hgpage.oms.web.form.CheckOutForm;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
