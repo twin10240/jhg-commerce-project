@@ -1,7 +1,6 @@
 package com.jhg.hgpage.controller.main;
 import com.jhg.hgpage.web.MainController;
 
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.catalog.ProductCardDto;
 import com.jhg.hgpage.domain.enums.Role;
@@ -27,7 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -50,10 +48,6 @@ class MainControllerMvcTest {
         return new UserPrincipal(1L, "user@example.com", "테스터", "010-0000-0000", "password", Role.USER);
     }
 
-    private UserPrincipal adminPrincipal() {
-        return new UserPrincipal(2L, "admin@admin.com", "관리자", "010-1111-2222", "password", Role.ADMIN);
-    }
-
     // 그리드 카드: 가용수량을 직접 담은 DTO (재고 객체그래프를 거치지 않는다)
     private ProductCardDto card(int availableQty) {
         return new ProductCardDto(1L, "상품1", 10000, availableQty);
@@ -65,15 +59,6 @@ class MainControllerMvcTest {
 
     private Page<ProductCardDto> pageOf(ProductCardDto card, Pageable pageable, long total) {
         return new PageImpl<>(List.of(card), pageable, total);
-    }
-
-    // 관리자 재고 select용: findAllWithInventory는 여전히 Product 엔티티를 돌려준다
-    private Product sampleProductEntity() {
-        Product p = new Product();
-        p.setId(1L);
-        p.setName("상품1");
-        p.setPrice(10000);
-        return p;
     }
 
     @Test
@@ -205,18 +190,6 @@ class MainControllerMvcTest {
     }
 
     @Test
-    void 일반사용자는_inventoryProducts를_조회하지_않는다() throws Exception {
-        when(productService.findCardPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
-        when(orderService.findOrders(1L)).thenReturn(List.of());
-
-        mockMvc.perform(get("/main").with(user(userPrincipal())))
-                .andExpect(status().isOk())
-                .andExpect(model().attributeDoesNotExist("inventoryProducts"));
-
-        verify(productService, never()).findAllWithInventory();
-    }
-
-    @Test
     void 메인에는_주문_새로고침_fetch_배선이_포함된다() throws Exception {
         when(productService.findCardPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
         when(orderService.findOrders(1L)).thenReturn(List.of());
@@ -227,16 +200,4 @@ class MainControllerMvcTest {
                 .andExpect(content().string(containsString("ordersTbody")));
     }
 
-    @Test
-    void 관리자는_inventoryProducts를_조회한다() throws Exception {
-        when(productService.findCardPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
-        when(productService.findAllWithInventory()).thenReturn(List.of(sampleProductEntity()));
-        when(orderService.findOrders(2L)).thenReturn(List.of());
-
-        mockMvc.perform(get("/main").with(user(adminPrincipal())))
-                .andExpect(status().isOk())
-                .andExpect(model().attributeExists("inventoryProducts"));
-
-        verify(productService).findAllWithInventory();
-    }
 }

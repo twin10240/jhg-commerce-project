@@ -27,9 +27,17 @@ public class InventoryAdminController {
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
+        // 재고 화면: 재고 현황 조회 + 재고 조정. 발주는 /admin/purchase-orders 로 분리.
         model.addAttribute("products", productService.findAllWithInventory());
-        model.addAttribute("purchaseOrders", purchaseOrderService.findAllWithItems());
         return "admin/inventory";
+    }
+
+    @GetMapping("/admin/purchase-orders")
+    public String purchaseOrders(Model model) {
+        // 발주 화면: 발주 생성 + 발주 현황 + 입고.
+        model.addAttribute("purchaseOrders", purchaseOrderService.findAllWithItems());
+        model.addAttribute("products", productService.findAllWithInventory()); // 발주 생성 select용
+        return "admin/purchaseorders";
     }
 
     @PostMapping("/admin/inventory/adjust")
@@ -60,7 +68,7 @@ public class InventoryAdminController {
         } catch (IllegalArgumentException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
-        return "redirect:/admin/inventory";
+        return "redirect:/admin/purchase-orders";
     }
 
     // HTML 폼은 입력값을 path에 넣을 수 없으므로 path variable 대신 poId 파라미터를 받는다
@@ -74,6 +82,6 @@ public class InventoryAdminController {
         } catch (IllegalStateException | EntityNotFoundException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
-        return "redirect:/admin/inventory";
+        return "redirect:/admin/purchase-orders";
     }
 }

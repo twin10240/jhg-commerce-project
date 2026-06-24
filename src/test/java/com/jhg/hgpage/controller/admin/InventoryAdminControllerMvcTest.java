@@ -68,15 +68,26 @@ class InventoryAdminControllerMvcTest {
     }
 
     @Test
-    void 관리자는_재고목록과_발주현황을_조회한다() throws Exception {
+    void 재고화면은_재고목록만_조회한다() throws Exception {
         when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));
-        when(purchaseOrderService.findAllWithItems()).thenReturn(
-                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(sampleProduct(), 5))));
 
         mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/inventory"))
-                .andExpect(model().attributeExists("products", "purchaseOrders"));
+                .andExpect(model().attributeExists("products"))
+                .andExpect(model().attributeDoesNotExist("purchaseOrders"));
+    }
+
+    @Test
+    void 발주화면은_발주현황과_상품목록을_조회한다() throws Exception {
+        when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));
+        when(purchaseOrderService.findAllWithItems()).thenReturn(
+                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(sampleProduct(), 5))));
+
+        mockMvc.perform(get("/admin/purchase-orders").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/purchaseorders"))
+                .andExpect(model().attributeExists("purchaseOrders", "products"));
     }
 
     @Test
@@ -142,7 +153,7 @@ class InventoryAdminControllerMvcTest {
                         .param("items[0].quantity", "10")
                         .param("memo", "긴급 발주"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/purchase-orders"))
                 .andExpect(flash().attributeExists("successMessage"));
 
         verify(purchaseOrderService).create(anyList(), eq("긴급 발주"));
@@ -160,7 +171,7 @@ class InventoryAdminControllerMvcTest {
                         .param("items[0].quantity", "0")
                         .param("memo", ""))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/purchase-orders"))
                 .andExpect(flash().attributeExists("errorMessage"));
     }
 
@@ -173,7 +184,7 @@ class InventoryAdminControllerMvcTest {
                         .with(csrf())
                         .param("poId", "7"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/purchase-orders"))
                 .andExpect(flash().attributeExists("successMessage"));
 
         verify(purchaseOrderService).receive(7L);
@@ -189,7 +200,7 @@ class InventoryAdminControllerMvcTest {
                         .with(csrf())
                         .param("poId", "7"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/purchase-orders"))
                 .andExpect(flash().attributeExists("errorMessage"));
     }
 
@@ -203,7 +214,7 @@ class InventoryAdminControllerMvcTest {
                         .with(csrf())
                         .param("poId", "99"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/purchase-orders"))
                 .andExpect(flash().attributeExists("errorMessage"));
     }
 }

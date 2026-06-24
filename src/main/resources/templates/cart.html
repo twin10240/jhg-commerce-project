@@ -26,6 +26,7 @@
         radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
         linear-gradient(180deg, var(--bg1), #fff);
       background-repeat:no-repeat;
+      background-attachment:fixed;
       padding:24px;
     }
     .container{max-width:1080px;margin:0 auto;padding:0}
@@ -78,7 +79,7 @@
     }
 
     @media (prefers-color-scheme: dark){
-      body{background:linear-gradient(180deg,#1b1917,#26211d)}
+      body{background:linear-gradient(180deg,#1b1917,#26211d); background-attachment:fixed}
       .card{background:#201d1a; color:#f1eee9}
       .card header{border-color:#39322c}
       .grid.head{background:#161412; border-color:#39322c; color:#bfb4a9}

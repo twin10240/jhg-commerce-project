@@ -5,25 +5,39 @@
   <title>주문 상세</title>
   <style>
     :root{
-      --bg:#f6f7fb; --card:#ffffff; --line:#e5e7f0; --text:#222533; --muted:#7c8093;
-      --primary:#4f6ef7; --danger:#e5484d; --ok:#2f9e62;
-      --shadow:0 8px 24px rgba(35,45,90,.08);
+      --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
+      --card:#fffaf5; --ink:#443c33; --muted:#7a6f66;
+      --accent1:#f4a261; --accent2:#e76f51;
+      --line:#eadfd6; --danger:#e5484d; --ok:#2f9e62;
+      --radius:18px; --shadow:0 20px 45px rgba(68,60,51,.18);
     }
     *{box-sizing:border-box}
-    body{margin:0; background:var(--bg); color:var(--text);
-         font-family:'Segoe UI','Malgun Gothic',sans-serif;}
-    .wrap{max-width:760px; margin:40px auto; padding:0 16px;}
-    .card{background:var(--card); border:1px solid var(--line); border-radius:14px;
-          box-shadow:var(--shadow); padding:22px 24px; margin-bottom:18px;}
-    h1{font-size:20px; margin:0 0 18px;}
-    .flash{border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:14px;}
+    body{margin:0; color:var(--ink); min-height:100vh; padding:24px;
+         font-family:ui-sans-serif, system-ui, -apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial,"Apple SD Gothic Neo";
+         background:
+            radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
+            radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
+            linear-gradient(180deg, var(--bg1), #fff);
+         background-repeat:no-repeat; background-attachment:fixed;}
+    .wrap{max-width:760px; margin:16px auto; padding:0 16px;}
+    .panel{background:var(--card); border-radius:var(--radius);
+           box-shadow:var(--shadow); padding:24px 26px;}
+    .block{padding:6px 2px 16px; margin-bottom:16px; border-bottom:1px solid var(--line);}
+    .phead{display:flex; align-items:center; gap:12px; margin-bottom:18px;
+           padding-bottom:14px; border-bottom:1px dashed #efdfd2;}
+    .logo{width:44px; height:44px; border-radius:14px; flex:none; display:grid; place-items:center;
+          background:conic-gradient(from 210deg,#ffd7ba,#f7b267,#e76f51,#ffd7ba);
+          color:#fff; font-weight:800; letter-spacing:.4px; box-shadow:0 10px 20px rgba(231,111,81,.28);}
+    .hint{font-size:12px; color:var(--muted);}
+    h1{font-size:22px; letter-spacing:-.2px; margin:0;}
+    .flash{border-radius:12px; padding:12px 14px; margin-bottom:14px; font-size:14px;}
     .flash.ok{background:#e8f6ee; color:var(--ok); border:1px solid #c4e8d3;}
     .flash.err{background:#fdecec; color:var(--danger); border:1px solid #f5c6c8;}
     .meta{display:grid; grid-template-columns:120px 1fr; row-gap:10px; font-size:14px;}
     .meta dt{color:var(--muted);}
     .meta dd{margin:0;}
-    .badge{display:inline-block; padding:2px 10px; border-radius:999px; font-size:12px; font-weight:600;}
-    .badge.order{background:#e9efff; color:var(--primary);}
+    .badge{display:inline-block; padding:4px 12px; border-radius:999px; font-size:12px; font-weight:600;}
+    .badge.order{background:#fff0e6; color:var(--accent2);}
     .badge.cancel{background:#fdecec; color:var(--danger);}
     .badge.backorder{background:#fff4e0; color:#a4690f;}
     table{width:100%; border-collapse:collapse; font-size:14px;}
@@ -33,20 +47,32 @@
     .total{display:flex; justify-content:flex-end; gap:14px; padding:14px 8px 2px;
            font-size:15px; font-weight:700;}
     .actions{display:flex; justify-content:space-between; align-items:center; margin-top:6px;}
-    .btn{display:inline-block; border:none; border-radius:10px; padding:10px 18px;
-         font-size:14px; cursor:pointer; text-decoration:none;}
-    .btn.muted{background:#eef0f6; color:var(--text);}
-    .btn.danger{background:var(--danger); color:#fff;}
+    .btn{appearance:none; display:inline-block; border:0; cursor:pointer; text-decoration:none;
+         padding:10px 18px; border-radius:12px; color:#fff; font-weight:700; font-size:14px;
+         background:linear-gradient(135deg,var(--accent1),var(--accent2));
+         box-shadow:0 10px 20px rgba(231,111,81,.3), 0 2px 6px rgba(0,0,0,.06);
+         transition:transform .05s ease, filter .2s ease;}
+    .btn:hover{filter:saturate(1.05) brightness(1.02)}
+    .btn:active{transform:translateY(1px)}
+    .btn.muted{background:linear-gradient(135deg,#b8b8b8,#7d7d7d)}
+    .btn.danger{background:linear-gradient(135deg,#ef6f6f,#e5484d)}
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>주문 상세</h1>
+ <div class="panel">
+  <div class="phead">
+    <div class="logo">GM</div>
+    <div>
+      <h1>주문 상세</h1>
+      <div class="hint">주문 내역과 배송 상태를 확인할 수 있습니다.</div>
+    </div>
+  </div>
 
   <div class="flash ok" th:if="${successMessage}" th:text="${successMessage}">완료 메시지</div>
   <div class="flash err" th:if="${errorMessage}" th:text="${errorMessage}">에러 메시지</div>
 
-  <div class="card">
+  <div class="block">
     <dl class="meta">
       <dt>주문번호</dt><dd th:text="${order.id}">101</dd>
       <dt>주문상태</dt>
@@ -62,7 +88,7 @@
     </dl>
   </div>
 
-  <div class="card">
+  <div class="block">
     <table>
       <thead>
       <tr>
@@ -95,6 +121,7 @@
       <button class="btn danger" type="submit">주문 취소</button>
     </form>
   </div>
+ </div>
 </div>
 </body>
 </html>

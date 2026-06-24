@@ -45,14 +45,7 @@ public class MainController {
         model.addAttribute("beginPage", beginPage);
         model.addAttribute("endPage", endPage);
 
-        // 관리자 재고/발주 select 전용: ADMIN 일 때만 전체 상품을 조회한다.
-        // (일반 사용자는 이 데이터를 렌더링하지 않으므로 불필요한 전체 스캔을 피한다)
-        boolean isAdmin = userPrincipal.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
-        if (isAdmin) {
-            model.addAttribute("inventoryProducts", productService.findAllWithInventory());
-        }
-
+        // 재고/발주 폼은 /admin/inventory·/admin/purchase-orders 로 분리됨(메인 탭은 링크만).
         List<OrderDto> orders = orderService.findOrders(userPrincipal.getId());
         model.addAttribute("orders", orders);
 

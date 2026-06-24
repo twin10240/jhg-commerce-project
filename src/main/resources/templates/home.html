@@ -35,6 +35,7 @@
                     radial-gradient(1200px 700px at 80% 10%, var(--bg3) 0%, transparent 60%),
                     radial-gradient(900px 600px at 10% 90%, var(--bg2) 0%, transparent 60%),
                     linear-gradient(180deg, var(--bg1), #fff);
+            background-attachment:fixed;
             display:grid; place-items:center; padding:28px;
         }
         .card{
@@ -120,7 +121,7 @@
 
         /* 다크 배경 환경 대비 */
         @media (prefers-color-scheme: dark){
-            body{background:linear-gradient(180deg,#1b1917,#26211d)}
+            body{background:linear-gradient(180deg,#1b1917,#26211d); background-attachment:fixed}
             .card{background:#201d1a; color:#f1eee9}
             .input{background:#161412; border-color:#39322c; color:#f1eee9}
             .input::placeholder{color:#7e756e}
