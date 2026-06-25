@@ -2,13 +2,13 @@ package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
+import com.jhg.hgpage.wms.dto.InventoryRow;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.catalog.ProductService;
+import com.jhg.hgpage.wms.service.InventoryService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import com.jhg.hgpage.wms.web.controller.InventoryAdminController;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class InventoryAdminControllerMvcTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean InventoryAdjustmentService inventoryAdjustmentService;
-    @MockBean ProductService productService;
+    @MockBean InventoryService inventoryService;
     @MockBean PurchaseOrderService purchaseOrderService;
 
     private UserPrincipal admin() {
@@ -56,20 +56,21 @@ class InventoryAdminControllerMvcTest {
         return new UserPrincipal(1L, "user@example.com", "테스터", "010-0000-0000", "password", Role.USER);
     }
 
-    private Product sampleProduct() {
+    private InventoryRow sampleRow() {
+        return new InventoryRow(1L, "상품1", 10000, 15);
+    }
+
+    private Product productForPo() {
         Product product = new Product();
         product.setId(1L);
         product.setName("상품1");
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(15);
-        product.setInventory(inventory);
         return product;
     }
 
     @Test
     void 재고화면은_재고목록만_조회한다() throws Exception {
-        when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));
+        when(inventoryService.findInventoryRows()).thenReturn(List.of(sampleRow()));
 
         mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
@@ -80,9 +81,9 @@ class InventoryAdminControllerMvcTest {
 
     @Test
     void 발주화면은_발주현황과_상품목록을_조회한다() throws Exception {
-        when(productService.findAllWithInventory()).thenReturn(List.of(sampleProduct()));
+        when(inventoryService.findInventoryRows()).thenReturn(List.of(sampleRow()));
         when(purchaseOrderService.findAllWithItems()).thenReturn(
-                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(sampleProduct(), 5))));
+                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(productForPo(), 5))));
 
         mockMvc.perform(get("/admin/purchase-orders").with(user(admin())))
                 .andExpect(status().isOk())

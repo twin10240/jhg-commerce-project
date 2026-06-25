@@ -2,7 +2,10 @@ package com.jhg.hgpage.service;
 
 import com.jhg.hgpage.wms.service.InventoryService;
 import com.jhg.hgpage.wms.domain.Inventory;
+import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.exception.EntityNotFoundException;
+import com.jhg.hgpage.wms.dto.InventoryRow;
 import com.jhg.hgpage.wms.repository.InventoryRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +29,7 @@ import static org.mockito.Mockito.when;
 class InventoryServiceTest {
 
     @Mock InventoryRepository inventoryRepository;
+    @Mock ProductRepository productRepository;
     @InjectMocks InventoryService inventoryService;
 
     private Inventory inventoryOf(long productId, int onHand, int reserved) {
@@ -109,5 +113,22 @@ class InventoryServiceTest {
         Map<Long, Integer> available = inventoryService.availableByProductIds(List.of(1L, 2L));
 
         assertThat(available).containsEntry(1L, 7).containsEntry(2L, 0);
+    }
+
+    @Test
+    void 재고행을_카탈로그_이름가격과_보유수량으로_조립한다() {
+        Inventory i1 = inventoryOf(1L, 30, 0);
+        Inventory i2 = inventoryOf(2L, 0, 0);
+        Product p1 = new Product(); p1.setId(1L); p1.setName("상품1"); p1.setPrice(10000);
+        Product p2 = new Product(); p2.setId(2L); p2.setName("상품2"); p2.setPrice(11000);
+        when(inventoryRepository.findAll()).thenReturn(List.of(i1, i2));
+        when(productRepository.findAllById(any())).thenReturn(List.of(p1, p2));
+
+        List<InventoryRow> rows = inventoryService.findInventoryRows();
+
+        assertThat(rows).extracting(InventoryRow::id).containsExactly(1L, 2L);
+        assertThat(rows.get(0)).extracting(InventoryRow::name, InventoryRow::price, InventoryRow::onHandQty)
+                .containsExactly("상품1", 10000, 30);
+        assertThat(rows.get(1).onHandQty()).isEqualTo(0);
     }
 }
