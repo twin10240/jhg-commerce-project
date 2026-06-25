@@ -1,6 +1,7 @@
 package com.jhg.hgpage;
 
 import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.wms.repository.InventoryRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,10 +19,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InitDbTest {
 
     @Autowired EntityManager em;
+    @Autowired InventoryRepository inventoryRepository;
 
     @Test
     void 이미_시드된_DB에는_다시_시드하지_않는다() {
-        initDb.initService service = new initDb.initService(em, "1111");
+        initDb.initService service = new initDb.initService(em, inventoryRepository, "1111");
         initDb db = new initDb(service);
 
         db.init();
@@ -35,7 +37,7 @@ class InitDbTest {
 
     @Test
     void 관리자_비밀번호는_주입받은_값으로_시드된다() {
-        initDb.initService service = new initDb.initService(em, "s3cret-from-env");
+        initDb.initService service = new initDb.initService(em, inventoryRepository, "s3cret-from-env");
         initDb db = new initDb(service);
 
         db.init();

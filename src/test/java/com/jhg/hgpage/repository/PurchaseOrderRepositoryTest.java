@@ -1,7 +1,6 @@
 package com.jhg.hgpage.repository;
 
 import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
@@ -25,9 +24,6 @@ class PurchaseOrderRepositoryTest {
         Product product = new Product();
         product.setName(name);
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(10);
-        product.setInventory(inventory);
         em.persist(product);
         return product;
     }

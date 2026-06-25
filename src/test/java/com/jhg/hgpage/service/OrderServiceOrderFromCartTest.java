@@ -6,7 +6,6 @@ import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderAllocationService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.domain.Address;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.catalog.Product;
@@ -50,9 +49,6 @@ class OrderServiceOrderFromCartTest {
         Product product = new Product();
         product.setId(id);
         product.setPrice(price);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
         return product;
     }
 

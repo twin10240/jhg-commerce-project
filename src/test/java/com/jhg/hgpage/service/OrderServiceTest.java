@@ -6,7 +6,6 @@ import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -47,9 +46,6 @@ class OrderServiceTest {
     private Product productWithStock(int price, int stock) {
         Product product = new Product();
         product.setPrice(price);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
         return product;
     }
 

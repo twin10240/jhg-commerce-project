@@ -7,7 +7,6 @@ import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -62,9 +61,6 @@ class OrderServiceCancelTest {
         product.setId(id);
         product.setName("상품" + id);
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
         return product;
     }
 

@@ -7,7 +7,6 @@ import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -57,9 +56,6 @@ class OrderServiceDetailTest {
         product.setId(7L);
         product.setName("테스트상품");
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(10);
-        product.setInventory(inventory);
 
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
@@ -107,9 +103,6 @@ class OrderServiceDetailTest {
         scarce.setId(8L);
         scarce.setName("부족상품");
         scarce.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(0);
-        scarce.setInventory(inventory);
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(scarce, 10000, 2));

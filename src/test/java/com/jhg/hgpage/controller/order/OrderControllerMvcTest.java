@@ -290,9 +290,6 @@ class OrderControllerMvcTest {
         com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setName("테스트상품");
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(10);
-        product.setInventory(inventory);
         com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
@@ -322,9 +319,6 @@ class OrderControllerMvcTest {
         com.jhg.hgpage.catalog.Product scarce = new com.jhg.hgpage.catalog.Product();
         scarce.setName("부족상품");
         scarce.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(0);
-        scarce.setInventory(inventory);
         com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,

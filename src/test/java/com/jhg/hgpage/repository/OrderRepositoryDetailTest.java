@@ -4,7 +4,6 @@ import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.config.QueryDslConfig;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -33,9 +32,6 @@ class OrderRepositoryDetailTest {
         Product product = new Product();
         product.setName(name);
         product.setPrice(price);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(10);
-        product.setInventory(inventory);
         em.persist(product);
         return product;
     }

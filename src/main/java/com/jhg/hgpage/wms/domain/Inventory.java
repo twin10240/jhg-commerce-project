@@ -1,6 +1,5 @@
 package com.jhg.hgpage.wms.domain;
 
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.exception.NotEnoughStockException;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -21,9 +20,6 @@ public class Inventory {
     private int reservedQty = 0; // 예약(결제 진행 중 등)
     @Column(name = "product_id")
     private Long productId;
-    @OneToOne(mappedBy = "inventory", fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id")
-    private Product product;
 
     /** WMS가 productId만으로 소유하는 재고를 생성한다(onHand/reserved는 setter로). */
     public static Inventory create(Long productId) {
