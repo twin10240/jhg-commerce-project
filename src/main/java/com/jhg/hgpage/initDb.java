@@ -69,7 +69,8 @@ public class initDb {
                 product.setPrice(10000 + (i * 1000));
                 product.setInventory(inventory);
 
-                em.persist(product);
+                em.persist(product); // cascade로 inventory도 저장되며 id 부여
+                inventory.setProductId(product.getId()); // 새 경로용 productId 채움(더티체킹 flush)
             }
         }
     }
