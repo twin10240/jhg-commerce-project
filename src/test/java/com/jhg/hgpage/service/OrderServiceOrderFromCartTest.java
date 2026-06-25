@@ -45,7 +45,7 @@ class OrderServiceOrderFromCartTest {
         return Member.createUser("테스터", "010-0000-0000", ADDRESS);
     }
 
-    private Product productWithStock(long id, int price, int stock) {
+    private Product productOf(long id, int price) {
         Product product = new Product();
         product.setId(id);
         product.setPrice(price);
@@ -56,7 +56,7 @@ class OrderServiceOrderFromCartTest {
     void 장바구니_주문이_성공하면_주문된_상품들이_장바구니에서_제거된다() {
         when(memberService.findMember(1L)).thenReturn(member());
         when(productRepository.findAllById(any())).thenReturn(List.of(
-                productWithStock(1L, 10000, 10), productWithStock(2L, 20000, 10)));
+                productOf(1L, 10000), productOf(2L, 20000)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.orderFromCart(1L, ADDRESS, List.of(
@@ -70,7 +70,7 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 재고가_부족해도_백오더로_접수되고_장바구니는_정리된다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findAllById(any())).thenReturn(List.of(productWithStock(1L, 10000, 0)));
+        when(productRepository.findAllById(any())).thenReturn(List.of(productOf(1L, 10000)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.orderFromCart(1L, ADDRESS, List.of(new OrderService.OrderLine(1L, 1)));
@@ -93,7 +93,7 @@ class OrderServiceOrderFromCartTest {
     @Test
     void 일반_주문은_장바구니를_건드리지_않는다() {
         when(memberService.findMember(1L)).thenReturn(member());
-        when(productRepository.findAllById(any())).thenReturn(List.of(productWithStock(1L, 10000, 10)));
+        when(productRepository.findAllById(any())).thenReturn(List.of(productOf(1L, 10000)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.order(1L, ADDRESS, List.of(new OrderService.OrderLine(1L, 1)));

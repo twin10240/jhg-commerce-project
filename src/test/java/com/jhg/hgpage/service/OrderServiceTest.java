@@ -43,7 +43,7 @@ class OrderServiceTest {
 
     private static final Address ADDRESS = new Address("서울", "관악구", "500");
 
-    private Product productWithStock(int price, int stock) {
+    private Product productOf(int price) {
         Product product = new Product();
         product.setPrice(price);
         return product;
@@ -54,7 +54,7 @@ class OrderServiceTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(ADDRESS);
         Order order = Order.createOrder(member, delivery,
-                OrderItem.createOrderItem(productWithStock(price, quantity), price, quantity));
+                OrderItem.createOrderItem(productOf(price), price, quantity));
         ReflectionTestUtils.setField(order, "id", id);
         return order;
     }

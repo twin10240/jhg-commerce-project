@@ -47,7 +47,7 @@ class OrderServiceDetailTest {
 
     private Product product;
 
-    /** memberId가 1L인 회원의 주문(상품 2개, 단가 10000, 재고 10→8) */
+    /** memberId가 1L인 회원의 주문(상품 2개, 단가 10000, ORDER 상태) */
     private Order orderOwnedBy(long memberId) {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         ReflectionTestUtils.setField(member, "id", memberId);

@@ -56,7 +56,7 @@ class OrderServiceCancelTest {
         return member;
     }
 
-    private Product productWithStock(long id, int stock) {
+    private Product productOf(long id) {
         Product product = new Product();
         product.setId(id);
         product.setName("상품" + id);
@@ -72,7 +72,7 @@ class OrderServiceCancelTest {
 
     @Test
     void ORDER_취소로_예약이_풀리면_해당_상품의_백오더_재할당을_트리거한다() {
-        Product product = productWithStock(7L, 3);
+        Product product = productOf(7L);
         Order order = orderOf(memberWithId(1L), OrderItem.createOrderItem(product, 10000, 3));
         order.markOrdered(); // ORDER 상태(예약 성공)
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
@@ -88,7 +88,7 @@ class OrderServiceCancelTest {
 
     @Test
     void BACKORDERED_취소는_풀릴_예약이_없어_재할당을_트리거하지_않는다() {
-        Product product = productWithStock(8L, 0);
+        Product product = productOf(8L);
         Order order = orderOf(memberWithId(1L), OrderItem.createOrderItem(product, 10000, 2));
         order.markBackordered(); // 백오더 접수 상태(예약 없음)
         assertThat(order.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
@@ -104,8 +104,8 @@ class OrderServiceCancelTest {
 
     @Test
     void 여러_상품_주문_취소는_모든_상품_id로_재할당을_트리거한다() {
-        Product p1 = productWithStock(7L, 5);
-        Product p2 = productWithStock(8L, 5);
+        Product p1 = productOf(7L);
+        Product p2 = productOf(8L);
         Order order = orderOf(memberWithId(1L),
                 OrderItem.createOrderItem(p1, 10000, 2),
                 OrderItem.createOrderItem(p2, 10000, 1));
