@@ -2,16 +2,21 @@ package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
+import com.jhg.hgpage.wms.repository.InventoryRepository;
 import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +25,7 @@ public class PurchaseOrderService {
 
     private final ProductRepository productRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
+    private final InventoryRepository inventoryRepository;
     private final StockReplenishedHandler stockReplenishedHandler;
 
     public record PurchaseOrderLine(Long productId, int quantity) {}
@@ -51,13 +57,18 @@ public class PurchaseOrderService {
         PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(poId)
                 .orElseThrow(() -> new EntityNotFoundException("PurchaseOrder", poId));
 
-        purchaseOrder.receive();
+        purchaseOrder.receive(); // 상태 전이(중복 입고 거부)
+
+        // 입고 수량만큼 실물 재고를 늘린다(상품별 합산)
+        Map<Long, Integer> qtyByProductId = purchaseOrder.getItems().stream()
+                .collect(Collectors.toMap(item -> item.getProduct().getId(),
+                        PurchaseOrderItem::getQuantity, Integer::sum));
+        Map<Long, Inventory> inventories = inventoryRepository.findByProductIdIn(qtyByProductId.keySet()).stream()
+                .collect(Collectors.toMap(Inventory::getProductId, Function.identity()));
+        qtyByProductId.forEach((productId, qty) -> inventories.get(productId).addOnHandQty(qty));
 
         // 입고로 가용분이 생겼음을 통지한다(백오더 승격은 OMS 구현체가 처리)
-        List<Long> productIds = purchaseOrder.getItems().stream()
-                .map(item -> item.getProduct().getId())
-                .toList();
-        stockReplenishedHandler.onReplenished(productIds);
+        stockReplenishedHandler.onReplenished(List.copyOf(qtyByProductId.keySet()));
 
         return purchaseOrder.getId();
     }

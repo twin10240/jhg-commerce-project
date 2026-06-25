@@ -47,13 +47,12 @@ public class PurchaseOrder {
         item.setPurchaseOrder(this);
     }
 
-    /** 입고 처리: 모든 품목의 재고를 늘린다. 중복 입고는 재고 이중 증가이므로 거부한다. */
+    /** 입고 처리: 상태만 ORDERED→RECEIVED로 전이한다. 중복 입고는 거부.
+     *  실물 재고 증가는 서비스(PurchaseOrderService)가 WMS 재고에 위임한다. */
     public void receive() {
         if (status == PurchaseOrderStatus.RECEIVED) {
             throw new IllegalStateException("이미 입고 처리된 발주입니다. (발주 #" + id + ")");
         }
-
-        items.forEach(item -> item.getProduct().addStock(item.getQuantity()));
         this.status = PurchaseOrderStatus.RECEIVED;
         this.receivedAt = LocalDateTime.now();
     }

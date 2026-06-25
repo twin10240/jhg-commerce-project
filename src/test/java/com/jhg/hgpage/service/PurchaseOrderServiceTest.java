@@ -9,6 +9,7 @@ import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.wms.domain.enums.PurchaseOrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
+import com.jhg.hgpage.wms.repository.InventoryRepository;
 import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
 import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
 import org.junit.jupiter.api.Test;
@@ -33,22 +34,20 @@ class PurchaseOrderServiceTest {
 
     @Mock ProductRepository productRepository;
     @Mock PurchaseOrderRepository purchaseOrderRepository;
+    @Mock InventoryRepository inventoryRepository;
     @Mock StockReplenishedHandler stockReplenishedHandler;
     @InjectMocks PurchaseOrderService purchaseOrderService;
 
-    private Product productWithStock(int stock) {
+    private Product productWithId(long id) {
         Product product = new Product();
-        product.setId(1L);
-        product.setName("상품1");
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
+        product.setId(id);
+        product.setName("상품" + id);
         return product;
     }
 
     @Test
     void 발주를_생성하면_ORDERED_상태로_저장된다() {
-        Product product = productWithStock(10);
+        Product product = productWithId(1L);
         when(productRepository.findById(1L)).thenReturn(Optional.of(product));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -91,21 +90,27 @@ class PurchaseOrderServiceTest {
 
     @Test
     void 입고하면_발주의_receive가_실행되어_재고가_늘어난다() {
-        Product product = productWithStock(10);
+        Product product = productWithId(1L);
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
+        Inventory inv = Inventory.create(1L);
+        inv.setOnHandQty(10);
         when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
+        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of(inv));
 
         purchaseOrderService.receive(7L);
 
         assertThat(po.getStatus()).isEqualTo(PurchaseOrderStatus.RECEIVED);
-        assertThat(product.getInventory().getOnHandQty()).isEqualTo(15);
+        assertThat(inv.getOnHandQty()).isEqualTo(15);
     }
 
     @Test
     void 입고하면_입고된_상품들의_백오더_할당을_트리거한다() {
-        Product product = productWithStock(10);
+        Product product = productWithId(1L);
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
+        Inventory inv = Inventory.create(1L);
+        inv.setOnHandQty(10);
         when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
+        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of(inv));
 
         purchaseOrderService.receive(7L);
 
@@ -114,7 +119,7 @@ class PurchaseOrderServiceTest {
 
     @Test
     void 중복_입고가_거부되면_백오더_할당도_트리거하지_않는다() {
-        Product product = productWithStock(10);
+        Product product = productWithId(1L);
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
         po.receive(); // 이미 입고됨
         when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
