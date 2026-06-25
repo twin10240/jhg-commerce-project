@@ -65,6 +65,11 @@ public class PurchaseOrderService {
                         PurchaseOrderItem::getQuantity, Integer::sum));
         Map<Long, Inventory> inventories = inventoryRepository.findByProductIdIn(qtyByProductId.keySet()).stream()
                 .collect(Collectors.toMap(Inventory::getProductId, Function.identity()));
+        for (Long productId : qtyByProductId.keySet()) {
+            if (!inventories.containsKey(productId)) {
+                throw new EntityNotFoundException("Inventory", productId);
+            }
+        }
         qtyByProductId.forEach((productId, qty) -> inventories.get(productId).addOnHandQty(qty));
 
         // 입고로 가용분이 생겼음을 통지한다(백오더 승격은 OMS 구현체가 처리)

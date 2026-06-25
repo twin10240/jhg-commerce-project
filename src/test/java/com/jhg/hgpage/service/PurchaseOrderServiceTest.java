@@ -89,7 +89,7 @@ class PurchaseOrderServiceTest {
     }
 
     @Test
-    void 입고하면_발주의_receive가_실행되어_재고가_늘어난다() {
+    void 입고하면_RECEIVED가_되고_실물_재고가_늘어난다() {
         Product product = productWithId(1L);
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
         Inventory inv = Inventory.create(1L);
@@ -101,6 +101,18 @@ class PurchaseOrderServiceTest {
 
         assertThat(po.getStatus()).isEqualTo(PurchaseOrderStatus.RECEIVED);
         assertThat(inv.getOnHandQty()).isEqualTo(15);
+    }
+
+    @Test
+    void 입고_상품의_재고가_없으면_EntityNotFoundException을_던진다() {
+        Product product = productWithId(1L);
+        PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(product, 5));
+        when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
+        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of()); // 재고 행 없음
+
+        assertThatThrownBy(() -> purchaseOrderService.receive(7L))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("1");
     }
 
     @Test
