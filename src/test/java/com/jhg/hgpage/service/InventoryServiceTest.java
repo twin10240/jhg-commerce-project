@@ -131,4 +131,15 @@ class InventoryServiceTest {
                 .containsExactly("상품1", 10000, 30);
         assertThat(rows.get(1).onHandQty()).isEqualTo(0);
     }
+
+    @Test
+    void 재고행_조립시_대응_상품이_없으면_EntityNotFoundException을_던진다() {
+        Inventory orphan = inventoryOf(1L, 30, 0);
+        when(inventoryRepository.findAll()).thenReturn(List.of(orphan));
+        when(productRepository.findAllById(any())).thenReturn(List.of()); // 대응 상품 없음
+
+        assertThatThrownBy(() -> inventoryService.findInventoryRows())
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("1");
+    }
 }

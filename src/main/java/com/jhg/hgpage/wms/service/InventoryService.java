@@ -42,6 +42,9 @@ public class InventoryService implements InventoryPort, InventoryQueryPort {
         return inventories.stream()
                 .map(inv -> {
                     Product p = products.get(inv.getProductId());
+                    if (p == null) {
+                        throw new EntityNotFoundException("Product", inv.getProductId());
+                    }
                     return new InventoryRow(p.getId(), p.getName(), p.getPrice(), inv.getOnHandQty());
                 })
                 .sorted(Comparator.comparing(InventoryRow::id))
