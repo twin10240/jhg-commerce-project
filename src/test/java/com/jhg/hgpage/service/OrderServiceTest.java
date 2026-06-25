@@ -6,7 +6,6 @@ import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -44,12 +43,9 @@ class OrderServiceTest {
 
     private static final Address ADDRESS = new Address("서울", "관악구", "500");
 
-    private Product productWithStock(int price, int stock) {
+    private Product productOf(int price) {
         Product product = new Product();
         product.setPrice(price);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
         return product;
     }
 
@@ -58,7 +54,7 @@ class OrderServiceTest {
         Delivery delivery = new Delivery();
         delivery.setAddress(ADDRESS);
         Order order = Order.createOrder(member, delivery,
-                OrderItem.createOrderItem(productWithStock(price, quantity), price, quantity));
+                OrderItem.createOrderItem(productOf(price), price, quantity));
         ReflectionTestUtils.setField(order, "id", id);
         return order;
     }

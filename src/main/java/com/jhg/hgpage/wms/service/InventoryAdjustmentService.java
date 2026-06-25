@@ -2,9 +2,8 @@ package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.catalog.ProductRepository;
+import com.jhg.hgpage.wms.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +26,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class InventoryAdjustmentService {
 
-    private final ProductRepository productRepository;
+    private final InventoryRepository inventoryRepository;
     private final StockReplenishedHandler stockReplenishedHandler;
 
     /**
@@ -37,10 +36,9 @@ public class InventoryAdjustmentService {
      */
     @Transactional
     public int adjust(Long productId, int delta, String reason) {
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
+        Inventory inventory = inventoryRepository.findByProductId(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Inventory", productId));
 
-        Inventory inventory = product.getInventory();
         int adjusted = inventory.getOnHandQty() + delta;
         if (adjusted < 0) {
             throw new IllegalArgumentException("재고는 0 미만이 될 수 없습니다. (현재 " + inventory.getOnHandQty() + "개)");

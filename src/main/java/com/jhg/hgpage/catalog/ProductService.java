@@ -24,10 +24,6 @@ public class ProductService {
         return productRepository.findAll();
     }
 
-    public List<Product> findAllWithInventory() {
-        return productRepository.findAllWithInventory();
-    }
-
     /**
      * 메인 상품 그리드: 카탈로그 페이지(id/name/price)에 가용수량을 합쳐 카드로 반환한다.
      * keyword가 비어있으면 전체, 있으면 이름(부분/대소문자무시) 검색. 가용수량은

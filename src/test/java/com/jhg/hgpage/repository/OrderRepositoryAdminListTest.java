@@ -4,7 +4,6 @@ import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.config.QueryDslConfig;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
@@ -37,9 +36,6 @@ class OrderRepositoryAdminListTest {
         Product product = new Product();
         product.setName("테스트상품");
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(10);
-        product.setInventory(inventory);
         em.persist(product);
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));

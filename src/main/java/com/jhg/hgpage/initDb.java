@@ -3,6 +3,7 @@ package com.jhg.hgpage;
 import com.jhg.hgpage.oms.domain.*;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.wms.domain.Inventory;
+import com.jhg.hgpage.wms.repository.InventoryRepository;
 import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
@@ -31,11 +32,14 @@ public class initDb {
     @Transactional
     static class initService {
         private final EntityManager em;
+        private final InventoryRepository inventoryRepository;
         // 관리자 비밀번호는 코드에 박지 않는다. 운영(Railway)은 ADMIN_PASSWORD env로 주입, 로컬은 기본값 1111.
         private final String adminPassword;
 
-        initService(EntityManager em, @Value("${ADMIN_PASSWORD:1111}") String adminPassword) {
+        initService(EntityManager em, InventoryRepository inventoryRepository,
+                    @Value("${ADMIN_PASSWORD:1111}") String adminPassword) {
             this.em = em;
+            this.inventoryRepository = inventoryRepository;
             this.adminPassword = adminPassword;
         }
 
@@ -60,16 +64,15 @@ public class initDb {
 
         public void initProduct() {
             for (int i = 0; i < 20; i++) {
-                Inventory inventory = new Inventory();
-                inventory.setOnHandQty(15 * (i + 1));
-                inventory.setReservedQty(0);
-
                 Product product = new Product();
                 product.setName("상품" + (i + 1));
                 product.setPrice(10000 + (i * 1000));
-                product.setInventory(inventory);
-
                 em.persist(product);
+
+                Inventory inventory = Inventory.create(product.getId());
+                inventory.setOnHandQty(15 * (i + 1));
+                inventory.setReservedQty(0);
+                inventoryRepository.save(inventory);
             }
         }
     }

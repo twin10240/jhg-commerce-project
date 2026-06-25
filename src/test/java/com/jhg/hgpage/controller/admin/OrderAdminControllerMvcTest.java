@@ -2,7 +2,6 @@ package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.dto.AdminOrderDto;
@@ -53,9 +52,6 @@ class OrderAdminControllerMvcTest {
         product.setId(1L);
         product.setName("상품1");
         product.setPrice(10000);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(15);
-        product.setInventory(inventory);
         return product;
     }
 

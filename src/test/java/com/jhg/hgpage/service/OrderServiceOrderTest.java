@@ -6,7 +6,6 @@ import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderAllocationService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.domain.Address;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.catalog.Product;
@@ -51,13 +50,10 @@ class OrderServiceOrderTest {
         return Member.createUser("테스터", "010-0000-0000", ADDRESS);
     }
 
-    private Product productWithStock(long id, int price, int stock) {
+    private Product productOf(long id, int price) {
         Product product = new Product();
         product.setId(id);
         product.setPrice(price);
-        Inventory inventory = new Inventory();
-        inventory.setOnHandQty(stock);
-        product.setInventory(inventory);
         return product;
     }
 
@@ -66,8 +62,8 @@ class OrderServiceOrderTest {
     void 여러_상품_주문시_상품을_한_번의_findAllById로_일괄_조회한다() {
         when(memberService.findMember(1L)).thenReturn(member());
         when(productRepository.findAllById(any())).thenReturn(List.of(
-                productWithStock(10L, 10000, 100),
-                productWithStock(11L, 20000, 100)));
+                productOf(10L, 10000),
+                productOf(11L, 20000)));
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
         orderService.order(1L, ADDRESS, List.of(
