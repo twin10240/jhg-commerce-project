@@ -1,6 +1,5 @@
 package com.jhg.hgpage.wms.domain;
 
-import com.jhg.hgpage.catalog.Product;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -21,15 +20,15 @@ public class PurchaseOrderItem {
     @JoinColumn(name = "purchase_order_id")
     private PurchaseOrder purchaseOrder;
 
-    @ManyToOne(fetch = LAZY)
-    @JoinColumn(name = "product_id")
-    private Product product;
+    // WMS는 상품을 productId로만 참조한다(catalog 객체그래프 없음).
+    @Column(name = "product_id")
+    private Long productId;
 
     private int quantity;
 
-    public static PurchaseOrderItem create(Product product, int quantity) {
+    public static PurchaseOrderItem create(Long productId, int quantity) {
         PurchaseOrderItem item = new PurchaseOrderItem();
-        item.product = product;
+        item.productId = productId;
         item.quantity = quantity;
         return item;
     }

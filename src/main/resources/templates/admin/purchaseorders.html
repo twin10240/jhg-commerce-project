@@ -148,7 +148,7 @@
         </td>
         <td>
           <span th:each="item, stat : ${po.items}">
-            <span th:text="|${item.product.name} x${item.quantity}|">상품1 x10</span><span th:if="${!stat.last}">, </span>
+            <span th:text="|상품#${item.productId} x${item.quantity}|">상품#1 x10</span><span th:if="${!stat.last}">, </span>
           </span>
         </td>
         <td class="hint" th:text="${po.memo}">긴급 발주</td>
