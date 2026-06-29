@@ -42,6 +42,8 @@ dependencies {
 	runtimeOnly 'com.h2database:h2'
 	// 운영(Railway): PostgreSQL 드라이버. 로컬/테스트는 여전히 H2를 쓰고, prod 프로파일에서만 활성화된다.
 	runtimeOnly 'org.postgresql:postgresql'
+	implementation 'org.flywaydb:flyway-core'
+	runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 	annotationProcessor 'org.projectlombok:lombok'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
