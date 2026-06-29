@@ -67,7 +67,9 @@ class OrderServiceCancelTest {
     private Order orderOf(Member member, OrderItem... items) {
         Delivery delivery = new Delivery();
         delivery.setAddress(ADDRESS);
-        return Order.createOrder(member, delivery, items);
+        Order order = Order.createOrder(member, delivery, items);
+        ReflectionTestUtils.setField(order, "id", 10L);
+        return order;
     }
 
     @Test
@@ -82,7 +84,7 @@ class OrderServiceCancelTest {
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         // 예약 해제는 도메인이 아니라 InventoryPort(WMS)에 위임한다
-        verify(inventoryPort).releaseAll(Map.of(7L, 3));
+        verify(inventoryPort).releaseAll(10L, Map.of(7L, 3));
         verify(backorderAllocator).allocate(List.of(7L));
     }
 
@@ -115,7 +117,7 @@ class OrderServiceCancelTest {
 
         orderService.cancelOrder(10L, 1L);
 
-        verify(inventoryPort).releaseAll(Map.of(7L, 2, 8L, 1));
+        verify(inventoryPort).releaseAll(10L, Map.of(7L, 2, 8L, 1));
         verify(backorderAllocator).allocate(List.of(7L, 8L));
     }
 }

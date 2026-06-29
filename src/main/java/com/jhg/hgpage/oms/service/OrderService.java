@@ -61,9 +61,10 @@ public class OrderService {
                 .toArray(OrderItem[]::new);
 
         Order order = Order.createOrder(member, delivery, orderItems);
+        // 예약 멱등키(orderId)를 확보하려면 먼저 저장해 id를 받는다.
+        orderRepository.save(order);
         // 가용분이 있으면 예약(ORDER), 부족하면 거부하지 않고 백오더(BACKORDERED)로 접수 — WMS 포트에 위임
         orderAllocationService.allocate(order);
-        orderRepository.save(order);
 
         return order.getId();
     }
@@ -99,7 +100,7 @@ public class OrderService {
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.completeDelivery();
-        inventoryPort.shipAll(order.quantitiesByProductId());
+        inventoryPort.shipAll(order.getId(), order.quantitiesByProductId());
     }
 
     @Transactional
@@ -112,7 +113,7 @@ public class OrderService {
         order.cancel();
         if (wasReserved) {
             // 예약 해제(가용분 복구)를 WMS 포트에 위임한 뒤, 늘어난 가용분으로 백오더를 승격한다.
-            inventoryPort.releaseAll(order.quantitiesByProductId());
+            inventoryPort.releaseAll(order.getId(), order.quantitiesByProductId());
             List<Long> productIds = order.getOrderItems().stream()
                     .map(orderItem -> orderItem.getProduct().getId())
                     .distinct()

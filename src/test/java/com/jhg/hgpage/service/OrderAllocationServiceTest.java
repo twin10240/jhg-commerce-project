@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Map;
 
@@ -43,24 +44,26 @@ class OrderAllocationServiceTest {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        return Order.createOrder(member, delivery, items);
+        Order order = Order.createOrder(member, delivery, items);
+        ReflectionTestUtils.setField(order, "id", 100L);
+        return order;
     }
 
     @Test
     void 전_라인_예약에_성공하면_ORDER로_표시한다() {
         Order order = orderOf(OrderItem.createOrderItem(product(1L), 10000, 2));
-        when(inventoryPort.reserveAll(Map.of(1L, 2))).thenReturn(true);
+        when(inventoryPort.reserveAll(100L, Map.of(1L, 2))).thenReturn(true);
 
         orderAllocationService.allocate(order);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
-        verify(inventoryPort).reserveAll(Map.of(1L, 2));
+        verify(inventoryPort).reserveAll(100L, Map.of(1L, 2));
     }
 
     @Test
     void 예약에_실패하면_BACKORDERED로_표시한다() {
         Order order = orderOf(OrderItem.createOrderItem(product(1L), 10000, 5));
-        when(inventoryPort.reserveAll(Map.of(1L, 5))).thenReturn(false);
+        when(inventoryPort.reserveAll(100L, Map.of(1L, 5))).thenReturn(false);
 
         orderAllocationService.allocate(order);
 

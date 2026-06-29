@@ -22,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -76,6 +77,7 @@ class OrderServiceAdminTest {
     @Test
     void 배송완료_처리하면_배송상태가_COMP가_되고_재고_출고를_포트에_위임한다() {
         Order order = newOrder("회원A"); // 상품1, 수량 2
+        ReflectionTestUtils.setField(order, "id", 10L);
 
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
 
@@ -83,7 +85,7 @@ class OrderServiceAdminTest {
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
         // 실물 차감은 도메인이 아니라 InventoryPort(WMS)에 위임한다
-        verify(inventoryPort).shipAll(Map.of(1L, 2));
+        verify(inventoryPort).shipAll(10L, Map.of(1L, 2));
     }
 
     @Test
