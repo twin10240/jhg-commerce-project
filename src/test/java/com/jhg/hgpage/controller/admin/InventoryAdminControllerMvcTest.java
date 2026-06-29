@@ -1,7 +1,6 @@
 package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.config.SecurityConfig;
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.wms.dto.InventoryRow;
@@ -57,15 +56,7 @@ class InventoryAdminControllerMvcTest {
     }
 
     private InventoryRow sampleRow() {
-        return new InventoryRow(1L, "상품1", 10000, 15);
-    }
-
-    private Product productForPo() {
-        Product product = new Product();
-        product.setId(1L);
-        product.setName("상품1");
-        product.setPrice(10000);
-        return product;
+        return new InventoryRow(1L, 15);
     }
 
     @Test
@@ -83,7 +74,7 @@ class InventoryAdminControllerMvcTest {
     void 발주화면은_발주현황과_상품목록을_조회한다() throws Exception {
         when(inventoryService.findInventoryRows()).thenReturn(List.of(sampleRow()));
         when(purchaseOrderService.findAllWithItems()).thenReturn(
-                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(productForPo(), 5))));
+                List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(1L, 5))));
 
         mockMvc.perform(get("/admin/purchase-orders").with(user(admin())))
                 .andExpect(status().isOk())

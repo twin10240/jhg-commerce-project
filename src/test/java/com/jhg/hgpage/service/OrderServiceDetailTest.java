@@ -61,6 +61,7 @@ class OrderServiceDetailTest {
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
         order.markOrdered(); // ORDER 상태(예약 성공)로 둔다
+        ReflectionTestUtils.setField(order, "id", 10L);
         return order;
     }
 
@@ -135,7 +136,7 @@ class OrderServiceDetailTest {
         orderService.cancelOrder(10L, 1L);
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
-        verify(inventoryPort).releaseAll(Map.of(7L, 2)); // 예약 해제는 WMS 포트에 위임
+        verify(inventoryPort).releaseAll(10L, Map.of(7L, 2)); // 예약 해제는 WMS 포트에 위임
     }
 
     @Test

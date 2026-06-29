@@ -1,12 +1,10 @@
 package com.jhg.hgpage.wms.service;
 
 import com.jhg.hgpage.contract.StockReplenishedHandler;
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.wms.repository.InventoryRepository;
 import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +21,6 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class PurchaseOrderService {
 
-    private final ProductRepository productRepository;
     private final PurchaseOrderRepository purchaseOrderRepository;
     private final InventoryRepository inventoryRepository;
     private final StockReplenishedHandler stockReplenishedHandler;
@@ -41,9 +38,11 @@ public class PurchaseOrderService {
                     if (line.quantity() < 1) {
                         throw new IllegalArgumentException("발주 수량은 1개 이상이어야 합니다.");
                     }
-                    Product product = productRepository.findById(line.productId())
-                            .orElseThrow(() -> new EntityNotFoundException("Product", line.productId()));
-                    return PurchaseOrderItem.create(product, line.quantity());
+                    // catalog가 아니라 WMS 재고(SKU) 존재로 검증한다(의존 단방향).
+                    if (inventoryRepository.findByProductId(line.productId()).isEmpty()) {
+                        throw new EntityNotFoundException("Inventory", line.productId());
+                    }
+                    return PurchaseOrderItem.create(line.productId(), line.quantity());
                 })
                 .toArray(PurchaseOrderItem[]::new);
 
@@ -61,7 +60,7 @@ public class PurchaseOrderService {
 
         // 입고 수량만큼 실물 재고를 늘린다(상품별 합산)
         Map<Long, Integer> qtyByProductId = purchaseOrder.getItems().stream()
-                .collect(Collectors.toMap(item -> item.getProduct().getId(),
+                .collect(Collectors.toMap(PurchaseOrderItem::getProductId,
                         PurchaseOrderItem::getQuantity, Integer::sum));
         Map<Long, Inventory> inventories = inventoryRepository.findByProductIdIn(qtyByProductId.keySet()).stream()
                 .collect(Collectors.toMap(Inventory::getProductId, Function.identity()));

@@ -20,17 +20,17 @@ public interface InventoryPort {
      * 하나라도 부족하면 아무것도 예약하지 않고 false를 반환한다(원자적).
      * 가용성 검사와 예약을 WMS가 한 연산으로 처리해 check-then-act 경합을 없앤다.
      */
-    boolean reserveAll(Map<Long, Integer> qtyByProductId);
+    boolean reserveAll(Long orderId, Map<Long, Integer> qtyByProductId);
 
     /**
      * 출고: 전 상품의 실물 재고를 차감한다(예약분도 함께 해소).
      * 출고 시점에 비로소 실물이 빠진다.
      */
-    void shipAll(Map<Long, Integer> qtyByProductId);
+    void shipAll(Long orderId, Map<Long, Integer> qtyByProductId);
 
     /**
      * 예약 해제: 전 상품의 예약분을 되돌린다(가용분 복구).
      * ORDER 주문 취소 시점에 호출한다.
      */
-    void releaseAll(Map<Long, Integer> qtyByProductId);
+    void releaseAll(Long orderId, Map<Long, Integer> qtyByProductId);
 }

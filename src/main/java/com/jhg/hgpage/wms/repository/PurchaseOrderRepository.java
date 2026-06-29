@@ -8,10 +8,9 @@ import java.util.List;
 
 public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Long> {
 
-    // 관리자 발주 현황 화면용: 품목/상품까지 한 번에 로드(최신순)
+    // 관리자 발주 현황 화면용: 품목까지 한 번에 로드(최신순). 상품(catalog)은 WMS가 모르므로 productId만.
     @Query("select distinct po from PurchaseOrder po " +
-            "left join fetch po.items i " +
-            "left join fetch i.product " +
+            "left join fetch po.items " +
             "order by po.id desc")
     List<PurchaseOrder> findAllWithItems();
 }

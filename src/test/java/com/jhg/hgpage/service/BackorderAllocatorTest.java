@@ -12,8 +12,8 @@ import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
-import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.wms.repository.InventoryRepository;
+import com.jhg.hgpage.wms.repository.ReservationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,13 +39,13 @@ class BackorderAllocatorTest {
 
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock InventoryRepository inventoryRepository;
-    @Mock ProductRepository productRepository; // InventoryService 생성자용(예약 경로에선 미사용)
+    @Mock ReservationRepository reservationRepository; // 예약 원장(승격 경로의 멱등키 저장소)
 
     private BackorderAllocator backorderAllocator;
 
     @BeforeEach
     void setUp() {
-        InventoryService inventoryService = new InventoryService(inventoryRepository, productRepository);
+        InventoryService inventoryService = new InventoryService(inventoryRepository, reservationRepository);
         OrderAllocationService orderAllocationService = new OrderAllocationService(inventoryService);
         backorderAllocator = new BackorderAllocator(orderRepositoryQuery, orderAllocationService);
     }

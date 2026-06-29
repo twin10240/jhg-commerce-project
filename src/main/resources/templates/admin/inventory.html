@@ -118,7 +118,7 @@
       <div class="field">
         <label class="field-label">상품</label>
         <select name="productId" class="input">
-          <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}">상품</option>
+          <option th:each="p : ${products}" th:value="${p.productId}" th:text="${p.productId}">1</option>
         </select>
       </div>
       <div class="field">
@@ -137,23 +137,19 @@
     <table>
       <thead>
       <tr>
-        <th style="width:80px">ID</th>
-        <th>상품명</th>
-        <th class="right">가격</th>
+        <th style="width:120px">상품 ID</th>
         <th class="right">보유 수량</th>
       </tr>
       </thead>
       <tbody>
       <tr th:each="p : ${products}">
-        <td th:text="${p.id}">1</td>
-        <td th:text="${p.name}">상품1</td>
-        <td class="right"><span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">10,000</span>원</td>
+        <td th:text="${p.productId}">1</td>
         <td class="right">
           <span th:text="${p.onHandQty}" th:classappend="${p.onHandQty == 0} ? 'qty-zero'">15</span>개
         </td>
       </tr>
       <tr th:if="${#lists.isEmpty(products)}">
-        <td colspan="4" class="hint">등록된 상품이 없습니다.</td>
+        <td colspan="2" class="hint">등록된 상품이 없습니다.</td>
       </tr>
       </tbody>
     </table>

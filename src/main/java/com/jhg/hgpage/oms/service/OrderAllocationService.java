@@ -26,7 +26,7 @@ public class OrderAllocationService {
     /** 전 라인 가용하면 예약하고 ORDER, 하나라도 부족하면 예약 없이 BACKORDERED로 표시한다. */
     @Transactional
     public void allocate(Order order) {
-        if (inventoryPort.reserveAll(order.quantitiesByProductId())) {
+        if (inventoryPort.reserveAll(order.getId(), order.quantitiesByProductId())) {
             order.markOrdered();
         } else {
             order.markBackordered();
