@@ -18,5 +18,6 @@ spring:
   flyway:
     enabled: false
 
+
 wms:
   base-url: http://localhost:8081
