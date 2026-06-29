@@ -15,5 +15,8 @@ spring:
         format_sql: true
         default_batch_fetch_size: 100
 
+  flyway:
+    enabled: false
+
 wms:
   base-url: http://localhost:8081
