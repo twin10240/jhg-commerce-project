@@ -26,6 +26,9 @@ spring:
       org.hibernate.SQL: debug
       org.hibernate.type.descriptor.sql.BasicBinder: trace
 
+wms:
+  base-url: http://localhost:8081
+
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
 spring:
