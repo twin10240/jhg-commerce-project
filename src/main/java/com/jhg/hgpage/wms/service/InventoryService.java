@@ -3,8 +3,6 @@ package com.jhg.hgpage.wms.service;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.wms.domain.Inventory;
-import com.jhg.hgpage.catalog.Product;
-import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.wms.dto.InventoryRow;
 import com.jhg.hgpage.wms.repository.InventoryRepository;
@@ -31,23 +29,12 @@ import java.util.stream.Collectors;
 public class InventoryService implements InventoryPort, InventoryQueryPort {
 
     private final InventoryRepository inventoryRepository;
-    private final ProductRepository productRepository;
 
-    /** 관리자 재고화면 행 조립: WMS 재고(보유수량) + 카탈로그(이름·가격)를 productId로 합친다. */
+    /** 관리자 재고화면 행 조립: WMS 재고의 productId + 보유수량만(상품명·가격은 OMS catalog 소관). */
     public List<InventoryRow> findInventoryRows() {
-        List<Inventory> inventories = inventoryRepository.findAll();
-        List<Long> productIds = inventories.stream().map(Inventory::getProductId).toList();
-        Map<Long, Product> products = productRepository.findAllById(productIds).stream()
-                .collect(Collectors.toMap(Product::getId, Function.identity()));
-        return inventories.stream()
-                .map(inv -> {
-                    Product p = products.get(inv.getProductId());
-                    if (p == null) {
-                        throw new EntityNotFoundException("Product", inv.getProductId());
-                    }
-                    return new InventoryRow(p.getId(), p.getName(), p.getPrice(), inv.getOnHandQty());
-                })
-                .sorted(Comparator.comparing(InventoryRow::id))
+        return inventoryRepository.findAll().stream()
+                .map(inv -> new InventoryRow(inv.getProductId(), inv.getOnHandQty()))
+                .sorted(Comparator.comparing(InventoryRow::productId))
                 .toList();
     }
 

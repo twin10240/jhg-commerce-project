@@ -56,7 +56,7 @@ class InventoryAdminControllerMvcTest {
     }
 
     private InventoryRow sampleRow() {
-        return new InventoryRow(1L, "상품1", 10000, 15);
+        return new InventoryRow(1L, 15);
     }
 
     @Test

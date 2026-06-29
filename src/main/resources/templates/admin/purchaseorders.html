@@ -110,7 +110,7 @@
       <div>
         <label class="field-label">상품</label>
         <select name="items[0].productId" class="input">
-          <option th:each="p : ${products}" th:value="${p.id}" th:text="${p.name}">상품</option>
+          <option th:each="p : ${products}" th:value="${p.productId}" th:text="${p.productId}">1</option>
         </select>
       </div>
       <div>
