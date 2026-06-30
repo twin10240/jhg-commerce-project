@@ -66,6 +66,7 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    repair-on-migrate: true
 decorator:
   datasource:
     p6spy:
