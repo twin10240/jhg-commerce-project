@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Inventory를 Product 객체그래프 없이 productId만으로 단독 영속/조회한다.
@@ -38,6 +39,15 @@ class InventoryRepositoryTest {
         assertThat(found.getProductId()).isEqualTo(1L);
         assertThat(found.getOnHandQty()).isEqualTo(30);
         assertThat(found.getAvailableQty()).isEqualTo(30);
+    }
+
+    @Test
+    void 동일_productId로_재고를_중복_삽입하면_예외가_발생한다() {
+        persistInventory(1L, 10);
+
+        // TestEntityManager는 Spring 예외 변환 레이어를 거치지 않아 Hibernate 예외가 직접 발생한다.
+        assertThatThrownBy(() -> persistInventory(1L, 20))
+                .isInstanceOf(RuntimeException.class);
     }
 
     @Test

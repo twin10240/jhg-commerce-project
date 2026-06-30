@@ -19,7 +19,7 @@ class InventoryOptimisticLockTest {
     @Autowired TestEntityManager em;
 
     private Long persistInventory(int onHandQty) {
-        Inventory inventory = new Inventory();
+        Inventory inventory = Inventory.create(1L);
         inventory.setOnHandQty(onHandQty);
         Long id = em.persistAndFlush(inventory).getId();
         em.clear();

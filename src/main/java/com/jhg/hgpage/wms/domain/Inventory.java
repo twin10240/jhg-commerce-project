@@ -18,7 +18,7 @@ public class Inventory {
     private int onHandQty = 0; // 현재 보유 수량
     @Column(nullable=false)
     private int reservedQty = 0; // 예약(결제 진행 중 등)
-    @Column(name = "product_id")
+    @Column(name = "product_id", nullable = false, unique = true)
     private Long productId;
 
     /** WMS가 productId만으로 소유하는 재고를 생성한다(onHand/reserved는 setter로). */

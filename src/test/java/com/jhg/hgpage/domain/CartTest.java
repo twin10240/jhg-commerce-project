@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CartTest {
 
@@ -51,6 +52,24 @@ class CartTest {
 
         assertThat(cart.getCartItems()).hasSize(1);
         assertThat(cart.getCartItems().get(0).getProduct().getId()).isEqualTo(1L);
+    }
+
+    @Test
+    void 수량_0으로_담기를_시도하면_예외가_발생한다() {
+        Cart cart = new Cart(Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+        Product p = product(1L, "상품1", 10000);
+
+        assertThatThrownBy(() -> cart.addCartItem(p, 0, p.getPrice()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 음수_수량으로_담기를_시도하면_예외가_발생한다() {
+        Cart cart = new Cart(Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+        Product p = product(1L, "상품1", 10000);
+
+        assertThatThrownBy(() -> cart.addCartItem(p, -1, p.getPrice()))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

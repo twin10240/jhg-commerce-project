@@ -66,9 +66,6 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    # 기존 Railway DB(스키마 있음, history 테이블 없음) → version 0으로 baseline 후 V1 적용(IF NOT EXISTS)
-    baseline-on-migrate: true
-    baseline-version: 0
 decorator:
   datasource:
     p6spy:

@@ -100,9 +100,9 @@ GitHub `master`에 push하면 Railway가 자동 빌드·배포합니다.
   ADMIN_PASSWORD=<강한 비밀번호>
   ```
 - **포트**: `server.port=${PORT:8080}` 로 Railway가 주입하는 포트에 바인딩.
-- **스키마**: 첫 기동 시 `ddl-auto: update`로 생성 → `initDb`가 빈 DB를 시드.
+- **스키마**: Flyway로 버전 관리(`prod` 프로파일). 첫 기동 시 `V1__init_schema.sql`이 적용돼 스키마를 생성하고 `initDb`가 빈 DB를 시드. `ddl-auto: validate`로 엔티티-스키마 불일치를 기동 시 감지.
 
-> 엔티티 구조를 바꿔 스키마를 다시 만들려면 운영 DB에서 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` 후 재배포합니다(데이터 소실 — 학습/데모 기준). 운영 안정화 시 Flyway 도입 검토.
+> 스키마 변경은 `src/main/resources/db/migration/V{n}__*.sql` 마이그레이션 파일로 관리. 스키마를 초기화하려면 Railway DB에서 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` 후 재배포(데이터 소실).
 
 ## 테스트
 

@@ -27,6 +27,7 @@ public class CartItem {
     private int quantity;
 
     public CartItem(Product product, int productPrice, int quantity) {
+        if (quantity < 1) throw new IllegalArgumentException("Cart item quantity must be at least 1.");
         this.product = product;
         this.productPrice = productPrice;
         this.quantity = quantity;
@@ -41,6 +42,7 @@ public class CartItem {
     }
 
     public void addQuantity(int quantity) {
+        if (quantity < 1) throw new IllegalArgumentException("Cart item quantity must be at least 1.");
         this.quantity += quantity;
     }
 
