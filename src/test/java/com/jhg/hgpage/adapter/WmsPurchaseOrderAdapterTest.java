@@ -44,6 +44,7 @@ class WmsPurchaseOrderAdapterTest {
     void create_WMS에_POST_요청을_보내고_발주번호를_반환한다() {
         server.expect(requestTo("http://wms-test/api/purchase-orders"))
               .andExpect(method(HttpMethod.POST))
+              .andExpect(content().json("{\"lines\":[{\"productId\":1,\"quantity\":10}],\"memo\":\"긴급\"}"))
               .andRespond(withSuccess(
                   "{\"id\":7,\"status\":\"ORDERED\",\"memo\":\"긴급\",\"createdAt\":\"2026-07-01T10:00:00\",\"receivedAt\":null,\"items\":[]}",
                   MediaType.APPLICATION_JSON));

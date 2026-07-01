@@ -50,7 +50,9 @@ public class WmsPurchaseOrderAdapter {
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND)
                 throw new IllegalArgumentException("발주가 없습니다: id=" + poId);
-            throw new IllegalStateException("입고 처리 실패: " + e.getMessage());
+            if (e.getStatusCode() == HttpStatus.CONFLICT)
+                throw new IllegalStateException("입고 처리 실패: " + e.getMessage());
+            throw e;
         }
     }
 }
