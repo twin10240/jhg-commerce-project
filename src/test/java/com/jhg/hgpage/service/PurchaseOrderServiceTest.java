@@ -1,13 +1,12 @@
 package com.jhg.hgpage.service;
 
+import com.jhg.hgpage.wms.adapter.WmsInventoryAdapter;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import com.jhg.hgpage.contract.StockReplenishedHandler;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
 import com.jhg.hgpage.wms.domain.enums.PurchaseOrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
-import com.jhg.hgpage.wms.repository.InventoryRepository;
 import com.jhg.hgpage.wms.repository.PurchaseOrderRepository;
 import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
 import org.junit.jupiter.api.Test;
@@ -23,6 +22,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -31,13 +33,12 @@ import static org.mockito.Mockito.when;
 class PurchaseOrderServiceTest {
 
     @Mock PurchaseOrderRepository purchaseOrderRepository;
-    @Mock InventoryRepository inventoryRepository;
+    @Mock WmsInventoryAdapter wmsInventoryAdapter;
     @Mock StockReplenishedHandler stockReplenishedHandler;
     @InjectMocks PurchaseOrderService purchaseOrderService;
 
     @Test
     void 발주를_생성하면_ORDERED_상태로_저장된다() {
-        when(inventoryRepository.findByProductId(1L)).thenReturn(Optional.of(Inventory.create(1L)));
         when(purchaseOrderRepository.save(any(PurchaseOrder.class))).thenAnswer(inv -> inv.getArgument(0));
 
         purchaseOrderService.create(List.of(new PurchaseOrderLine(1L, 20)), "긴급 발주");
@@ -67,46 +68,22 @@ class PurchaseOrderServiceTest {
     }
 
     @Test
-    void 재고에_없는_상품을_발주하면_EntityNotFoundException을_던진다() {
-        when(inventoryRepository.findByProductId(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> purchaseOrderService.create(List.of(new PurchaseOrderLine(99L, 5)), "메모"))
-                .isInstanceOf(EntityNotFoundException.class);
-        verify(purchaseOrderRepository, never()).save(any());
-    }
-
-    @Test
-    void 입고하면_RECEIVED가_되고_실물_재고가_늘어난다() {
+    void 입고하면_RECEIVED가_되고_WMS_재고가_늘어난다() {
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(1L, 5));
-        Inventory inv = Inventory.create(1L);
-        inv.setOnHandQty(10);
         when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
-        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of(inv));
+        when(wmsInventoryAdapter.adjust(anyLong(), anyInt(), anyString())).thenReturn(15);
 
         purchaseOrderService.receive(7L);
 
         assertThat(po.getStatus()).isEqualTo(PurchaseOrderStatus.RECEIVED);
-        assertThat(inv.getOnHandQty()).isEqualTo(15);
-    }
-
-    @Test
-    void 입고_상품의_재고가_없으면_EntityNotFoundException을_던진다() {
-        PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(1L, 5));
-        when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
-        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of());
-
-        assertThatThrownBy(() -> purchaseOrderService.receive(7L))
-                .isInstanceOf(EntityNotFoundException.class)
-                .hasMessageContaining("1");
+        verify(wmsInventoryAdapter).adjust(1L, 5, "PO #7 입고");
     }
 
     @Test
     void 입고하면_입고된_상품들의_백오더_할당을_트리거한다() {
         PurchaseOrder po = PurchaseOrder.create("발주", PurchaseOrderItem.create(1L, 5));
-        Inventory inv = Inventory.create(1L);
-        inv.setOnHandQty(10);
         when(purchaseOrderRepository.findById(7L)).thenReturn(Optional.of(po));
-        when(inventoryRepository.findByProductIdIn(any())).thenReturn(List.of(inv));
+        when(wmsInventoryAdapter.adjust(anyLong(), anyInt(), anyString())).thenReturn(15);
 
         purchaseOrderService.receive(7L);
 

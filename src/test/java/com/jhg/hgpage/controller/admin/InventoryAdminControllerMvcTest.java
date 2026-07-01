@@ -3,11 +3,11 @@ package com.jhg.hgpage.controller.admin;
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.wms.domain.PurchaseOrder;
 import com.jhg.hgpage.wms.domain.PurchaseOrderItem;
+import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
 import com.jhg.hgpage.wms.dto.InventoryRow;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.wms.service.InventoryService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import com.jhg.hgpage.wms.web.controller.InventoryAdminController;
 import org.junit.jupiter.api.Test;
@@ -44,7 +44,7 @@ class InventoryAdminControllerMvcTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean InventoryAdjustmentService inventoryAdjustmentService;
-    @MockBean InventoryService inventoryService;
+    @MockBean WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
     @MockBean PurchaseOrderService purchaseOrderService;
 
     private UserPrincipal admin() {
@@ -61,7 +61,7 @@ class InventoryAdminControllerMvcTest {
 
     @Test
     void 재고화면은_재고목록만_조회한다() throws Exception {
-        when(inventoryService.findInventoryRows()).thenReturn(List.of(sampleRow()));
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(sampleRow()));
 
         mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
@@ -72,7 +72,7 @@ class InventoryAdminControllerMvcTest {
 
     @Test
     void 발주화면은_발주현황과_상품목록을_조회한다() throws Exception {
-        when(inventoryService.findInventoryRows()).thenReturn(List.of(sampleRow()));
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(sampleRow()));
         when(purchaseOrderService.findAllWithItems()).thenReturn(
                 List.of(PurchaseOrder.create("긴급 발주", PurchaseOrderItem.create(1L, 5))));
 

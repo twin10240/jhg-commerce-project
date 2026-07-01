@@ -2,7 +2,6 @@ package com.jhg.hgpage.controller.order;
 import com.jhg.hgpage.oms.web.controller.OrderController;
 
 import com.jhg.hgpage.oms.domain.Address;
-import com.jhg.hgpage.wms.domain.Inventory;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
@@ -181,7 +180,7 @@ class OrderControllerMvcTest {
 
     @Test
     void 재고_수정이_충돌하면_main으로_리다이렉트하고_에러메시지를_flash에_담는다() throws Exception {
-        doThrow(new ObjectOptimisticLockingFailureException(Inventory.class, 1L))
+        doThrow(new ObjectOptimisticLockingFailureException(Object.class, 1L))
                 .when(orderService).order(anyLong(), any(Address.class), anyList());
 
         mockMvc.perform(post("/orders/checkout")

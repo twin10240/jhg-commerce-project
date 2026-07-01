@@ -1,8 +1,8 @@
 package com.jhg.hgpage.wms.web.controller;
 
 import com.jhg.hgpage.exception.EntityNotFoundException;
+import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
 import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.wms.service.InventoryService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService;
 import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
 import com.jhg.hgpage.wms.web.form.PurchaseOrderForm;
@@ -22,13 +22,13 @@ import java.util.List;
 public class InventoryAdminController {
 
     private final InventoryAdjustmentService inventoryAdjustmentService;
-    private final InventoryService inventoryService;
+    private final WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
     private final PurchaseOrderService purchaseOrderService;
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
         // 재고 화면: 재고 현황 조회 + 재고 조정. 발주는 /admin/purchase-orders 로 분리.
-        model.addAttribute("products", inventoryService.findInventoryRows());
+        model.addAttribute("products", wmsInventoryQueryAdapter.allRows());
         return "admin/inventory";
     }
 
@@ -36,7 +36,7 @@ public class InventoryAdminController {
     public String purchaseOrders(Model model) {
         // 발주 화면: 발주 생성 + 발주 현황 + 입고.
         model.addAttribute("purchaseOrders", purchaseOrderService.findAllWithItems());
-        model.addAttribute("products", inventoryService.findInventoryRows()); // 발주 생성 select용
+        model.addAttribute("products", wmsInventoryQueryAdapter.allRows()); // 발주 생성 select용
         return "admin/purchaseorders";
     }
 

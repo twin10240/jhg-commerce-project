@@ -1,6 +1,7 @@
 package com.jhg.hgpage.adapter;
 
 import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
+import com.jhg.hgpage.wms.dto.InventoryRow;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
@@ -12,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestToUriTemplate;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -40,5 +42,18 @@ class WmsInventoryQueryAdapterTest {
 
         assertThat(result).isEmpty();
         server.verify(); // WMS로 HTTP 요청이 나가지 않았음을 보장
+    }
+
+    @Test
+    void allRows_WMS에서_전체_재고_목록을_조회한다() {
+        server.expect(requestTo("http://wms-test/api/inventory/rows"))
+              .andRespond(withSuccess("[{\"productId\":1,\"onHandQty\":10}]", MediaType.APPLICATION_JSON));
+
+        List<InventoryRow> result = adapter.allRows();
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).productId()).isEqualTo(1L);
+        assertThat(result.get(0).onHandQty()).isEqualTo(10);
+        server.verify();
     }
 }
