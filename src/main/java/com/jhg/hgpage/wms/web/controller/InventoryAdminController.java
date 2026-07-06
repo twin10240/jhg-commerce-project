@@ -1,18 +1,15 @@
 package com.jhg.hgpage.wms.web.controller;
 
-import com.jhg.hgpage.exception.EntityNotFoundException;
+import com.jhg.hgpage.contract.StockReplenishedHandler;
+import com.jhg.hgpage.wms.adapter.WmsInventoryAdapter;
 import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
-import com.jhg.hgpage.wms.service.InventoryAdjustmentService;
-import com.jhg.hgpage.wms.service.PurchaseOrderService;
-import com.jhg.hgpage.wms.service.PurchaseOrderService.PurchaseOrderLine;
+import com.jhg.hgpage.wms.adapter.WmsPurchaseOrderAdapter;
+import com.jhg.hgpage.wms.adapter.WmsPurchaseOrderAdapter.PurchaseOrderLine;
 import com.jhg.hgpage.wms.web.form.PurchaseOrderForm;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
@@ -21,22 +18,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InventoryAdminController {
 
-    private final InventoryAdjustmentService inventoryAdjustmentService;
+    private final WmsInventoryAdapter wmsInventoryAdapter;
     private final WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
-    private final PurchaseOrderService purchaseOrderService;
+    private final WmsPurchaseOrderAdapter wmsPurchaseOrderAdapter;
+    private final StockReplenishedHandler stockReplenishedHandler;
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
-        // 재고 화면: 재고 현황 조회 + 재고 조정. 발주는 /admin/purchase-orders 로 분리.
         model.addAttribute("products", wmsInventoryQueryAdapter.allRows());
         return "admin/inventory";
     }
 
     @GetMapping("/admin/purchase-orders")
     public String purchaseOrders(Model model) {
-        // 발주 화면: 발주 생성 + 발주 현황 + 입고.
-        model.addAttribute("purchaseOrders", purchaseOrderService.findAllWithItems());
-        model.addAttribute("products", wmsInventoryQueryAdapter.allRows()); // 발주 생성 select용
+        model.addAttribute("purchaseOrders", wmsPurchaseOrderAdapter.findAllWithItems());
+        model.addAttribute("products", wmsInventoryQueryAdapter.allRows());
         return "admin/purchaseorders";
     }
 
@@ -46,7 +42,11 @@ public class InventoryAdminController {
                                   @RequestParam(defaultValue = "") String reason,
                                   RedirectAttributes redirectAttributes) {
         try {
-            int adjusted = inventoryAdjustmentService.adjust(productId, delta, reason);
+            int adjusted = wmsInventoryAdapter.adjust(productId, delta, reason);
+            if (delta > 0) {
+                // ponytail: S3에서 WMS→OMS 콜백으로 이동. S2까지는 OMS가 직접 트리거.
+                stockReplenishedHandler.onReplenished(List.of(productId));
+            }
             redirectAttributes.addFlashAttribute("successMessage",
                     "재고가 조정되었습니다. (현재 " + adjusted + "개)");
         } catch (IllegalArgumentException e) {
@@ -62,7 +62,7 @@ public class InventoryAdminController {
                 .map(item -> new PurchaseOrderLine(item.getProductId(), item.getQuantity()))
                 .toList();
         try {
-            Long poId = purchaseOrderService.create(lines, form.getMemo());
+            Long poId = wmsPurchaseOrderAdapter.create(lines, form.getMemo());
             redirectAttributes.addFlashAttribute("successMessage",
                     "발주가 생성되었습니다. (발주 #" + poId + ")");
         } catch (IllegalArgumentException e) {
@@ -71,15 +71,17 @@ public class InventoryAdminController {
         return "redirect:/admin/purchase-orders";
     }
 
-    // HTML 폼은 입력값을 path에 넣을 수 없으므로 path variable 대신 poId 파라미터를 받는다
     @PostMapping("/admin/purchase-orders/receive")
     public String receivePurchaseOrder(@RequestParam Long poId,
                                        RedirectAttributes redirectAttributes) {
         try {
-            Long receivedId = purchaseOrderService.receive(poId);
+            wmsPurchaseOrderAdapter.receive(poId);
+            // ponytail: 입고 후 백오더 트리거는 S3 콜백으로 이동. S2는 WMS가 재고만 증가.
             redirectAttributes.addFlashAttribute("successMessage",
-                    "입고 처리되었습니다. (발주 #" + receivedId + ")");
-        } catch (IllegalStateException | EntityNotFoundException e) {
+                    "입고 처리되었습니다. (발주 #" + poId + ")");
+        } catch (IllegalArgumentException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        } catch (IllegalStateException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/admin/purchase-orders";
