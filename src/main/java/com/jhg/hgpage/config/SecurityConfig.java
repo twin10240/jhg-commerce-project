@@ -16,9 +16,11 @@ public class SecurityConfig {
             // H2 콘솔 사용 시 sameOrigin, 그 외 프레임 보안 유지
             .headers(h -> h.frameOptions(f -> f.sameOrigin()))
             // CSRF 기본 활성화(폼 기반이라면 권장), 특정 경로만 예외 가능
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
+            .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**", "/api/replenishments"))
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/", "/login", "/signup", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
+                    // WMS 서버 간 콜백(재고 보충 통지) — 세션 없음
+                    .requestMatchers("/api/replenishments").permitAll()
                     .requestMatchers("/admin/**").hasRole("ADMIN") // 내부적으로 "ROLE_ADMIN" 권한 검사
                     // 구매·장바구니는 고객(USER) 전용 — admin은 운영자라 주문 불가(운영자 ≠ 구매자)
                     .requestMatchers("/orders/**", "/cart/**", "/api/orders/**", "/api/cart/**").hasRole("USER")
