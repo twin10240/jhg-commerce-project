@@ -1,7 +1,6 @@
 package com.jhg.hgpage.controller.admin;
 
 import com.jhg.hgpage.config.SecurityConfig;
-import com.jhg.hgpage.contract.StockReplenishedHandler;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.wms.adapter.WmsInventoryAdapter;
@@ -33,7 +32,6 @@ class InventoryAdminControllerMvcTest {
     @MockitoBean WmsInventoryAdapter wmsInventoryAdapter;
     @MockitoBean WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
     @MockitoBean WmsPurchaseOrderAdapter wmsPurchaseOrderAdapter;
-    @MockitoBean StockReplenishedHandler stockReplenishedHandler;
 
     private UserPrincipal admin() {
         return new UserPrincipal(2L, "admin@admin.com", "관리자", "010-1111-2222", "pw", Role.ADMIN);
@@ -85,29 +83,6 @@ class InventoryAdminControllerMvcTest {
         verify(wmsInventoryAdapter).adjust(1L, 5, "정기조사");
     }
 
-    @Test
-    void 재고_증가_시_백오더_트리거를_호출한다() throws Exception {
-        when(wmsInventoryAdapter.adjust(1L, 5, "")).thenReturn(20);
-
-        mockMvc.perform(post("/admin/inventory/adjust")
-                        .with(user(admin())).with(csrf())
-                        .param("productId", "1").param("delta", "5").param("reason", ""))
-                .andExpect(status().is3xxRedirection());
-
-        verify(stockReplenishedHandler).onReplenished(List.of(1L));
-    }
-
-    @Test
-    void 재고_감소_시_백오더_트리거를_호출하지_않는다() throws Exception {
-        when(wmsInventoryAdapter.adjust(1L, -3, "")).thenReturn(7);
-
-        mockMvc.perform(post("/admin/inventory/adjust")
-                        .with(user(admin())).with(csrf())
-                        .param("productId", "1").param("delta", "-3").param("reason", ""))
-                .andExpect(status().is3xxRedirection());
-
-        verify(stockReplenishedHandler, never()).onReplenished(any());
-    }
 
     @Test
     void 재고_조정_실패는_에러메시지와_함께_리다이렉트한다() throws Exception {

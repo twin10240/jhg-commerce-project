@@ -1,6 +1,5 @@
 package com.jhg.hgpage.wms.web.controller;
 
-import com.jhg.hgpage.contract.StockReplenishedHandler;
 import com.jhg.hgpage.wms.adapter.WmsInventoryAdapter;
 import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
 import com.jhg.hgpage.wms.adapter.WmsPurchaseOrderAdapter;
@@ -21,7 +20,6 @@ public class InventoryAdminController {
     private final WmsInventoryAdapter wmsInventoryAdapter;
     private final WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
     private final WmsPurchaseOrderAdapter wmsPurchaseOrderAdapter;
-    private final StockReplenishedHandler stockReplenishedHandler;
 
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
@@ -42,11 +40,8 @@ public class InventoryAdminController {
                                   @RequestParam(defaultValue = "") String reason,
                                   RedirectAttributes redirectAttributes) {
         try {
+            // 승격 트리거는 WMS 콜백(POST /api/replenishments)이 담당 — S3에서 인프로세스 직접 호출 제거
             int adjusted = wmsInventoryAdapter.adjust(productId, delta, reason);
-            if (delta > 0) {
-                // ponytail: S3에서 WMS→OMS 콜백으로 이동. S2까지는 OMS가 직접 트리거.
-                stockReplenishedHandler.onReplenished(List.of(productId));
-            }
             redirectAttributes.addFlashAttribute("successMessage",
                     "재고가 조정되었습니다. (현재 " + adjusted + "개)");
         } catch (IllegalArgumentException e) {
@@ -76,7 +71,6 @@ public class InventoryAdminController {
                                        RedirectAttributes redirectAttributes) {
         try {
             wmsPurchaseOrderAdapter.receive(poId);
-            // ponytail: 입고 후 백오더 트리거는 S3 콜백으로 이동. S2는 WMS가 재고만 증가.
             redirectAttributes.addFlashAttribute("successMessage",
                     "입고 처리되었습니다. (발주 #" + poId + ")");
         } catch (IllegalArgumentException e) {
