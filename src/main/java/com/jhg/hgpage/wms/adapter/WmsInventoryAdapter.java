@@ -33,18 +33,28 @@ public class WmsInventoryAdapter implements InventoryPort {
     @Override
     public boolean reserveAll(Long orderId, Map<Long, Integer> qtyByProductId) {
         try {
-            Boolean result = restClient.post()
-                    .uri("/api/inventory/reserve")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(new WriteRequest(orderId, qtyByProductId))
-                    .retrieve()
-                    .body(Boolean.class);
-            return Boolean.TRUE.equals(result);
-        } catch (ResourceAccessException e) {
-            // ponytail: WMS 다운 시 false → BACKORDERED 접수. 재고 확인 불가 = 가용분 없음으로 간주.
-            log.warn("WMS 연결 실패 — reserveAll 실패, BACKORDERED로 접수: orderId={}", orderId);
-            return false;
+            return doReserve(orderId, qtyByProductId);
+        } catch (ResourceAccessException first) {
+            // 일시적 blip 구제 — orderId 멱등이라 첫 요청이 실제 예약됐어도 재시도가 같은 결과로 수렴(S4).
+            log.warn("WMS 예약 통신 실패 — 1회 재시도: orderId={}", orderId);
+            try {
+                return doReserve(orderId, qtyByProductId);
+            } catch (ResourceAccessException second) {
+                // ponytail: WMS 다운 시 false → BACKORDERED 접수("예약 못 해본 백오더"). 회수는 보상 스윕.
+                log.warn("WMS 예약 재시도 실패 — BACKORDERED로 접수: orderId={}", orderId);
+                return false;
+            }
         }
+    }
+
+    private boolean doReserve(Long orderId, Map<Long, Integer> qtyByProductId) {
+        Boolean result = restClient.post()
+                .uri("/api/inventory/reserve")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(new WriteRequest(orderId, qtyByProductId))
+                .retrieve()
+                .body(Boolean.class);
+        return Boolean.TRUE.equals(result);
     }
 
     @Override

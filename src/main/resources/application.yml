@@ -30,6 +30,13 @@ spring:
       org.hibernate.SQL: debug
       org.hibernate.type.descriptor.sql.BasicBinder: trace
 
+  # S4: WMS REST 호출 공통 타임아웃 — WMS hang 시 무기한 블록 방지.
+  # 자동구성 RestClient.Builder 전체(어댑터 3종)에 적용(Spring Boot 3.4+).
+  http:
+    client:
+      connect-timeout: 1s
+      read-timeout: 2s
+
 wms:
   base-url: http://localhost:8081
 

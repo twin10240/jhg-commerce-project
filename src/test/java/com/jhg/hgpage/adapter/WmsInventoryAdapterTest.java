@@ -9,6 +9,8 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.client.MockRestServiceServer;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 @RestClientTest(WmsInventoryAdapter.class)
@@ -77,6 +80,35 @@ class WmsInventoryAdapterTest {
 
         assertThatThrownBy(() -> adapter.adjust(1L, -999, "조정"))
                 .isInstanceOf(IllegalArgumentException.class);
+        server.verify();
+    }
+
+    // ── S4: 재시도/강등 ──────────────────────────────────────────
+
+    @Test
+    void reserve_통신실패면_1회_재시도하고_성공하면_true() {
+        // 첫 요청이 실제로는 WMS에 닿았어도 orderId 멱등이라 재시도는 같은 결과로 수렴한다.
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withException(new SocketTimeoutException("read timeout")));
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withSuccess("true", MediaType.APPLICATION_JSON));
+
+        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+
+        assertThat(result).isTrue();
+        server.verify(); // 정확히 2회 호출
+    }
+
+    @Test
+    void reserve_재시도까지_실패하면_false로_강등한다() {
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withException(new ConnectException("refused")));
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withException(new ConnectException("refused")));
+
+        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+
+        assertThat(result).isFalse();
         server.verify();
     }
 }
