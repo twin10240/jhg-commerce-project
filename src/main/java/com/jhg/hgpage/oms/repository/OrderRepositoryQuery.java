@@ -66,6 +66,15 @@ public class OrderRepositoryQuery {
                 .fetch();
     }
 
+    /** 보상 스윕(S4)용 — BACKORDERED 주문이 기다리는 상품 id 목록(중복 제거). */
+    public List<Long> findBackorderedProductIds() {
+        return jpaQueryFactory.select(orderItem.product.id).distinct()
+                .from(order)
+                .join(order.orderItems, orderItem)
+                .where(order.status.eq(OrderStatus.BACKORDERED))
+                .fetch();
+    }
+
     // 주문 상세 페이지용 단건 조회 (인가 체크를 위해 member도 함께 로딩)
     public Optional<Order> findDetailById(Long orderId) {
         return Optional.ofNullable(jpaQueryFactory.selectFrom(order)

@@ -108,4 +108,22 @@ class OrderRepositoryBackorderTest {
 
         assertThat(orderRepositoryQuery.findBackordersContaining(List.of(plenty.getId()))).isEmpty();
     }
+
+    @Test
+    void 백오더_주문의_상품id만_중복없이_반환한다() {
+        Product scarce = newProduct("부족상품");
+        Product other = newProduct("다른상품");
+        Product plenty = newProduct("여유상품");
+
+        saveBackorder(OrderItem.createOrderItem(scarce, 10000, 5),
+                      OrderItem.createOrderItem(other, 10000, 2));
+        saveBackorder(OrderItem.createOrderItem(scarce, 10000, 3)); // scarce 중복 — distinct 검증
+        saveOrdered(OrderItem.createOrderItem(plenty, 10000, 1));   // ORDER — 제외 검증
+        em.flush();
+        em.clear();
+
+        List<Long> result = orderRepositoryQuery.findBackorderedProductIds();
+
+        assertThat(result).containsExactlyInAnyOrder(scarce.getId(), other.getId());
+    }
 }
