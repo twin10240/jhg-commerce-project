@@ -83,7 +83,6 @@ class InventoryAdminControllerMvcTest {
         verify(wmsInventoryAdapter).adjust(1L, 5, "정기조사");
     }
 
-
     @Test
     void 재고_조정_실패는_에러메시지와_함께_리다이렉트한다() throws Exception {
         when(wmsInventoryAdapter.adjust(1L, -99, "조정"))

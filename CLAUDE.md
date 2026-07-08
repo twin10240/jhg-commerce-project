@@ -203,12 +203,12 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 낮음
 13. ~~회원가입 서버 검증 부족~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
-15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거.
+15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거. `/api/replenishments`(무인증 콜백 — 위조돼도 승격은 WMS 실가용분 검증 기반이라 무결성 안전, 스캔 트리거만 가능)도 운영 시 보호(공유 시크릿 헤더 or 네트워크 격리) 대상.
 19. ~~`OrderController.restoreCheckOutDisplay` findById 루프~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고).
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. **Phase 3 — S4: 회복탄력성** (WMS 다운 시 예약 강등 + 보상 스윕 잡(`@Scheduled`로 BACKORDERED 재할당 — 콜백 유실 회수) + RestClient 타임아웃/재시도). S3까지 완료 — 입고/재고증가 시 WMS→OMS 콜백으로 백오더 자동 승격.
+1. **Phase 3 — S4: 회복탄력성** (WMS 다운 시 예약 강등 + 보상 스윕 잡(`@Scheduled`로 BACKORDERED 재할당 — 콜백 유실 회수) + RestClient 타임아웃/재시도 — 타임아웃은 WMS `OmsReplenishmentNotifier`·OMS `WmsInventoryAdapter` **양쪽** 모두, 통지를 요청 스레드에서 떼는 것(@Async)도 함께 검토. 현재 OMS 재고조정은 4-hop 동기 체인이라 OMS hang 시 타임아웃 없으면 연쇄 블록). S3까지 완료 — 입고/재고증가 시 WMS→OMS 콜백으로 백오더 자동 승격.
 1-1. 운영(Railway) 배포 시 정합성: `wms.base-url` 환경변수화(현재 prod에서도 localhost:8081), WMS 앱 prod 프로파일·Dockerfile 신설, Flyway V3(OMS DB에서 inventory·reservation·purchase_order* DROP) 작성. `oms.base-url`(WMS→OMS 콜백)도 환경변수화 대상.
 2. (선택) Phase 2 잔여 — 컨트롤러·DTO의 컨텍스트별 분리 + `admin` 컨트롤러 OMS/WMS 분리
 3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함)
