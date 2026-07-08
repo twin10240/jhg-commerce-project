@@ -17,6 +17,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 import java.util.Optional;
@@ -373,6 +374,19 @@ class OrderControllerMvcTest {
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attributeExists("errorMessage"));
+    }
+
+    @Test
+    void 취소_중_WMS_통신이_실패하면_main으로_리다이렉트하고_에러_flash를_담는다() throws Exception {
+        doThrow(new ResourceAccessException("WMS down"))
+                .when(orderService).cancelOrder(10L, 1L);
+
+        mockMvc.perform(post("/orders/10/cancel")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/main"))
                 .andExpect(flash().attributeExists("errorMessage"));
     }
 

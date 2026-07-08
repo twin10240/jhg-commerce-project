@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
@@ -55,5 +56,16 @@ class ReplenishmentApiControllerMvcTest {
                 .andExpect(status().isBadRequest());
 
         verify(stockReplenishedHandler, never()).onReplenished(any());
+    }
+
+    @Test
+    void 승격_중_WMS_통신이_실패하면_503을_반환한다() throws Exception {
+        doThrow(new ResourceAccessException("WMS down"))
+                .when(stockReplenishedHandler).onReplenished(any());
+
+        mockMvc.perform(post("/api/replenishments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"productIds\":[1]}"))
+                .andExpect(status().isServiceUnavailable());
     }
 }

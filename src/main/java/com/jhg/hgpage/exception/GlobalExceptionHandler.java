@@ -7,6 +7,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.support.RequestContextUtils;
 
@@ -47,6 +48,19 @@ public class GlobalExceptionHandler {
 
         RequestContextUtils.getOutputFlashMap(request)
                 .put("errorMessage", "주문이 몰려 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        return new ModelAndView("redirect:/main");
+    }
+
+    // WMS 통신 실패(연결 거부·타임아웃): 조회 어댑터는 자체 폴백(빈 맵/빈 목록)하므로
+    // 여기 도달하는 것은 쓰기 경로(ship/release/adjust/발주)다. 트랜잭션은 롤백돼 있다.
+    @ExceptionHandler(ResourceAccessException.class)
+    public Object handleResourceAccess(ResourceAccessException e, HttpServletRequest request) {
+        if (isApiRequest(request)) {
+            return problem(HttpStatus.SERVICE_UNAVAILABLE, "창고 시스템과 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        }
+
+        RequestContextUtils.getOutputFlashMap(request)
+                .put("errorMessage", "창고 시스템과 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         return new ModelAndView("redirect:/main");
     }
 
