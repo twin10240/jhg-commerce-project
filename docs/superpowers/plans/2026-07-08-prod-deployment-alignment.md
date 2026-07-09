@@ -251,7 +251,7 @@ git push
 - Modify: `C:\study\jhg-commerce-project\CLAUDE.md`
 - Modify: `C:\study\jhg-wms-project\README.md`
 
-- [ ] **Step 1: OMS CLAUDE.md 갱신** — 두 곳:
+- [x] **Step 1: OMS CLAUDE.md 갱신** — 두 곳: (+추가 반영: JAVA_HOME 컨벤션을 머신 로컬 gradle.properties 방식으로 교체, 배포 DB 서술을 Flyway+validate로 교정 — 최종 리뷰 발견)
 
 ① `## 배포 (Railway)` 섹션 끝에 항목 추가:
 
@@ -273,7 +273,7 @@ git push
 3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함. WMS도 스키마 진화 시작되면 Flyway 도입 검토).
 ```
 
-- [ ] **Step 2: WMS README 갱신** — 적절한 위치(포트/실행 안내 부근)에 섹션 추가:
+- [x] **Step 2: WMS README 갱신** — 적절한 위치(포트/실행 안내 부근)에 섹션 추가: (README 커밋 7a131fa는 병행 세션의 `feature/admin-ui` 브랜치에 실림 — 해당 브랜치 병합 시 master 반영)
 
 ```markdown
 ## 운영 배포 (Railway)
@@ -285,7 +285,7 @@ git push
 - 주의: Gradle 빌드 JVM(JDK 21)은 머신 로컬 `~/.gradle/gradle.properties`의 `org.gradle.java.home`으로 지정 — 레포 `gradle.properties`에 커밋하지 않는다(Windows 경로가 컨테이너 빌드를 죽임).
 ```
 
-- [ ] **Step 3: 커밋 + 최종 리뷰 + 병합**
+- [x] **Step 3: 커밋 + 최종 리뷰 + 병합** — 최종 리뷰 통과(코드 결함 0, 문서 교정 1건 반영). 추가 fix: 양 리포 gradle.properties에서 `org.gradle.java.home` 제거(Railway 컨테이너 빌드 실패 원인) + WMS Dockerfile sed 우회 제거.
 
 ```
 cd C:\study\jhg-wms-project
