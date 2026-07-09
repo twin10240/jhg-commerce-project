@@ -315,27 +315,23 @@ Expected: BUILD SUCCESSFUL. (병합 전 최종 whole-branch 리뷰는 실행 스
 
 **Files:** 없음. 대시보드 조작은 사용자가 수행하고, 컨트롤러가 단계별로 안내·확인한다. 사용자가 railway CLI를 쓰면 명령을 대신 안내.
 
-- [ ] **Step 1: WMS 서비스 생성(사용자)** — Railway 프로젝트에:
-  1. New Service → GitHub Repo → `jhg-wms-project`(master)
-  2. New → Database → PostgreSQL (WMS 전용 인스턴스)
-  3. WMS 서비스 Variables: `SPRING_PROFILES_ACTIVE=prod`, `PORT=8081`, `PGHOST=${{Postgres.PGHOST}}` `PGPORT=${{Postgres.PGPORT}}` `PGDATABASE=${{Postgres.PGDATABASE}}` `PGUSER=${{Postgres.PGUSER}}` `PGPASSWORD=${{Postgres.PGPASSWORD}}` (신설한 WMS Postgres 참조 — OMS Postgres와 혼동 금지), `OMS_BASE_URL=http://<OMS 서비스명>.railway.internal:8080`
-  4. 공개 도메인 발급하지 않음(Settings → Networking에서 Public 도메인 없음 확인)
+- [x] **Step 1: WMS 서비스 생성** — 대시보드 대신 **railway CLI로 수행**(2026-07-09): `railway add --repo twin10240/jhg-wms-project --branch master --service jhg-wms-project` + `railway add --database postgres`(자동명 `Postgres-HHGY` — OMS `Postgres`와 충돌 없음). 변수는 `railway variables --service jhg-wms-project --set ...`로 8종 설정(PG* 5종은 `${{Postgres-HHGY.PGHOST}}` 등 참조 문법, `OMS_BASE_URL=http://jhg-commerce-project.railway.internal:8080`). 공개 도메인 미발급(기본값). **함정 ⓐ**: `--branch master`가 무시되고 서비스가 옛 브랜치 `feature/phase3-s1`에 연결됨 → `railway service source connect --repo ... --branch master --service jhg-wms-project`로 교정.
 
-- [ ] **Step 2: WMS 배포 확인** — 배포 로그에서: prod 프로파일 활성 / Hibernate 스키마 생성 / InitDb 시드(재고 20건) / `Tomcat started on port 8081`. 실패 시 로그 기반 진단(1순위 의심: PG* 변수 참조 오류, Dockerfile sed).
+- [x] **Step 2: WMS 배포 확인** — 런타임 로그 확인: `profile active "prod"` / Postgres HikariPool 연결 / `Tomcat started on port 8081` / `Started JhgWmsApplication`. **함정 ⓑ**: CLI 생성 서비스가 Dockerfile 대신 Railpack 기본값 사용(옛 브랜치엔 java.home 잔존으로 `Java home ... invalid` 빌드 실패) → 레포 `railway.json`(`build.builder=DOCKERFILE`) + `RAILWAY_DOCKERFILE_PATH=Dockerfile` env로 Dockerfile 강제. master(c0547ea→833dc58)가 Dockerfile로 SUCCESS.
 
-- [ ] **Step 3: OMS Variables 갱신(사용자)** — OMS 서비스에 `WMS_BASE_URL=http://<WMS 서비스명>.railway.internal:8081` 추가, `PORT=8080` 고정(미설정이었다면).
+- [x] **Step 3: OMS Variables 갱신** — CLI로 `WMS_BASE_URL=http://jhg-wms-project.railway.internal:8081` + `PORT=8080` 설정.
 
-- [ ] **Step 4: OMS 배포** — master push로 자동 배포(Task 5에서 push 완료). 배포 로그에서: **Flyway V3 적용**(`Migrating schema ... to version "3"`) / 기동 성공. V3는 되돌릴 수 없으므로 이 로그를 반드시 확인·기록.
+- [x] **Step 4: OMS 배포** — master push 자동 배포. 배포 로그에서 **Flyway V3 적용 확인**(`Migrating schema "public" to version "3 - drop wms tables"` → `now at version v3`). (Postgres 18.4라 Flyway "미검증 최신 버전" warn 있으나 마이그레이션 정상.)
 
-- [ ] **Step 5: 스모크 테스트 5종** — 공개 OMS URL에서:
-  1. 메인 그리드 재고 표시(채널1) — 시드 재고 15~300이 카드에 보임
-  2. 주문 → 즉시 ORDER(채널2 reserve)
-  3. 관리자 재고조정 +delta → 백오더 승격 라운드트립(채널3 — 재고 0 상품으로 백오더 먼저 생성)
-  4. 발주 생성 → 입고 → 재고 증가 + 승격
-  5. 주문 취소 → 재고 복구
-  통신 실패 시 1차 조치: 양쪽 `server.address: "::"` 검토(Railway private networking IPv6) — 적용 시 yml 수정·커밋·재배포.
+- [x] **Step 5: 스모크 테스트 5종** — 공개 OMS URL에서 **5/5 통과**(HTTP 세션 스크립트, `docs`가 아닌 scratchpad):
+  1. ✅ 메인 재고 표시(채널1) — 입고 대기 0/10, 실재고 표시
+  2. ✅ 주문(상품5 qty3) → ORDER(채널2 reserve)
+  3. ✅ 관리자 재고조정 +500 → 백오더(상품5 qty500) 3초 내 ORDER 승격(채널3 콜백, adjust 302 — false-timeout #23 미발생)
+  4. ✅ 발주(상품6 qty600) 생성 → 입고 → 백오더(상품6 qty500) 3초 내 승격
+  5. ✅ 주문 취소 → CANCEL
+  IPv6 1차 조치는 불필요(private networking 정상 동작).
 
-- [ ] **Step 6: 완료 기록** — 스모크 결과를 CLAUDE.md 배포 섹션 항목 끝에 한 줄(`두 앱 Railway 스모크 5/5 통과(2026-07-08)` 형식)로 추가 후 master에 직접 커밋·push.
+- [x] **Step 6: 완료 기록** — CLAUDE.md 배포 섹션 WMS 항목에 스모크 5/5 + 운영 함정 2건 기록, master 커밋·push.
 
 ---
 
