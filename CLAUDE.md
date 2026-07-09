@@ -68,9 +68,10 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 
 - **빌드**: 루트 `Dockerfile`(멀티스테이지 — JDK17 빌드 / JRE17 실행). Railway는 Dockerfile 존재 시 Nixpacks 대신 이걸 사용. `.dockerignore`로 `build/`·`.git/` 등 제외(깨진 ACL `problems-report.html`도 컨텍스트에서 빠져 Docker 빌드는 `clean`이 무해).
 - **포트**: `application.yml`의 `server.port: ${PORT:8080}` — Railway가 주입하는 `${PORT}`에 바인딩(로컬은 8080).
-- **DB**: `prod` 프로파일(PostgreSQL). `SPRING_PROFILES_ACTIVE=prod` + Railway PostgreSQL 플러그인이 주입하는 `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` 참조. `ddl-auto: update`로 첫 기동 시 스키마 생성 → `initDb`가 빈 DB 시드. SQL 로깅·p6spy off. (로컬/테스트는 그대로 H2.)
+- **DB**: `prod` 프로파일(PostgreSQL). `SPRING_PROFILES_ACTIVE=prod` + Railway PostgreSQL 플러그인이 주입하는 `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` 참조. 스키마는 **Flyway가 관리**(`db/migration` V1~, `ddl-auto: validate` — Hibernate는 검증만) → `initDb`가 빈 DB 시드. SQL 로깅·p6spy off. (로컬/테스트는 H2 + `ddl-auto`, Flyway off.)
 - **드라이버**: `build.gradle`에 `runtimeOnly 'org.postgresql:postgresql'`(H2와 공존, prod에서만 사용). `devtools`는 `developmentOnly`라 운영 jar에 미포함.
 - **관리자 비밀번호**: 코드에 박지 않고 `ADMIN_PASSWORD` 환경변수로 주입(`initDb`, 로컬 기본값 `1111`). 운영은 Railway 앱 서비스 Variables에 강한 값 설정. 시드는 빈 DB에만 돌므로 **기존 DB의 관리자 비번은 코드 수정만으로 안 바뀜** → 비번 적용엔 DB 리셋(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`) 후 재배포 필요. H2 콘솔은 prod에서 미사용(Postgres).
+- **WMS 앱(2026-07-08~)**: 별도 Railway 서비스(`jhg-wms-project` 리포) + 자체 PostgreSQL. `SPRING_PROFILES_ACTIVE=prod` + PG* 변수, 스키마는 `ddl-auto: update`(Flyway 미도입), 빈 DB면 `InitDb`가 재고 1~20 시드. **공개 도메인 없음** — OMS↔WMS는 Railway Private Networking(`http://<service>.railway.internal:<PORT>`, PORT는 Variables로 OMS 8080/WMS 8081 고정). 통신 주소는 env로 주입: OMS `WMS_BASE_URL`, WMS `OMS_BASE_URL`(로컬 기본값은 localhost — yml placeholder). **V3 마이그레이션**이 OMS DB에서 inventory·reservation·purchase_order* 테이블/시퀀스 DROP(데이터 이관 없음, 이후 S1 이전 빌드로 롤백 불가). 관리 작업(재고조정·발주·입고)은 OMS 관리자 화면이 어댑터로 프록시 — WMS UI 접근 불필요. 부수 효과: `/api/replenishments`·WMS API 인터넷 미노출로 #15의 콜백 보호가 네트워크 격리로 해소.
 
 ## 아키텍처 (계층 구조)
 
@@ -133,7 +134,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - 복잡한 조회는 Spring Data 파생 쿼리 대신 `*RepositoryQuery` QueryDSL 클래스에 작성.
 - 응답 DTO는 컨텍스트 레벨 `oms/dto`(repository→web 역의존 회피), 요청 폼은 web 계층 `oms/web/form`·`wms/web/form`.
 - ID 조회 실패는 `Optional.get()` 대신 `orElseThrow(() -> new EntityNotFoundException(대상, id))`. 전역 예외 처리는 `exception/GlobalExceptionHandler`(`/api/**`는 ProblemDetail JSON, 화면은 `error.html` 또는 flash 리다이렉트).
-- 빌드/테스트 실행 시 `JAVA_HOME`이 JDK 17+를 가리켜야 함(시스템 기본이 Java 8): `$env:JAVA_HOME = "C:\Program Files\Java\jdk-17"`.
+- 빌드 JVM은 머신 로컬 `~/.gradle/gradle.properties`의 `org.gradle.java.home`(JDK 21)이 지정 — `JAVA_HOME` 수동 설정 불필요(2026-07-09부터, 시스템 기본 Java 8 무관). **`org.gradle.java.home`을 레포 `gradle.properties`에 커밋 금지** — Windows 경로가 Railway 컨테이너 빌드를 죽인다(OMS 배포 실패 원인으로 확인돼 레포에서 제거).
 
 ## 테스트 현황
 
@@ -205,12 +206,11 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 
 ### 심각도 낮음
 13. ~~회원가입 서버 검증 부족~~ — 해결됨(2026-06-15, 위 해결됨 섹션 참고).
-15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거. `/api/replenishments`(무인증 콜백 — 위조돼도 승격은 WMS 실가용분 검증 기반이라 무결성 안전, 스캔 트리거만 가능)도 운영 시 보호(공유 시크릿 헤더 or 네트워크 격리) 대상.
+15. H2 콘솔 `permitAll` + CSRF 예외 — 개발용으로는 무방하나 운영 배포 시 제거. ~~`/api/replenishments`(무인증 콜백)도 운영 시 보호 대상.~~ → 콜백/WMS API는 Railway Private Networking으로 인터넷 미노출(2026-07-08 해소). H2 콘솔 항목만 잔존.
 19. ~~`OrderController.restoreCheckOutDisplay` findById 루프~~ — 해결됨(2026-06-16, 위 해결됨 섹션 참고).
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. 운영(Railway) 배포 시 정합성: `wms.base-url`·`oms.base-url`(WMS→OMS 콜백) 환경변수화(현재 prod에서도 localhost), WMS 앱 prod 프로파일·Dockerfile 신설, Flyway V3(OMS DB에서 inventory·reservation·purchase_order* DROP) 작성. Phase 3 전체 완료(S0~S4) — 재고·발주는 WMS 단일 진실 공급원, 콜백+보상 스윕으로 백오더 승격, 타임아웃/재시도/강등으로 장애 대응.
-2. (선택) Phase 4 — REST → 이벤트/메시지 기반 전환(콜백·통지를 브로커로).
-3. (선택) Phase 2 잔여 — 컨트롤러·DTO의 컨텍스트별 분리 정리.
-4. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔·`/api/replenishments` 보호 포함).
+1. (선택) Phase 4 — REST → 이벤트/메시지 기반 전환(콜백·통지를 브로커로).
+2. (선택) Phase 2 잔여 — 컨트롤러·DTO의 컨텍스트별 분리 정리.
+3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함. WMS도 스키마 진화 시작되면 Flyway 도입 검토).

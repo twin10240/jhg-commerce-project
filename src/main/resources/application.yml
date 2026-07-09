@@ -38,7 +38,8 @@ spring:
       read-timeout: 2s
 
 wms:
-  base-url: http://localhost:8081
+  # 로컬 기본 8081, 운영은 WMS_BASE_URL 주입(Railway private networking: http://<wms>.railway.internal:8081)
+  base-url: ${WMS_BASE_URL:http://localhost:8081}
 
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
