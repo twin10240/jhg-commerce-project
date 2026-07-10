@@ -40,6 +40,10 @@ spring:
 wms:
   # 로컬 기본 8081, 운영은 WMS_BASE_URL 주입(Railway private networking: http://<wms>.railway.internal:8081)
   base-url: ${WMS_BASE_URL:http://localhost:8081}
+  # WMS가 Basic 인증을 요구하므로 같은 자격증명을 실어 보낸다. 로컬 기본값은 wms/wms(WMS와 일치).
+  basic:
+    user: ${WMS_BASIC_USER:wms}
+    password: ${WMS_BASIC_PASSWORD:wms}
 
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)

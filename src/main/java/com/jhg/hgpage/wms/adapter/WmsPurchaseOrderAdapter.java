@@ -16,8 +16,12 @@ public class WmsPurchaseOrderAdapter {
     private final RestClient restClient;
 
     public WmsPurchaseOrderAdapter(RestClient.Builder builder,
-                                   @Value("${wms.base-url}") String baseUrl) {
-        this.restClient = builder.baseUrl(baseUrl).build();
+                                   @Value("${wms.base-url}") String baseUrl,
+                                   @Value("${wms.basic.user:wms}") String basicUser,
+                                   @Value("${wms.basic.password:wms}") String basicPassword) {
+        this.restClient = builder.baseUrl(baseUrl)
+                .defaultHeaders(h -> h.setBasicAuth(basicUser, basicPassword))
+                .build();
     }
 
     public record PurchaseOrderLine(Long productId, int quantity) {}
@@ -32,12 +36,16 @@ public class WmsPurchaseOrderAdapter {
     }
 
     public Long create(List<PurchaseOrderLine> lines, String memo) {
-        PurchaseOrderDto dto = restClient.post()
-                .uri("/api/purchase-orders")
-                .body(new CreateRequest(lines, memo))
-                .retrieve()
-                .body(PurchaseOrderDto.class);
-        return dto != null ? dto.id() : null;
+        try {
+            PurchaseOrderDto dto = restClient.post()
+                    .uri("/api/purchase-orders")
+                    .body(new CreateRequest(lines, memo))
+                    .retrieve()
+                    .body(PurchaseOrderDto.class);
+            return dto != null ? dto.id() : null;
+        } catch (HttpClientErrorException e) {
+            throw new IllegalArgumentException("발주 생성 실패: " + e.getStatusCode());
+        }
     }
 
     public Long receive(Long poId) {

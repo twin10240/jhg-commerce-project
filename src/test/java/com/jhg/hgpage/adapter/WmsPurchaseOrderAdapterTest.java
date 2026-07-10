@@ -56,6 +56,17 @@ class WmsPurchaseOrderAdapterTest {
     }
 
     @Test
+    void create_WMS가_400이면_IllegalArgumentException을_던진다() {
+        server.expect(requestTo("http://wms-test/api/purchase-orders"))
+              .andExpect(method(HttpMethod.POST))
+              .andRespond(withBadRequest());
+
+        assertThatThrownBy(() -> adapter.create(List.of(new PurchaseOrderLine(1L, 10)), "긴급"))
+                .isInstanceOf(IllegalArgumentException.class);
+        server.verify();
+    }
+
+    @Test
     void receive_WMS에_POST_요청을_보낸다() {
         server.expect(requestTo("http://wms-test/api/purchase-orders/receive?poId=7"))
               .andExpect(method(HttpMethod.POST))

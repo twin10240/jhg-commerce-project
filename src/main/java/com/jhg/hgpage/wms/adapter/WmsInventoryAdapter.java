@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
@@ -24,8 +25,12 @@ public class WmsInventoryAdapter implements InventoryPort {
     private final RestClient restClient;
 
     public WmsInventoryAdapter(RestClient.Builder builder,
-                               @Value("${wms.base-url}") String baseUrl) {
-        this.restClient = builder.baseUrl(baseUrl).build();
+                               @Value("${wms.base-url}") String baseUrl,
+                               @Value("${wms.basic.user:wms}") String basicUser,
+                               @Value("${wms.basic.password:wms}") String basicPassword) {
+        this.restClient = builder.baseUrl(baseUrl)
+                .defaultHeaders(h -> h.setBasicAuth(basicUser, basicPassword))
+                .build();
     }
 
     record WriteRequest(Long orderId, Map<Long, Integer> items) {}
@@ -34,13 +39,14 @@ public class WmsInventoryAdapter implements InventoryPort {
     public boolean reserveAll(Long orderId, Map<Long, Integer> qtyByProductId) {
         try {
             return doReserve(orderId, qtyByProductId);
-        } catch (ResourceAccessException first) {
-            // 일시적 blip 구제 — orderId 멱등이라 첫 요청이 실제 예약됐어도 재시도가 같은 결과로 수렴(S4).
-            log.warn("WMS 예약 통신 실패 — 1회 재시도: orderId={}", orderId);
+        } catch (ResourceAccessException | HttpServerErrorException first) {
+            // 통신 blip 또는 WMS 5xx(동시 예약 낙관적 락 충돌 #22)는 재시도 대상 — orderId 멱등이라
+            // 첫 요청이 실제 예약됐어도 재시도가 같은 결과로 수렴(S4). 4xx는 안 잡아 그대로 표면화.
+            log.warn("WMS 예약 실패 — 1회 재시도: orderId={}, cause={}", orderId, first.getClass().getSimpleName());
             try {
                 return doReserve(orderId, qtyByProductId);
-            } catch (ResourceAccessException second) {
-                // ponytail: WMS 다운 시 false → BACKORDERED 접수("예약 못 해본 백오더"). 회수는 보상 스윕.
+            } catch (ResourceAccessException | HttpServerErrorException second) {
+                // ponytail: 재시도도 실패 → false → BACKORDERED 접수("예약 못 해본 백오더"). 회수는 보상 스윕(#22).
                 log.warn("WMS 예약 재시도 실패 — BACKORDERED로 접수: orderId={}", orderId);
                 return false;
             }

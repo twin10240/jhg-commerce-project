@@ -28,8 +28,12 @@ public class WmsInventoryQueryAdapter implements InventoryQueryPort {
     private final RestClient restClient;
 
     public WmsInventoryQueryAdapter(RestClient.Builder builder,
-                                    @Value("${wms.base-url}") String baseUrl) {
-        this.restClient = builder.baseUrl(baseUrl).build();
+                                    @Value("${wms.base-url}") String baseUrl,
+                                    @Value("${wms.basic.user:wms}") String basicUser,
+                                    @Value("${wms.basic.password:wms}") String basicPassword) {
+        this.restClient = builder.baseUrl(baseUrl)
+                .defaultHeaders(h -> h.setBasicAuth(basicUser, basicPassword))
+                .build();
     }
 
     @Override

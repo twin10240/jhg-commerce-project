@@ -39,6 +39,10 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
+    // 취소↔백오더 승격 경합(리뷰 B5) 등 동시 상태 전이 충돌을 막기 위한 낙관적 락.
+    @Version
+    private Long version;
+
     public void setMember(Member member) {
         this.member = member;
         member.getOrders().add(this);

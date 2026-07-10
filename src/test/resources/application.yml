@@ -21,3 +21,6 @@ spring:
 
 wms:
   base-url: http://localhost:8081
+  basic:
+    user: wms
+    password: wms
