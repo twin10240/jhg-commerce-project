@@ -1,120 +1,123 @@
 # 그니 마켓 (jhg-commerce)
 
-Spring Boot 기반 **학습용 커머스 웹 애플리케이션**입니다.
-JPA 도메인 설계(주문/배송/재고)에 Spring Security 인증, QueryDSL, 장바구니 REST API를 직접 확장하며 만들고 있습니다.
+Spring Boot 기반 학습용 커머스이자 **미니 OMS(Order Management System)** 입니다. 주문·회원·장바구니를 관리하고, 별도 **WMS(Warehouse Management System)** 와 REST로 재고·예약·발주를 연동합니다.
 
-## 프로젝트 비전 — 미니 OMS + 별도 WMS
+핵심 정책은 **재고가 없어도 주문을 받는 백오더**입니다. 가용 재고가 부족하면 주문을 `BACKORDERED`로 접수하고, 입고 후 오래된 주문부터 자동으로 예약합니다.
 
-최종 목표는 쇼핑몰 완성이 아니라 **미니 OMS(주문관리시스템)와 별도 WMS(창고관리시스템) 간 통신** 구현입니다.
-핵심 컨셉은 **"재고가 없어도 주문이 가능해야 한다(백오더)"** 입니다 — 가용 재고가 없으면 구매를 차단하는 대신, 주문을 *입고 대기(BACKORDERED)* 로 접수하고 관리자가 발주·입고하면 밀린 주문이 자동으로 충족됩니다.
+## 로드맵
 
 | 단계 | 목표 | 상태 |
 |------|------|------|
-| Phase 1 | 주문 정책 전환(예약/백오더 모델) — 모놀리스 내부 OMS화 | ✅ 완료 |
-| Phase 2 | 모듈 경계 분리(`contract`·`catalog`·`oms`·`wms`, 서비스 인터페이스 통신) | ✅ 완료 (코어) |
-| Phase 3 | WMS 물리 분리(별도 앱 + REST 통신) | ⬜ 다음 단계 |
-| Phase 4 | (선택) 이벤트/메시지 기반 전환 | ⬜ |
+| Phase 1 | 예약·백오더 주문 모델 | ✅ 완료 |
+| Phase 2 | OMS/WMS 모듈 경계와 포트 분리 | ✅ 완료 |
+| Phase 3 | 별도 WMS 앱·DB와 REST 통신 | ✅ 완료 |
+| Phase 4 | 이벤트·메시지 기반 전환 | 선택 |
 
-> 📄 자세한 배경·시나리오·로드맵은 **[기획서](docs/기획서.md)** 를 참고하세요.
+자세한 배경과 시나리오는 [기획서](docs/기획서.md), 상세 변경 이력은 [CLAUDE.md](CLAUDE.md)를 참고하세요.
 
 ## 주요 기능
 
 | 영역 | 기능 |
 |------|------|
-| 회원 | 회원가입(Member+Account 단일 트랜잭션, 이메일 중복·비밀번호 일치 서버 검증), 로그인/로그아웃 |
-| 상품 | 키워드 검색 + 숫자 페이지 네비게이션(`이전 \| 1 … 4 [5] 6 … 12 \| 다음`), 가용 재고·입고 대기 표시 |
-| 장바구니 | REST API 기반 담기/수량변경/삭제, 실시간 카운트 배지 |
-| 주문 | 바로 구매 / 장바구니 주문, 주문서에서 **상품 선택 주문**, 검증 실패 인라인 에러 |
-| 백오더 | 재고 부족해도 **주문 접수(입고 대기)**, 입고 시 **FIFO 자동 충족**, 출고 시점에 실물 차감 |
-| 재고 | 예약 모델(`가용 = 실물 − 예약`), `@Version` 낙관적 락으로 동시 주문 오버셀 방지 |
-| 관리자 | 재고 조회/수동 조정, 발주 생성 → 입고 처리(중복 입고 방지), 발주 현황, 배송완료 처리 |
-| 공통 | 전역 예외 처리(화면: 에러 페이지·flash / API: ProblemDetail JSON), 다크 모드 지원 |
+| 회원 | 회원가입, 이메일 중복·비밀번호 확인, 로그인·로그아웃, USER/ADMIN 권한 |
+| 상품 | 키워드 검색, 숫자 페이지 이동, WMS 가용 재고·입고 대기 표시 |
+| 장바구니 | REST 기반 담기·수량 변경·삭제, 실시간 카운트 |
+| 주문 | 바로 구매·선택 상품 주문, 주문 상세·취소, 배송 완료 |
+| 백오더 | 재고 부족 주문 접수, 입고 콜백·보상 스윕을 통한 FIFO 자동 승격 |
+| WMS 연동 | 가용 재고 조회, 멱등 예약·출고·해제, 재고조정, 발주·입고 |
+| 안정성 | WMS 타임아웃, 예약 1회 재시도, `orderId` 멱등 원장, 낙관적 락 |
+
+## 시스템 구성
+
+```text
+Browser
+  │
+  ▼
+OMS (이 저장소, Java 17, :8080)
+  ├─ 회원·장바구니·상품 카탈로그
+  ├─ 주문·배송·백오더 정책
+  └─ WMS REST adapters ──HTTP Basic──▶ WMS (jhg-wms-project, Java 21, :8081)
+                                       ├─ 재고·예약 원장
+                                       ├─ 발주·입고·출고
+                                       └─ 자체 DB(H2/PostgreSQL)
+```
+
+OMS와 WMS는 서로의 엔티티를 공유하지 않습니다. OMS는 `contract/` 포트에 의존하고 `wms/adapter`가 포트를 REST 호출로 구현합니다. WMS는 `productId`와 `orderId`만으로 재고·예약을 관리합니다.
+
+```text
+src/main/java/com/jhg/hgpage
+├─ contract/   InventoryPort · InventoryQueryPort · StockReplenishedHandler
+├─ catalog/    Product · ProductService · ProductRepository
+├─ oms/        주문·장바구니·고객 domain/repository/service/web
+├─ wms/        REST adapter · 응답 DTO · 관리자 프록시 web
+├─ config/     Security · QueryDSL · Scheduling
+├─ web/        공용 Home/Main 컨트롤러
+└─ exception/  화면·API 전역 예외 처리
+```
+
+실제 `Inventory`, `Reservation`, `PurchaseOrder` 도메인과 영속성은 별도 `jhg-wms-project`에 있습니다.
 
 ## 기술 스택
 
-- **Java 17**, **Spring Boot 3.5**, Gradle
-- **Spring Data JPA** (Hibernate) + **QueryDSL** (jakarta)
-- **Spring Security 6** (BCrypt, Thymeleaf 통합)
-- **H2** (로컬/테스트) · **PostgreSQL** (운영)
-- **Thymeleaf** 서버 사이드 렌더링, Lombok, p6spy(SQL 로깅)
-- **Docker** · **Railway** (배포)
-
-## 아키텍처 — 바운디드 컨텍스트
-
-OMS(주문)와 WMS(재고)의 도메인·서비스·리포지토리를 **컨텍스트별로 수직 분할**하고,
-둘은 서로 직접 의존하지 않고 **`contract/` 경계 포트로만 통신**합니다(패키지 순환 없음).
-
-```
-src/main/java/com/jhg/hgpage
-├── contract/   OMS↔WMS 경계 포트 (InventoryPort · InventoryQueryPort · StockReplenishedHandler)
-├── catalog/    상품 카탈로그 (Product — OMS·WMS 공통) + ProductService/Repository
-├── oms/        주문·장바구니·고객   (domain · repository · service)
-│                 Order · Cart · Account · Member · OrderService · BackorderAllocator …
-├── wms/        재고·발주·입고·출고   (domain · repository · service)
-│                 Inventory · PurchaseOrder · InventoryService · PurchaseOrderService …
-├── api/        장바구니·주문 REST API
-├── config/     Security, QueryDSL 설정
-├── controller/ 화면 컨트롤러 (auth / main / cart / order / admin) + form DTO
-├── domain/     공용 응답 DTO(view) · UserPrincipal · Role enum
-├── exception/  전역 예외 처리 (GlobalExceptionHandler 등)
-└── initDb      초기 시드 (빈 DB에만 실행)
-```
-
-> OMS→WMS의 재고 호출(예약/해제/출고/가용 조회)은 모두 `contract` 포트를 거칩니다.
-> Phase 3에서 이 포트가 그대로 **REST 호출**로 진화하는 지점입니다.
+- OMS: Java 17, Spring Boot 3.5.5, Spring Data JPA, QueryDSL, Spring Security, Thymeleaf
+- WMS: Java 21, Spring Boot 3.5.5, Spring Data JPA, Spring Security, Thymeleaf
+- 로컬 DB: 각 앱의 별도 H2
+- 운영 DB: 각 앱의 별도 PostgreSQL
+- 배포: Docker, Railway
 
 ## 로컬 실행
 
-```bash
-# 1. H2 TCP 서버 실행 (datasource: jdbc:h2:tcp://localhost/~/hgpage)
+두 저장소를 함께 실행해야 전체 기능을 사용할 수 있습니다. 기본 프로파일은 양쪽 모두 H2 TCP를 사용하므로 각 DB 서버도 먼저 실행해야 합니다.
 
-# 2. 애플리케이션 실행
-./gradlew bootRun          # Windows: .\gradlew.bat bootRun
+```powershell
+# 1. jhg-wms-project에서 WMS 실행(:8081)
+.\gradlew.bat bootRun
 
-# 스키마 리셋 + 재시드가 필요하면 local 프로파일 (ddl-auto: create)
-./gradlew bootRun --args='--spring.profiles.active=local'
-
-# 3. http://localhost:8080 접속
+# 2. 이 저장소에서 OMS 실행(:8080)
+.\gradlew.bat bootRun
 ```
 
-> JDK 17 이상이 필요합니다 (`JAVA_HOME` 확인). 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돕니다.
+기본 연결값은 다음과 같습니다.
 
-### 초기 계정 (자동 시드)
+```text
+WMS_BASE_URL=http://localhost:8081
+WMS_BASIC_USER=wms
+WMS_BASIC_PASSWORD=wms
+```
+
+WMS의 모든 화면과 API는 HTTP Basic 인증을 요구합니다. 두 앱의 `WMS_BASIC_USER`와 `WMS_BASIC_PASSWORD`가 반드시 같아야 합니다.
+
+OMS 기본 프로파일은 H2 TCP(`~/hgpage`)와 `ddl-auto: update`를 사용합니다. 스키마를 초기화하려면 `--spring.profiles.active=local`로 실행합니다. 테스트는 임베디드 H2를 사용하므로 외부 DB가 필요 없습니다.
+
+### OMS 초기 계정
 
 | 구분 | 이메일 | 비밀번호 |
 |------|--------|----------|
-| 관리자 | `admin@admin.com` | `ADMIN_PASSWORD` 환경변수 (로컬 기본 `1111`) |
+| 관리자 | `admin@admin.com` | `${ADMIN_PASSWORD:1111}` |
 | 일반회원 | `twin10240@naver.com` | `1111` |
 
-상품 20개와 재고가 함께 시드됩니다. 관리자 비밀번호는 코드에 박지 않고 `ADMIN_PASSWORD` 환경변수로 주입합니다.
+OMS는 상품 20개를, WMS는 같은 `productId` 1~20의 초기 재고를 각자 시드합니다.
 
-## 배포 (Railway)
+## Railway 배포
 
-GitHub `master`에 push하면 Railway가 자동 빌드·배포합니다.
-
-- **빌드**: 루트 `Dockerfile`(JDK17 멀티스테이지 — 빌드/실행 분리). `railway.json`이 Dockerfile 빌더를 강제.
-- **DB**: `prod` 프로파일 + Railway PostgreSQL 플러그인. 앱 서비스에 환경변수 설정:
-  ```
-  SPRING_PROFILES_ACTIVE=prod
-  PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD   # Postgres 서비스 값
-  ADMIN_PASSWORD=<강한 비밀번호>
-  ```
-- **포트**: `server.port=${PORT:8080}` 로 Railway가 주입하는 포트에 바인딩.
-- **스키마**: Flyway로 버전 관리(`prod` 프로파일). 첫 기동 시 `V1__init_schema.sql`이 적용돼 스키마를 생성하고 `initDb`가 빈 DB를 시드. `ddl-auto: validate`로 엔티티-스키마 불일치를 기동 시 감지.
-
-> 스키마 변경은 `src/main/resources/db/migration/V{n}__*.sql` 마이그레이션 파일로 관리. 스키마를 초기화하려면 Railway DB에서 `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` 후 재배포(데이터 소실).
+- OMS와 WMS는 각자 Docker 이미지와 PostgreSQL을 사용합니다.
+- OMS는 Flyway와 `ddl-auto: validate`, WMS는 현재 `ddl-auto: update`를 사용합니다.
+- OMS→WMS 호출은 `WMS_BASE_URL=http://jhg-wms-project.railway.internal:8081` private networking을 유지합니다.
+- WMS 공개 관리자 URL은 `https://jhg-wms-project-production.up.railway.app`이며 HTTP Basic 인증이 필요합니다.
+- 두 서비스에 동일한 `WMS_BASIC_USER`·`WMS_BASIC_PASSWORD`를 설정해야 합니다.
+- 자격증명을 변경할 때는 새 자격증명을 전송하는 OMS를 먼저 배포하고 WMS를 배포합니다. 순서를 바꾸면 OMS→WMS 호출이 모두 401로 실패합니다.
 
 ## 테스트
 
-```bash
-./gradlew test
+```powershell
+.\gradlew.bat test
 ```
 
-- **단위 테스트**: Mockito 기반 서비스/도메인 테스트 (`InventoryServiceTest`, `OrderAllocationServiceTest`, `PurchaseOrderTest` 등)
-- **슬라이스 테스트**: `@WebMvcTest`(Security 포함 컨트롤러·템플릿 렌더링 검증), `@DataJpaTest`(임베디드 H2 — 낙관적 락, fetch join 쿼리, 시드 멱등성 검증 — 별도 DB 서버 불필요)
+2026-07-14 기준 OMS 전체 테스트 **163건 통과**, 실패·오류·스킵 0건입니다. Mockito 단위 테스트, `@WebMvcTest`, `@DataJpaTest`, 어댑터와 백오더 복구 테스트를 포함합니다.
 
 ## 문서
 
-- [`docs/기획서.md`](docs/기획서.md) — 프로젝트 기획서(배경·비전·핵심 시나리오·로드맵)
-- [`CLAUDE.md`](CLAUDE.md) — 아키텍처·도메인 규칙·배포·알려진 이슈·개선 우선순위
-- [`docs/`](docs/) — 기능별 설계 문서
+- [기획서](docs/기획서.md) — 비전·시나리오·로드맵
+- [OMS 경계 문서](src/main/java/com/jhg/hgpage/oms/README.md) — 주문과 WMS 연동 흐름
+- [리스크](risk.md) — 현재 열린 운영 위험
+- [CLAUDE.md](CLAUDE.md) — 상세 아키텍처·변경 이력·개발 규칙
