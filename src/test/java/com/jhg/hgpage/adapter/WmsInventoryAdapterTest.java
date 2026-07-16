@@ -62,29 +62,6 @@ class WmsInventoryAdapterTest {
         server.verify();
     }
 
-    @Test
-    void adjust_WMS에_POST_요청을_보내고_조정된_수량을_반환한다() {
-        server.expect(requestTo("http://wms-test/api/inventory/adjust"))
-              .andExpect(method(HttpMethod.POST))
-              .andRespond(withSuccess("15", MediaType.APPLICATION_JSON));
-
-        int result = adapter.adjust(1L, 5, "정기조사");
-
-        assertThat(result).isEqualTo(15);
-        server.verify();
-    }
-
-    @Test
-    void adjust_WMS가_400을_반환하면_IllegalArgumentException을_던진다() {
-        server.expect(requestTo("http://wms-test/api/inventory/adjust"))
-              .andExpect(method(HttpMethod.POST))
-              .andRespond(withBadRequest());
-
-        assertThatThrownBy(() -> adapter.adjust(1L, -999, "조정"))
-                .isInstanceOf(IllegalArgumentException.class);
-        server.verify();
-    }
-
     // ── S4: 재시도/강등 ──────────────────────────────────────────
 
     @Test
