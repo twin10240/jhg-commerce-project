@@ -3,12 +3,13 @@ package com.jhg.hgpage.controller.admin;
 import com.jhg.hgpage.config.SecurityConfig;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
-import com.jhg.hgpage.wms.adapter.WmsInventoryAdapter;
 import com.jhg.hgpage.wms.adapter.WmsInventoryQueryAdapter;
-import com.jhg.hgpage.wms.adapter.WmsPurchaseOrderAdapter;
+import com.jhg.hgpage.wms.adapter.WmsReplenishmentRequestAdapter;
+import com.jhg.hgpage.wms.adapter.WmsReplenishmentRequestAdapter.RequestLine;
 import com.jhg.hgpage.wms.dto.InventoryRow;
-import com.jhg.hgpage.wms.dto.PurchaseOrderDto;
+import com.jhg.hgpage.wms.dto.ReplenishmentRequestDto;
 import com.jhg.hgpage.wms.web.controller.InventoryAdminController;
+import com.jhg.hgpage.wms.web.form.ReplenishmentRequestForm;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -16,12 +17,16 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(InventoryAdminController.class)
@@ -29,111 +34,97 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class InventoryAdminControllerMvcTest {
 
     @Autowired MockMvc mockMvc;
-    @MockitoBean WmsInventoryAdapter wmsInventoryAdapter;
     @MockitoBean WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
-    @MockitoBean WmsPurchaseOrderAdapter wmsPurchaseOrderAdapter;
+    @MockitoBean WmsReplenishmentRequestAdapter requestAdapter;
 
     private UserPrincipal admin() {
-        return new UserPrincipal(2L, "admin@admin.com", "관리자", "010-1111-2222", "pw", Role.ADMIN);
+        return new UserPrincipal(2L, "admin@admin.com", "admin", "010-1111-2222", "pw", Role.ADMIN);
     }
 
     private UserPrincipal normalUser() {
-        return new UserPrincipal(1L, "u@u.com", "유저", "010-0000-0000", "pw", Role.USER);
+        return new UserPrincipal(1L, "u@u.com", "user", "010-0000-0000", "pw", Role.USER);
     }
 
     @Test
-    void 재고화면은_재고목록을_조회한다() throws Exception {
+    void inventoryShowsProductsRequestsAndNewForm() throws Exception {
+        var request = request(UUID.randomUUID());
         when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, 15)));
+        when(requestAdapter.findAll()).thenReturn(List.of(request));
 
-        mockMvc.perform(get("/admin/inventory").with(user(admin())))
+        var result = mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/inventory"))
-                .andExpect(model().attributeExists("products"));
+                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, 15))))
+                .andExpect(model().attribute("requests", List.of(request)))
+                .andExpect(model().attributeExists("requestForm"))
+                .andReturn();
+
+        ReplenishmentRequestForm form = (ReplenishmentRequestForm) result.getModelAndView().getModel().get("requestForm");
+        assertThat(form.getRequestKey()).isNotNull();
+        assertThat(form.getItems()).hasSize(1);
     }
 
     @Test
-    void 발주화면은_발주목록과_재고목록을_조회한다() throws Exception {
-        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, 15)));
-        when(wmsPurchaseOrderAdapter.findAllWithItems()).thenReturn(List.of(
-                new PurchaseOrderDto(1L, "ORDERED", "긴급", null, null, List.of())));
+    void createsRequestWithStableKeyAndLines() throws Exception {
+        UUID key = UUID.randomUUID();
+        when(requestAdapter.create(key, List.of(new RequestLine(1L, 3)), "low stock"))
+                .thenReturn(request(key));
 
-        mockMvc.perform(get("/admin/purchase-orders").with(user(admin())))
-                .andExpect(status().isOk())
-                .andExpect(view().name("admin/purchaseorders"))
-                .andExpect(model().attributeExists("purchaseOrders", "products"));
+        mockMvc.perform(post("/admin/replenishment-requests")
+                        .with(user(admin())).with(csrf())
+                        .param("requestKey", key.toString())
+                        .param("reason", "low stock")
+                        .param("items[0].productId", "1")
+                        .param("items[0].requestedQty", "3"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(flash().attributeExists("successMessage"));
+
+        verify(requestAdapter).create(key, List.of(new RequestLine(1L, 3)), "low stock");
     }
 
     @Test
-    void 일반사용자는_재고목록에_접근할_수_없다() throws Exception {
+    void adapterErrorPreservesRequestForm() throws Exception {
+        UUID key = UUID.randomUUID();
+        when(requestAdapter.create(key, List.of(new RequestLine(1L, 3)), "low stock"))
+                .thenThrow(new IllegalStateException("WMS unavailable"));
+
+        var result = mockMvc.perform(post("/admin/replenishment-requests")
+                        .with(user(admin())).with(csrf())
+                        .param("requestKey", key.toString())
+                        .param("reason", "low stock")
+                        .param("items[0].productId", "1")
+                        .param("items[0].requestedQty", "3"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(flash().attribute("errorMessage", "WMS unavailable"))
+                .andExpect(flash().attributeExists("requestForm"))
+                .andReturn();
+
+        ReplenishmentRequestForm form = (ReplenishmentRequestForm) result.getFlashMap().get("requestForm");
+        assertThat(form.getRequestKey()).isEqualTo(key);
+        assertThat(form.getReason()).isEqualTo("low stock");
+        assertThat(form.getItems()).singleElement().satisfies(item -> {
+            assertThat(item.getProductId()).isEqualTo(1L);
+            assertThat(item.getRequestedQty()).isEqualTo(3);
+        });
+    }
+
+    @Test
+    void normalUserCannotViewInventory() throws Exception {
         mockMvc.perform(get("/admin/inventory").with(user(normalUser())))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void 재고를_조정하면_조회페이지로_리다이렉트한다() throws Exception {
-        when(wmsInventoryAdapter.adjust(1L, 5, "정기조사")).thenReturn(20);
-
-        mockMvc.perform(post("/admin/inventory/adjust")
-                        .with(user(admin())).with(csrf())
-                        .param("productId", "1").param("delta", "5").param("reason", "정기조사"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
-                .andExpect(flash().attributeExists("successMessage"));
-
-        verify(wmsInventoryAdapter).adjust(1L, 5, "정기조사");
+    void normalUserCannotCreateRequest() throws Exception {
+        mockMvc.perform(post("/admin/replenishment-requests").with(user(normalUser())).with(csrf()))
+                .andExpect(status().isForbidden());
     }
 
-    @Test
-    void 재고_조정_실패는_에러메시지와_함께_리다이렉트한다() throws Exception {
-        when(wmsInventoryAdapter.adjust(1L, -99, "조정"))
-                .thenThrow(new IllegalArgumentException("재고는 0 미만이 될 수 없습니다."));
-
-        mockMvc.perform(post("/admin/inventory/adjust")
-                        .with(user(admin())).with(csrf())
-                        .param("productId", "1").param("delta", "-99").param("reason", "조정"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attributeExists("errorMessage"));
-    }
-
-    @Test
-    void 발주를_생성하면_성공메시지와_함께_리다이렉트한다() throws Exception {
-        when(wmsPurchaseOrderAdapter.create(anyList(), eq("긴급 발주"))).thenReturn(7L);
-
-        mockMvc.perform(post("/admin/purchase-orders")
-                        .with(user(admin())).with(csrf())
-                        .param("items[0].productId", "1")
-                        .param("items[0].quantity", "10")
-                        .param("memo", "긴급 발주"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/purchase-orders"))
-                .andExpect(flash().attributeExists("successMessage"));
-
-        verify(wmsPurchaseOrderAdapter).create(anyList(), eq("긴급 발주"));
-    }
-
-    @Test
-    void 입고하면_성공메시지와_함께_리다이렉트한다() throws Exception {
-        when(wmsPurchaseOrderAdapter.receive(7L)).thenReturn(7L);
-
-        mockMvc.perform(post("/admin/purchase-orders/receive")
-                        .with(user(admin())).with(csrf())
-                        .param("poId", "7"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/purchase-orders"))
-                .andExpect(flash().attributeExists("successMessage"));
-
-        verify(wmsPurchaseOrderAdapter).receive(7L);
-    }
-
-    @Test
-    void 이미_입고된_발주는_에러메시지와_함께_리다이렉트한다() throws Exception {
-        when(wmsPurchaseOrderAdapter.receive(7L))
-                .thenThrow(new IllegalStateException("이미 입고 처리된 발주입니다."));
-
-        mockMvc.perform(post("/admin/purchase-orders/receive")
-                        .with(user(admin())).with(csrf())
-                        .param("poId", "7"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attributeExists("errorMessage"));
+    private ReplenishmentRequestDto request(UUID key) {
+        return new ReplenishmentRequestDto(11L, key, "low stock", "REQUESTED",
+                LocalDateTime.of(2026, 7, 16, 10, 0), null, null, null, null,
+                List.of(new ReplenishmentRequestDto.ItemDto(1L, 3)));
     }
 }
