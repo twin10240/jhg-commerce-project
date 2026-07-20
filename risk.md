@@ -8,13 +8,9 @@
 - Fix: delete `Product.cartItems` and the `CartItem` import. Keep the owning `CartItem.product` side.
 - Resolved (2026-07-10): removed the dead `Product.cartItems` mapping and `CartItem` import; `CartItem.product` remains the owning reference.
 
-## 2. Purchase-order create errors can bypass admin flash
+## 2. Purchase-order create errors can bypass admin flash (removed)
 
-- Location: `src/main/java/com/jhg/hgpage/wms/adapter/WmsPurchaseOrderAdapter.java`
-- Risk: `receive()` maps WMS 404/409 into user-facing exceptions, but `create()` lets WMS 4xx bubble as `HttpClientErrorException`.
-- Impact: invalid purchase-order input can render an error page instead of returning to `/admin/purchase-orders` with flash.
-- Fix: catch `HttpClientErrorException` in `create()` and throw `IllegalArgumentException` with a short message. Add one adapter test.
-- Resolved (2026-07-10): `create()` now maps WMS 4xx `HttpClientErrorException` to `IllegalArgumentException`, covered by a `withBadRequest()` adapter test.
+- Resolved (2026-07-16): OMS purchase-order create/receive controls and `WmsPurchaseOrderAdapter` were removed. OMS now submits and observes replenishment requests; WMS owns manual purchase-order operations.
 
 ## 3. WMS callback endpoint is public inside the app
 

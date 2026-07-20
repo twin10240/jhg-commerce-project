@@ -6,7 +6,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -83,19 +82,4 @@ public class WmsInventoryAdapter implements InventoryPort {
                 .toBodilessEntity();
     }
 
-    /** 관리자 재고 조정. WMS 400은 IllegalArgumentException으로 변환한다. */
-    public int adjust(Long productId, int delta, String reason) {
-        try {
-            record AdjustRequest(Long productId, int delta, String reason) {}
-            Integer result = restClient.post()
-                    .uri("/api/inventory/adjust")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(new AdjustRequest(productId, delta, reason))
-                    .retrieve()
-                    .body(Integer.class);
-            return result != null ? result : 0;
-        } catch (HttpClientErrorException e) {
-            throw new IllegalArgumentException("WMS 재고 조정 실패: " + e.getStatusCode());
-        }
-    }
 }
