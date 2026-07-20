@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS cart (
 
 CREATE TABLE IF NOT EXISTS product (
     product_id BIGINT       NOT NULL DEFAULT nextval('product_seq'),
+    inventory_id BIGINT,
     name       VARCHAR(255),
     price      INTEGER      NOT NULL,
     CONSTRAINT pk_product PRIMARY KEY (product_id)
