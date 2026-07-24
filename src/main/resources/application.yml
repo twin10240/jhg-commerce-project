@@ -45,6 +45,11 @@ wms:
     user: ${WMS_BASIC_USER:wms}
     password: ${WMS_BASIC_PASSWORD:wms}
 
+oms:
+  callback:
+    user: ${OMS_CALLBACK_USER:wms}
+    password: ${OMS_CALLBACK_PASSWORD:wms}
+
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
 spring:
@@ -83,3 +88,7 @@ decorator:
   datasource:
     p6spy:
       enable-logging: false
+oms:
+  callback:
+    user: ${OMS_CALLBACK_USER}
+    password: ${OMS_CALLBACK_PASSWORD}
