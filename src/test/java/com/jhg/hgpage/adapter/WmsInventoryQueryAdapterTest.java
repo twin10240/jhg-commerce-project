@@ -47,12 +47,13 @@ class WmsInventoryQueryAdapterTest {
     @Test
     void allRows_WMS에서_전체_재고_목록을_조회한다() {
         server.expect(requestTo("http://wms-test/api/inventory/rows"))
-              .andRespond(withSuccess("[{\"productId\":1,\"onHandQty\":10}]", MediaType.APPLICATION_JSON));
+              .andRespond(withSuccess("[{\"productId\":1,\"productName\":\"상품 1\",\"onHandQty\":10}]", MediaType.APPLICATION_JSON));
 
         List<InventoryRow> result = adapter.allRows();
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).productId()).isEqualTo(1L);
+        assertThat(result.get(0).productName()).isEqualTo("상품 1");
         assertThat(result.get(0).onHandQty()).isEqualTo(10);
         server.verify();
     }

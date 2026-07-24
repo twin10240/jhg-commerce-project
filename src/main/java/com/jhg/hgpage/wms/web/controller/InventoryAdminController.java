@@ -24,13 +24,19 @@ public class InventoryAdminController {
     @GetMapping("/admin/inventory")
     public String inventory(Model model) {
         model.addAttribute("products", wmsInventoryQueryAdapter.allRows());
+        return "admin/inventory";
+    }
+
+    @GetMapping("/admin/replenishment-requests")
+    public String replenishmentRequests(Model model) {
+        model.addAttribute("products", wmsInventoryQueryAdapter.allRows());
         model.addAttribute("requests", requestAdapter.findAll());
         if (!model.containsAttribute("requestForm")) {
             var form = new ReplenishmentRequestForm();
             form.setRequestKey(UUID.randomUUID());
             model.addAttribute("requestForm", form);
         }
-        return "admin/inventory";
+        return "admin/replenishment-requests";
     }
 
     @PostMapping("/admin/replenishment-requests")
@@ -46,6 +52,6 @@ public class InventoryAdminController {
             redirectAttributes.addFlashAttribute("errorMessage", exception.getMessage());
             redirectAttributes.addFlashAttribute("requestForm", requestForm);
         }
-        return "redirect:/admin/inventory";
+        return "redirect:/admin/replenishment-requests";
     }
 }

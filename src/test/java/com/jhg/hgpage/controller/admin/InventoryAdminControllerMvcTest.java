@@ -46,15 +46,28 @@ class InventoryAdminControllerMvcTest {
     }
 
     @Test
-    void inventoryShowsProductsRequestsAndNewForm() throws Exception {
-        var request = request(UUID.randomUUID());
-        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, 15)));
-        when(requestAdapter.findAll()).thenReturn(List.of(request));
+    void inventoryShowsProductsOnly() throws Exception {
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, "상품 1", 15)));
 
-        var result = mockMvc.perform(get("/admin/inventory").with(user(admin())))
+        mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/inventory"))
-                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, 15))))
+                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, "상품 1", 15))))
+                .andExpect(model().attributeDoesNotExist("requests", "requestForm"));
+
+        verifyNoInteractions(requestAdapter);
+    }
+
+    @Test
+    void replenishmentRequestsShowsProductsRequestsAndNewForm() throws Exception {
+        var request = request(UUID.randomUUID());
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, "상품 1", 15)));
+        when(requestAdapter.findAll()).thenReturn(List.of(request));
+
+        var result = mockMvc.perform(get("/admin/replenishment-requests").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/replenishment-requests"))
+                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, "상품 1", 15))))
                 .andExpect(model().attribute("requests", List.of(request)))
                 .andExpect(model().attributeExists("requestForm"))
                 .andReturn();
@@ -77,7 +90,7 @@ class InventoryAdminControllerMvcTest {
                         .param("items[0].productId", "1")
                         .param("items[0].requestedQty", "3"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/replenishment-requests"))
                 .andExpect(flash().attributeExists("successMessage"));
 
         verify(requestAdapter).create(key, List.of(new RequestLine(1L, 3)), "low stock");
@@ -96,7 +109,7 @@ class InventoryAdminControllerMvcTest {
                         .param("items[0].productId", "1")
                         .param("items[0].requestedQty", "3"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin/inventory"))
+                .andExpect(redirectedUrl("/admin/replenishment-requests"))
                 .andExpect(flash().attribute("errorMessage", "WMS unavailable"))
                 .andExpect(flash().attributeExists("requestForm"))
                 .andReturn();
@@ -113,6 +126,12 @@ class InventoryAdminControllerMvcTest {
     @Test
     void normalUserCannotViewInventory() throws Exception {
         mockMvc.perform(get("/admin/inventory").with(user(normalUser())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void normalUserCannotViewReplenishmentRequests() throws Exception {
+        mockMvc.perform(get("/admin/replenishment-requests").with(user(normalUser())))
                 .andExpect(status().isForbidden());
     }
 

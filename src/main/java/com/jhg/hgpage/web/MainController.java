@@ -45,7 +45,7 @@ public class MainController {
         model.addAttribute("beginPage", beginPage);
         model.addAttribute("endPage", endPage);
 
-        // 재고 조회와 보충 요청은 /admin/inventory에서 처리한다(메인 탭은 링크만).
+        // 재고 조회와 보충 요청은 전용 관리자 화면에서 처리한다(메인 탭은 링크만).
         List<OrderDto> orders = orderService.findOrders(userPrincipal.getId());
         model.addAttribute("orders", orders);
 

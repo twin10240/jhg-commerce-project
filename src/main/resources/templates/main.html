@@ -440,10 +440,10 @@
         <section id="inventory" class="section" sec:authorize="hasRole('ADMIN')">
             <div class="card" style="padding:18px;">
                 <h2 style="margin:2px 0 4px; font-size:18px;">재고 / 발주 관리</h2>
-                <div class="hint" style="margin-bottom:14px;">재고 현황·조정과 발주·입고는 각 전용 화면에서 처리합니다.</div>
+                <div class="hint" style="margin-bottom:14px;">OMS에서는 재고 현황 조회와 재고 보충 요청을 제공합니다. 재고 조정·발주·입고는 WMS에서 처리합니다.</div>
                 <div style="display:flex; gap:10px; flex-wrap:wrap;">
                     <a class="btn" th:href="@{/admin/inventory}">재고 관리</a>
-                    <a class="btn" th:href="@{/admin/inventory}">재고·보충 요청</a>
+                    <a class="btn" th:href="@{/admin/replenishment-requests}">재고 보충 요청</a>
                     <a class="btn muted" th:href="@{/admin/orders}">배송 관리</a>
                 </div>
             </div>
