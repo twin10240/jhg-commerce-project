@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>내 주문 · 그니마켓</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body style="margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif">
+<div th:replace="~{fragments/layout :: nav('orders')}"></div>
+<main class="app-shell app-card">
+  <h1 class="app-title">내 주문</h1>
+  <p class="app-subtitle">최근 주문과 입고·출고 상태를 확인하세요.</p>
+
+  <div class="empty-state" th:if="${#lists.isEmpty(orders)}">
+    <p>아직 주문이 없습니다.</p>
+    <a class="app-btn" th:href="@{/main}">상품 보러 가기</a>
+  </div>
+
+  <section class="app-grid orders-grid" th:unless="${#lists.isEmpty(orders)}">
+    <article class="order-card" th:each="order : ${orders}">
+      <div>
+        <strong th:text="|주문 #${order.id}|">주문 #1</strong>
+        <div class="order-meta">
+          <span th:text="${#temporals.format(order.createdAt,'yyyy-MM-dd HH:mm')}">2026-07-25</span>
+          <span><b th:text="${#numbers.formatInteger(order.totalAmount,3,'COMMA')}">10,000</b>원</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="status-badge"
+              th:classappend="${order.status.name() == 'CANCEL'} ? 'status-cancel' : (${order.status.name() == 'BACKORDERED'} ? 'status-backordered' : (${order.deliveryStatus.name() == 'COMP'} ? 'status-complete' : 'status-ready'))"
+              th:text="${order.status.name() == 'CANCEL'} ? '주문 취소' : (${order.status.name() == 'BACKORDERED'} ? '입고 대기' : (${order.deliveryStatus.name() == 'COMP'} ? '출고 완료' : '출고 준비'))">상태</span>
+        <a class="app-btn secondary" th:href="@{|/orders/${order.id}|}">상세</a>
+      </div>
+    </article>
+  </section>
+</main>
+</body>
+</html>

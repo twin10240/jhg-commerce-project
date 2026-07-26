@@ -1,36 +1,24 @@
 package com.jhg.hgpage.web;
 
-import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.catalog.ProductCardDto;
-import com.jhg.hgpage.domain.dto.UserPrincipal;
-import com.jhg.hgpage.oms.repository.SearchOption;
-import com.jhg.hgpage.oms.service.MemberService;
-import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.catalog.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
-
-import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
 public class MainController {
-    private final MemberService memberService;
     private final ProductService productService;
-    private final OrderService orderService;
 
     @GetMapping("/main")
-    public String logIn(@AuthenticationPrincipal UserPrincipal userPrincipal,
-                        @ModelAttribute("searchOption") SearchOption searchOption,
-                        @RequestParam(defaultValue = "") String keyword,
+    public String logIn(@RequestParam(defaultValue = "") String keyword,
                         @PageableDefault(size = 10, sort = "id") Pageable pageable,
                         Model model) {
         // 사용자 상품 그리드: 검색 + 페이징 적용. 가용수량은 카드 DTO에 담겨 온다(재고 객체그래프 비노출)
@@ -45,12 +33,12 @@ public class MainController {
         model.addAttribute("beginPage", beginPage);
         model.addAttribute("endPage", endPage);
 
-        // 재고 조회와 보충 요청은 전용 관리자 화면에서 처리한다(메인 탭은 링크만).
-        List<OrderDto> orders = orderService.findOrders(userPrincipal.getId());
-        model.addAttribute("orders", orders);
-
-        model.addAttribute("role", userPrincipal.getAuthorities());
-
         return "main";
+    }
+
+    @GetMapping("/products/{productId}")
+    public String productDetail(@PathVariable Long productId, Model model) {
+        model.addAttribute("product", productService.findCard(productId));
+        return "product-detail";
     }
 }

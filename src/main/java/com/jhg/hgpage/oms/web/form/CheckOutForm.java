@@ -68,6 +68,7 @@ public class CheckOutForm {
         private int price;
         @Min(value = 1, message = "수량은 1개 이상이어야 합니다.")
         private int quantity;
+        private int availableQty;
         // 주문서에서 체크 해제하면 주문에서 제외. 기본 true라 단건 구매/기존 흐름은 그대로 동작한다.
         private boolean selected = true;
 

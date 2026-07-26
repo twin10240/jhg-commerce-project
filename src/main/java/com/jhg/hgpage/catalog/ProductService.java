@@ -1,6 +1,7 @@
 package com.jhg.hgpage.catalog;
 
 import com.jhg.hgpage.contract.InventoryQueryPort;
+import com.jhg.hgpage.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -42,4 +43,11 @@ public class ProductService {
                 availableByProductId.getOrDefault(p.getId(), 0)));
     }
 
+    public ProductCardDto findCard(Long productId) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new EntityNotFoundException("Product", productId));
+        int availableQty = inventoryQueryPort.availableByProductIds(List.of(productId))
+                .getOrDefault(productId, 0);
+        return new ProductCardDto(product.getId(), product.getName(), product.getPrice(), availableQty);
+    }
 }

@@ -2,6 +2,8 @@ package com.jhg.hgpage.oms.repository;
 
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -33,10 +35,22 @@ public class OrderRepositoryQuery {
 
     // 관리자 배송 관리 목록 — ToOne(member/delivery)만 fetch join, orderItems는 batch fetch에 맡긴다
     public List<Order> findAllForAdmin() {
+        var priority = new CaseBuilder()
+                .when(order.status.eq(OrderStatus.ORDER)
+                        .and(delivery.status.eq(DeliveryStatus.READY))).then(0)
+                .when(order.status.eq(OrderStatus.BACKORDERED)).then(1)
+                .when(delivery.status.eq(DeliveryStatus.COMP)).then(2)
+                .otherwise(3);
+        var activeAge = new CaseBuilder()
+                .when(order.status.eq(OrderStatus.ORDER)
+                        .and(delivery.status.eq(DeliveryStatus.READY))
+                        .or(order.status.eq(OrderStatus.BACKORDERED))).then(order.id)
+                .otherwise(Long.MAX_VALUE);
+
         return jpaQueryFactory.selectFrom(order)
                 .join(order.member, member).fetchJoin()
                 .join(order.delivery, delivery).fetchJoin()
-                .orderBy(order.id.desc())
+                .orderBy(priority.asc(), activeAge.asc(), order.id.desc())
                 .fetch();
     }
 

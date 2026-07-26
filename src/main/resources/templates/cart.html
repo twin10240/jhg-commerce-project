@@ -6,6 +6,7 @@
   <meta name="_csrf" th:content="${_csrf.token}" />
   <meta name="_csrf_header" th:content="${_csrf.headerName}" />
   <title>그니마켓 · 장바구니</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
   <style>
     :root{
       --bg1:#fff7ed; --bg2:#fde7d8; --bg3:#fae8ff;
@@ -42,6 +43,7 @@
 
     /* 리스트 헤더 */
     .toolbar{display:flex;align-items:center;gap:12px}
+    .card header .toolbar .btn,.footer .toolbar .btn{box-sizing:border-box;width:104px;height:42px;padding:0 14px;font-size:15px}
     .btn{appearance:none;border:0;border-radius:12px;padding:10px 14px;background:linear-gradient(135deg, var(--accent1), var(--accent2));color:white;cursor:pointer;font-weight:700;box-shadow:0 10px 20px rgba(231,111,81,.3), 0 2px 6px rgba(0,0,0,.06);transition:transform .05s ease, filter .2s ease}
     .btn:hover{filter:saturate(1.05) brightness(1.02)}
     .btn:active{transform:translateY(1px)}
@@ -56,8 +58,9 @@
     .grid.row{border-bottom:1px dashed #f0e6db}
 
     .item{display:flex;align-items:center;gap:12px}
-    .item .thumb{width:52px;height:52px;border-radius:12px;background:#f7efe7;flex:0 0 auto;border:1px solid #f1e8df}
+    .item .thumb{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:0 0 auto;border:1px solid #f1e8df}
     .item .name{font-weight:600}
+    #chkAll,.row-chk{width:22px;height:22px;margin:0;accent-color:var(--accent2);cursor:pointer}
 
     /* 수량 컨트롤 */
     .qty{display:inline-flex;align-items:center;border:1px solid #ead9c7;border-radius:12px;overflow:hidden}
@@ -75,7 +78,6 @@
 
     @media (max-width: 720px){
       .grid{grid-template-columns: 28px 1fr 120px 120px 70px}
-      .item .thumb{display:none}
     }
 
     @media (prefers-color-scheme: dark){
@@ -84,7 +86,7 @@
       .card header{border-color:#39322c}
       .grid.head{background:#161412; border-color:#39322c; color:#bfb4a9}
       .grid.row{border-color:#39322c}
-      .item .thumb{background:#26211d; border-color:#39322c}
+      .item .thumb{border-color:#39322c}
       .qty{border-color:#39322c}
       .qty input,
       .qty button{background:#161412; color:#f1eee9; border-color:#39322c}
@@ -94,6 +96,7 @@
   </style>
 </head>
 <body>
+<div th:replace="~{fragments/layout :: nav('cart')}"></div>
 <div class="container">
   <div class="card">
     <header>
@@ -104,15 +107,20 @@
           <div class="hint">수량을 변경하면 라인 합계와 선택 합계가 즉시 갱신됩니다.</div>
         </div>
       </div>
-      <div class="toolbar">
+      <div class="toolbar" th:unless="${#lists.isEmpty(cartItems)}">
         <button class="btn ghost" id="btnSelectAll">전체선택</button>
         <button class="btn danger" id="btnDelete" disabled>선택 삭제</button>
-        <button class="btn secondary" id="btnOrder" disabled>선택 주문</button>
       </div>
     </header>
 
+    <div class="empty-state" th:if="${#lists.isEmpty(cartItems)}">
+      <p>장바구니가 비어 있습니다.</p>
+      <a class="app-btn" th:href="@{/main}">상품 보러 가기</a>
+    </div>
+    <div id="cartMessage" class="inline-message" role="status" aria-live="polite"></div>
+
     <!-- 리스트 헤더 -->
-    <div class="grid head">
+    <div class="grid head" th:unless="${#lists.isEmpty(cartItems)}">
       <div><input type="checkbox" id="chkAll" /></div>
       <div>상품명</div>
       <div style="text-align:center">수량</div>
@@ -121,11 +129,11 @@
     </div>
 
     <!-- 폼: 수량 업데이트/삭제/주문 모두 이 폼으로 전송 가능 -->
-    <form id="cartForm" th:action="@{/orders/checkout-form}" method="post">
+    <form id="cartForm" th:unless="${#lists.isEmpty(cartItems)}" th:action="@{/orders/checkout-form}" method="post">
       <div id="cartBody">
         <!-- Row 템플릿 (Thymeleaf) -->
         <div class="grid row" th:each="ci, stat : ${cartItems}"
-             th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.unitPrice}">
+             th:attr="data-product-id=${ci.productId}, data-unit-price=${ci.unitPrice}, data-available=${availability.getOrDefault(ci.productId, 0)}">
           <div>
             <input type="checkbox" class="row-chk"
                    th:name="|items[${stat.index}].selected|"
@@ -133,10 +141,13 @@
           </div>
 
           <div class="item">
-            <div class="thumb"></div>
+            <img class="thumb" th:src="@{/images/product-catalog.png}" th:alt="|${ci.productName} 이미지|">
             <div>
               <div class="name" th:text="${ci.productName}">상품명</div>
               <div class="muted"><span th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')}">0</span>원/개</div>
+              <div class="muted" data-stock-status
+                   th:hidden="${availability.getOrDefault(ci.productId, 0) >= ci.quantity}"
+                   th:text="|${ci.quantity - availability.getOrDefault(ci.productId, 0)}개 부족 · 주문 전체 입고 대기|">재고 부족</div>
             </div>
           </div>
 
@@ -164,8 +175,7 @@
           <span class="chip">선택 합계: <b id="selTotal">0원</b></span>
         </div>
         <div class="toolbar">
-          <button class="btn danger" id="btnDelete2" disabled>선택 삭제</button>
-          <button class="btn" id="btnOrder2" disabled>선택 주문</button>
+          <button class="btn" id="btnOrder" disabled>주문하기</button>
         </div>
       </div>
 
@@ -182,9 +192,7 @@
   const chkAll = document.getElementById('chkAll');
   const btnSelectAll = document.getElementById('btnSelectAll');
   const btnDelete = document.getElementById('btnDelete');
-  const btnDelete2 = document.getElementById('btnDelete2');
   const btnOrder = document.getElementById('btnOrder');
-  const btnOrder2 = document.getElementById('btnOrder2');
   const selCount = document.getElementById('selCount');
   const selTotal = document.getElementById('selTotal');
   const form = document.getElementById('cartForm');
@@ -193,6 +201,15 @@
     token: document.querySelector('meta[name="_csrf"]')?.content,
     header: document.querySelector('meta[name="_csrf_header"]')?.content
   };
+  if (!container) return;
+  const message = document.getElementById('cartMessage');
+  let messageTimer;
+  function showMessage(text, error = false) {
+    message.textContent = text;
+    message.className = 'inline-message show' + (error ? ' error' : '');
+    clearTimeout(messageTimer);
+    messageTimer = setTimeout(() => message.className = 'inline-message', 3000);
+  }
 
   async function apiFetch(url, options = {}) {
     const headers = { ...(options.headers || {}) };
@@ -223,6 +240,10 @@
     const q = Math.max(1, parseInt(qtyInput.value || '1', 10));
     const total = unitPrice * q;
     lineTotal.textContent = fmt.format(total) + '원';
+    const available = Number(row.dataset.available) || 0;
+    const status = row.querySelector('[data-stock-status]');
+    status.hidden = available >= q;
+    if (!status.hidden) status.textContent = `${q - available}개 부족 · 주문 전체 입고 대기`;
   }
 
   async function syncQuantity(row) {
@@ -256,7 +277,7 @@
 
     // 액션 버튼 enable/disable
     const enabled = count > 0;
-    [btnDelete, btnDelete2, btnOrder, btnOrder2].forEach(b => b.disabled = !enabled);
+    [btnDelete, btnOrder].forEach(b => b.disabled = !enabled);
 
     // 마스터 체크박스 상태 동기화
     const all = rows.length > 0 && selected.length === rows.length;
@@ -281,7 +302,7 @@
   container.addEventListener('change', e => {
     if(e.target.classList.contains('qty-input')){
       const row = e.target.closest('.grid.row');
-      syncQuantity(row).catch(() => alert('수량 변경 저장에 실패했습니다.'));
+      syncQuantity(row).catch(() => showMessage('수량 변경 저장에 실패했습니다.', true));
     }
   });
   container.addEventListener('click', e => {
@@ -292,7 +313,7 @@
       qtyInput.value = String(Math.max(1, cur + (e.target.classList.contains('btnPlus') ? 1 : -1)));
       updateLineTotal(row);
       updateSelectionSummary();
-      syncQuantity(row).catch(() => alert('수량 변경 저장에 실패했습니다.'));
+      syncQuantity(row).catch(() => showMessage('수량 변경 저장에 실패했습니다.', true));
     }
   });
 
@@ -332,18 +353,12 @@
 
     selectedRows.forEach(r => r.remove());
     updateSelectionSummary();
+    showMessage('선택한 상품을 삭제했습니다.');
   }
 
-  // 아래 두 가지 중 사용하고 싶은 방식만 사용하세요.
-  // 1) 서버 제출 방식 (주석 해제):
-  // btnDelete.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('delete'); });
-  // btnDelete2.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('delete'); });
   btnOrder.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('order'); });
-  btnOrder2.addEventListener('click', (e)=>{ e.preventDefault(); submitWithIntent('order'); });
 
-  // 2) 데모용 클라이언트 삭제 (DOM에서 제거):
-  btnDelete.addEventListener('click', (e)=>{ e.preventDefault(); removeSelectedRows().catch(() => alert('선택 삭제에 실패했습니다.')); });
-  btnDelete2.addEventListener('click', (e)=>{ e.preventDefault(); removeSelectedRows().catch(() => alert('선택 삭제에 실패했습니다.')); });
+  btnDelete.addEventListener('click', (e)=>{ e.preventDefault(); removeSelectedRows().catch(() => showMessage('선택 삭제에 실패했습니다.', true)); });
 
 })();
 </script>

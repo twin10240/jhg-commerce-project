@@ -1,27 +1,47 @@
-# OMS Risk Notes
+# OMS 열린 리스크
 
-## 1. `catalog.Product` still imports OMS domain
+최종 현행화: 2026-07-26
 
-- Location: `src/main/java/com/jhg/hgpage/catalog/Product.java`
-- Risk: `Product` keeps an unused reverse reference to `oms.domain.CartItem`, so `catalog` is not fully independent from OMS.
-- Evidence: `Product.cartItems` is only declared; no production code reads `getCartItems`.
-- Fix: delete `Product.cartItems` and the `CartItem` import. Keep the owning `CartItem.product` side.
-- Resolved (2026-07-10): removed the dead `Product.cartItems` mapping and `CartItem` import; `CartItem.product` remains the owning reference.
+## 1. WMS 재고 증가 통지의 best-effort 유실
 
-## 2. Purchase-order create errors can bypass admin flash (removed)
+- WMS는 입고·양수 조정 후 OMS 콜백을 동기 호출하지만, OMS가 중단돼도 WMS 트랜잭션은 성공한다.
+- 완화: OMS `BackorderSweeper`가 기본 60초마다 백오더를 재할당한다.
+- 남은 위험: 복구 전까지 주문 승격이 지연되며 두 앱이 장시간 분리되면 WMS 호출 비용이 반복된다.
+- 전환 조건: 지연 허용범위나 호출량이 문제가 되면 durable outbox 또는 메시지 브로커를 도입한다.
 
-- Resolved (2026-07-16): OMS purchase-order create/receive controls and `WmsPurchaseOrderAdapter` were removed. OMS now submits and observes replenishment requests; WMS owns manual purchase-order operations.
+## 2. 양수 재고조정의 false-timeout과 재시도 위험
 
-## 3. WMS callback endpoint is public inside the app
+- 재고조정 커밋 후 WMS -> OMS 콜백 -> WMS 예약이 동기 체인으로 이어질 수 있다.
+- 외곽 OMS 요청이 타임아웃돼도 WMS 조정은 이미 커밋됐을 수 있다.
+- `adjust`는 멱등키가 없어 사용자가 같은 `+delta`를 재시도하면 중복 반영될 수 있다.
+- 완화: 오류 발생 시 WMS 재고와 원장을 먼저 확인하고 재시도한다.
+- 전환 조건: 실제 발생이 확인되면 콜백을 비동기 outbox로 분리한다.
 
-- Location: `src/main/java/com/jhg/hgpage/config/SecurityConfig.java`
-- Risk: `/api/replenishments` is `permitAll` and CSRF-exempt.
-- Current mitigation: Railway private networking keeps WMS API and callback off the public internet.
-- Fix before public exposure: add authentication/signature validation or keep the endpoint reachable only from private network.
+## 3. OMS Flyway V2~V4 자동 검증 부족
 
-## 4. Flyway test coverage stops at V1
+- H2 PostgreSQL 모드 테스트는 V1까지만 실행한다. V2는 과거 PostgreSQL 스키마를 전제로 한다.
+- V2~V4는 운영 배포 로그와 수동 PostgreSQL 검증에 의존한다.
+- 전환 조건: 다음 스키마 변경 전에 PostgreSQL 기반 마이그레이션 검증을 추가한다.
 
-- Location: `src/test/java/com/jhg/hgpage/FlywayMigrationTest.java`
-- Risk: V2/V3 are not automatically exercised in the H2 Flyway test.
-- Current mitigation: V3 was verified through Railway deploy logs and production smoke tests.
-- Fix: add a PostgreSQL-backed migration check only when schema migration churn justifies the extra test cost.
+## 4. 서비스 자격증명 불일치
+
+- OMS -> WMS는 `WMS_BASIC_USER/PASSWORD`, WMS -> OMS는 `OMS_CALLBACK_USER/PASSWORD`를 양쪽에 동일하게 설정해야 한다.
+- 한쪽만 변경하면 재고 조회·예약 또는 백오더 콜백이 `401`로 실패한다.
+- 완화: 운영 프로파일은 자격증명 기본값 없이 fail-fast하고, 배포 런북에서 양쪽 변수를 함께 변경한다.
+
+## 5. 개발용 H2 콘솔 노출
+
+- 로컬 프로파일에서 `/h2-console/**`는 인증 없이 접근 가능하고 CSRF 예외다.
+- 운영 `prod` 프로파일은 PostgreSQL을 사용하며 H2 콘솔을 사용하지 않는다.
+- 전환 조건: 로컬 네트워크 밖에서 개발 서버를 공개해야 하면 콘솔을 비활성화한다.
+
+## 의도된 정책 한계
+
+- 전부-아니면-백오더 정책 때문에 앞선 대량 주문이 뒤의 소량 주문을 기다리게 할 수 있다.
+- 부분출고·백오더 우선순위·타임아웃은 포트폴리오 1차 범위에서 제외한다.
+
+## 해결된 항목
+
+- 2026-07-10: `catalog.Product`의 OMS 역참조 제거.
+- 2026-07-16: OMS의 발주·입고 제어 제거, WMS 보충 요청 워크플로우로 전환.
+- 2026-07-21: `/api/replenishments`에 전용 HTTP Basic 인증 적용.

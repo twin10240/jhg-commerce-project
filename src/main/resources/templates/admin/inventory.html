@@ -1,47 +1,75 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>재고 관리</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>재고 관리 · OMS</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
   <style>
-    :root{--bg1:#fff7ed;--bg2:#fde7d8;--bg3:#fae8ff;--card:#fffaf5;--ink:#443c33;--muted:#7a6f66;--accent1:#f4a261;--accent2:#e76f51;--radius:18px;--shadow:0 20px 45px rgba(68,60,51,.18)}
-    *{box-sizing:border-box}
-    body{min-height:100vh;margin:0;padding:24px;color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial;background:radial-gradient(1200px 700px at 80% 10%,var(--bg3) 0%,transparent 60%),radial-gradient(900px 600px at 10% 90%,var(--bg2) 0%,transparent 60%),linear-gradient(180deg,var(--bg1),#fff);background-attachment:fixed}
-    .container{max-width:1080px;margin:auto}
-    .page-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-    .page-title{color:var(--accent2);font-size:24px;font-weight:800}.page-desc{color:#6e6259;font-size:13px;font-weight:600;margin-top:4px}
-    .actions{display:flex;gap:8px;flex-wrap:wrap}
-    .btn{padding:10px 14px;border-radius:12px;color:#fff;font-weight:700;background:linear-gradient(135deg,var(--accent1),var(--accent2));box-shadow:0 10px 20px rgba(231,111,81,.3);text-decoration:none;font-size:14px}
-    .btn.outline{background:#fff;color:#6e6259;border:1px solid #eadfd6;box-shadow:none}
-    .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 18px}
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}th,td{padding:10px 12px;text-align:left;font-size:14px}thead th{color:var(--muted);font-weight:700}
-    tbody tr{background:var(--card);border:1px solid #eadfd6}tbody tr td:first-child{border-radius:12px 0 0 12px}tbody tr td:last-child{border-radius:0 12px 12px 0}.hint{color:var(--muted);font-size:12px}
-    @media(max-width:640px){.page-head{align-items:flex-start;flex-direction:column}.card{overflow-x:auto}}
-    @media(prefers-color-scheme:dark){body{background:linear-gradient(180deg,#1b1917,#26211d);background-attachment:fixed}.page-title{color:var(--accent1)}.page-desc{color:#d9d4cf}.card{background:#201d1a;color:#f1eee9}thead th{color:#bfb4a9}tbody tr{background:#161412;border-color:#39322c}.btn.outline{background:#161412;border-color:#39322c;color:#d9d4cf}}
+    .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin:18px 0}
+    .stat{padding:18px;border:1px solid var(--app-line);border-radius:8px;background:#fff}.stat b{display:block;font-size:28px;margin-top:6px}.stat span{color:var(--app-muted)}
+    .inventory-table{width:100%;border-collapse:collapse;margin-top:18px}.inventory-table th,.inventory-table td{padding:13px 10px;border-bottom:1px solid var(--app-line);text-align:left}.inventory-table th{color:var(--app-muted);font-size:13px}.number{text-align:right!important;font-variant-numeric:tabular-nums}
+    .inventory-table tr.risk{background:#fff9ed}.row-actions{white-space:nowrap}
+    .connection-error{margin:18px 0;padding:16px;border:1px solid #e3b4ac;border-radius:12px;background:#fdeaea;color:var(--app-danger);font-weight:700}
+    @media(max-width:1000px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:720px){.stats{grid-template-columns:1fr}.mobile-hide{display:none}.inventory-table th,.inventory-table td{padding:10px 6px}.app-btn{padding:8px}}
+    @media(prefers-color-scheme:dark){.stat{background:#211e1b}.inventory-table tr.risk{background:#2b2418}}
   </style>
 </head>
-<body>
-<div class="container">
-  <div class="page-head">
-    <div>
-      <div class="page-title">재고 관리</div>
-      <div class="page-desc">WMS가 관리하는 현재 상품별 보유 재고입니다.</div>
-    </div>
-    <div class="actions">
-      <a class="btn outline" th:href="@{/admin/replenishment-requests}">재고 보충 요청</a>
-      <a class="btn outline" th:href="@{/main}">메인으로</a>
-    </div>
+<body style="margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif">
+<div th:replace="~{fragments/layout :: nav('inventory')}"></div>
+<main class="app-shell">
+  <header>
+    <h1 class="app-title">재고 현황</h1>
+    <p class="app-subtitle">WMS 재고와 OMS 입고 대기 수요를 함께 확인합니다.</p>
+  </header>
+  <div class="connection-error" role="alert" th:if="${inventoryUnavailable}">
+    WMS에 연결할 수 없어 재고 수량을 표시하지 않습니다. WMS 서버 상태를 확인한 뒤 새로고침해 주세요.
   </div>
-  <div class="card">
-    <table>
-      <thead><tr><th>상품 ID</th><th>상품명</th><th>보유 수량</th></tr></thead>
-      <tbody>
-        <tr th:each="product : ${products}"><td th:text="${product.productId}">1</td><td th:text="${product.productName}">상품 1</td><td th:text="${product.onHandQty}">15</td></tr>
-        <tr th:if="${#lists.isEmpty(products)}"><td colspan="3" class="hint">등록된 상품이 없습니다.</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
+
+  <section class="stats" aria-label="재고 요약" th:unless="${inventoryUnavailable}">
+    <div class="stat"><span>가용재고 0 상품</span><b th:text="${soldOutCount}">0</b></div>
+    <div class="stat"><span>가용재고 10개 미만</span><b th:text="${lowStockCount}">0</b></div>
+    <div class="stat"><span>백오더 총수량</span><b th:text="${backorderQty}">0</b></div>
+    <div class="stat"><span>입고 필요 수량</span><b th:text="${inboundRequiredQty}">0</b></div>
+    <div class="stat"><span>할당 대기 수량</span><b th:text="${allocationWaitingQty}">0</b></div>
+  </section>
+
+  <section class="app-card" th:unless="${inventoryUnavailable}">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px">상품별 재고</h2>
+        <span class="app-subtitle">가용 = 보유 − 예약</span>
+      </div>
+      <a class="app-btn secondary" th:href="@{/admin/replenishment-requests}">보충 요청 이력</a>
+    </div>
+    <div class="table-wrap">
+      <table class="inventory-table">
+        <thead><tr><th>상품</th><th class="number mobile-hide">보유</th><th class="number mobile-hide">예약</th><th class="number">가용</th><th class="number">백오더 수량</th><th>상태</th><th>작업</th></tr></thead>
+        <tbody>
+        <tr th:each="product : ${products}" th:classappend="${product.availableQty <= 0 or backorderDemand.getOrDefault(product.productId, 0) > 0} ? 'risk'">
+          <td><strong th:text="${product.productName}">상품 1</strong><br><small th:text="|#${product.productId}|">#1</small></td>
+          <td class="number mobile-hide" th:text="${product.onHandQty}">15</td>
+          <td class="number mobile-hide" th:text="${product.reservedQty}">3</td>
+          <td class="number" th:text="${product.availableQty}">12</td>
+          <td class="number" th:text="${backorderDemand.getOrDefault(product.productId, 0)}">0</td>
+          <td>
+            <span class="status-badge status-backordered" th:if="${product.availableQty == 0}">품절</span>
+            <span class="status-badge status-backordered" th:if="${product.availableQty > 0 and product.availableQty < 10}">재고 부족</span>
+            <span class="status-badge status-order" th:if="${product.availableQty >= 10}">정상</span>
+          </td>
+          <td class="row-actions">
+            <a class="app-btn secondary" th:if="${pendingRequests.containsKey(product.productId)}"
+               th:href="|/admin/replenishment-requests#request-${pendingRequests.get(product.productId)}|">요청 진행 중</a>
+            <a class="app-btn" th:unless="${pendingRequests.containsKey(product.productId)}"
+               th:href="@{/admin/replenishment-requests(productId=${product.productId})}">보충 요청</a>
+          </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(products)}"><td colspan="7" class="empty-state">WMS 재고를 불러오지 못했거나 등록된 상품이 없습니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
 </body>
 </html>

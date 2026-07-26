@@ -54,15 +54,10 @@ public class WmsInventoryQueryAdapter implements InventoryQueryPort {
 
     /** 관리자 재고 화면용 전체 목록. */
     public List<InventoryRow> allRows() {
-        try {
-            List<InventoryRow> result = restClient.get()
-                    .uri("/api/inventory/rows")
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<>() {});
-            return result != null ? result : List.of();
-        } catch (ResourceAccessException e) {
-            log.warn("WMS 연결 실패 — 재고 목록 빈 목록으로 폴백: {}", e.getMessage());
-            return List.of();
-        }
+        List<InventoryRow> result = restClient.get()
+                .uri("/api/inventory/rows")
+                .retrieve()
+                .body(new ParameterizedTypeReference<>() {});
+        return result != null ? result : List.of();
     }
 }

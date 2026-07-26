@@ -74,25 +74,25 @@ class MainControllerMvcTest {
     }
 
     @Test
-    void 가용재고가_적은_상품은_남은_수량을_보여준다() throws Exception {
+    void 주문수량이_충족되면_가용재고를_노출하지_않는다() throws Exception {
         when(productService.findCardPage(eq(""), any(Pageable.class))).thenReturn(pageOf(card(3)));
         when(orderService.findOrders(1L)).thenReturn(List.of());
 
         mockMvc.perform(get("/main").with(user(userPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("3개 남음")))
+                .andExpect(content().string(not(containsString("3개 남음"))))
                 .andExpect(content().string(not(containsString("입고 대기"))));
     }
 
     @Test
-    void 예약이_잡힌_상품은_가용수량_기준으로_표시된다() throws Exception {
+    void 예약이_잡혀도_주문수량이_충족되면_가용재고를_노출하지_않는다() throws Exception {
         // 실물 5 - 예약 2 = 가용 3 (가용수량 계산은 WMS 안에서 끝나고, 카드에는 가용분만 담겨 온다)
         when(productService.findCardPage(eq(""), any(Pageable.class))).thenReturn(pageOf(card(3)));
         when(orderService.findOrders(1L)).thenReturn(List.of());
 
         mockMvc.perform(get("/main").with(user(userPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("3개 남음")));
+                .andExpect(content().string(not(containsString("3개 남음"))));
     }
 
     @Test
@@ -119,7 +119,7 @@ class MainControllerMvcTest {
                         .with(user(userPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("main"))
-                .andExpect(model().attributeExists("productPage", "orders"))
+                .andExpect(model().attributeExists("productPage"))
                 .andExpect(model().attribute("keyword", "상품"));
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -190,14 +190,27 @@ class MainControllerMvcTest {
     }
 
     @Test
-    void 메인에는_주문_새로고침_fetch_배선이_포함된다() throws Exception {
+    void 메인은_상품만_보여주고_내주문은_상단_링크로_분리한다() throws Exception {
         when(productService.findCardPage(any(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
         when(orderService.findOrders(1L)).thenReturn(List.of());
 
         mockMvc.perform(get("/main").with(user(userPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("/api/orders/me")))
-                .andExpect(content().string(containsString("ordersTbody")));
+                .andExpect(content().string(containsString("href=\"/orders\"")))
+                .andExpect(content().string(not(containsString("ordersTbody"))))
+                .andExpect(content().string(not(containsString("data-target=\"orders\""))));
+    }
+
+    @Test
+    void 상품_상세를_렌더링하고_입고대기_정책을_안내한다() throws Exception {
+        when(productService.findCard(1L)).thenReturn(card(0));
+
+        mockMvc.perform(get("/products/1").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("product-detail"))
+                .andExpect(model().attributeExists("product"))
+                .andExpect(content().string(containsString("주문 시 1개 전체가 입고 대기로 접수")))
+                .andExpect(content().string(containsString("입고 대기 주문하기")));
     }
 
 }

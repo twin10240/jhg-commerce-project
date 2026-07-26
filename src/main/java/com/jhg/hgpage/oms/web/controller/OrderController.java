@@ -8,9 +8,9 @@ import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
-import com.jhg.hgpage.oms.repository.SearchOption;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -35,6 +35,7 @@ public class OrderController {
     private final MemberService memberService;
     private final ProductRepository productRepository;
     private final OrderService orderService;
+    private final InventoryQueryPort inventoryQueryPort;
 
     @PostMapping("/orders/checkout-form")
     public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderRequest req, Model model) {
@@ -83,6 +84,7 @@ public class OrderController {
             }
         }
 
+        applyAvailability(checkOutForm);
         model.addAttribute("checkout", checkOutForm);
 
         return "orderdetail";
@@ -116,13 +118,11 @@ public class OrderController {
                 .map(product -> new OrderService.OrderLine(product.getId(), product.getQuantity()))
                 .toList();
 
-        if (form.isFromCart()) {
-            orderService.orderFromCart(user.getId(), deliveryAddress, lines);
-        } else {
-            orderService.order(user.getId(), deliveryAddress, lines);
-        }
+        Long orderId = form.isFromCart()
+                ? orderService.orderFromCart(user.getId(), deliveryAddress, lines)
+                : orderService.order(user.getId(), deliveryAddress, lines);
 
-        return "redirect:/main";
+        return "redirect:/orders/" + orderId + "?created=true";
     }
 
     private Product findProduct(Long productId) {
@@ -152,12 +152,19 @@ public class OrderController {
                 item.setPrice(product.getPrice());
             }
         });
+        applyAvailability(form);
     }
 
-    // 새로고침은 JS가 가로채 /api/orders/me fetch로 처리. 이 매핑은 JS 비활성 시 폼 폴백. 검색 기능은 미구현.
-    @GetMapping("/orders/me")
-    public String findMyOrders(@AuthenticationPrincipal(expression = "id") Long userId, SearchOption searchOption, Model model) {
-        return "redirect:/main";
+    private void applyAvailability(CheckOutForm form) {
+        var availability = inventoryQueryPort.availableByProductIds(
+                form.getProduct().stream().map(CheckOutForm.ProductDto::getId).filter(Objects::nonNull).toList());
+        form.getProduct().forEach(item -> item.setAvailableQty(availability.getOrDefault(item.getId(), 0)));
+    }
+
+    @GetMapping("/orders")
+    public String findMyOrders(@AuthenticationPrincipal(expression = "id") Long userId, Model model) {
+        model.addAttribute("orders", orderService.findOrders(userId));
+        return "orders";
     }
 
     // 본인 주문만 조회 가능 — 타인/없는 주문은 서비스가 404(EntityNotFoundException)로 숨긴다
@@ -177,7 +184,7 @@ public class OrderController {
             orderService.cancelOrder(orderId, user.getId());
             redirectAttributes.addFlashAttribute("successMessage", "주문이 취소되었습니다.");
         } catch (IllegalStateException e) {
-            // 배송완료/이미취소 등 취소 불가 사유를 상세 화면에 flash로 안내
+            // 출고완료/이미취소 등 취소 불가 사유를 상세 화면에 flash로 안내
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
         return "redirect:/orders/" + orderId;

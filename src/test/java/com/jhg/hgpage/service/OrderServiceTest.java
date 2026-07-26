@@ -23,6 +23,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -72,6 +73,8 @@ class OrderServiceTest {
         assertThat(result).extracting(OrderDto::getTotalAmount).containsExactly(20000, 5000);
         assertThat(result).extracting(OrderDto::getStatus)
                 .containsExactly(OrderStatus.ORDER, OrderStatus.ORDER);
+        assertThat(result).extracting(OrderDto::getDeliveryStatus)
+                .containsOnly(com.jhg.hgpage.oms.domain.enums.DeliveryStatus.READY);
     }
 
     @Test
@@ -79,5 +82,28 @@ class OrderServiceTest {
         when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of());
 
         assertThat(orderService.findOrders(1L)).isEmpty();
+    }
+
+    @Test
+    void 백오더의_상품별_대기수량을_합산한다() {
+        Product product = productOf(10000);
+        ReflectionTestUtils.setField(product, "id", 3L);
+        Member member = Member.createUser("테스터", "010-0000-0000", ADDRESS);
+
+        Delivery firstDelivery = new Delivery();
+        firstDelivery.setAddress(ADDRESS);
+        Order first = Order.createOrder(member, firstDelivery,
+                OrderItem.createOrderItem(product, 10000, 2));
+        first.markBackordered();
+
+        Delivery secondDelivery = new Delivery();
+        secondDelivery.setAddress(ADDRESS);
+        Order second = Order.createOrder(member, secondDelivery,
+                OrderItem.createOrderItem(product, 10000, 3));
+        second.markBackordered();
+        when(orderRepositoryQuery.findBackordersContaining(List.of(3L))).thenReturn(List.of(first, second));
+
+        assertThat(orderService.backorderDemandByProductId(List.of(3L)))
+                .isEqualTo(Map.of(3L, 5));
     }
 }

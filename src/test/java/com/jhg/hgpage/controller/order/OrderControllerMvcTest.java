@@ -10,6 +10,7 @@ import com.jhg.hgpage.exception.NotEnoughStockException;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,6 +60,7 @@ class OrderControllerMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean InventoryQueryPort inventoryQueryPort;
 
     private UserPrincipal principal() {
         return new UserPrincipal(1L, "user@example.com", "테스터", "010-0000-0000", "password", Role.USER);
@@ -97,7 +99,9 @@ class OrderControllerMvcTest {
     }
 
     @Test
-    void 정상주문이면_주문하고_main으로_리다이렉트한다() throws Exception {
+    void 정상주문이면_생성된_주문상세로_리다이렉트한다() throws Exception {
+        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
                         .with(csrf())
@@ -105,15 +109,17 @@ class OrderControllerMvcTest {
                         .param("delivery.street", "관악구")
                         .param("delivery.zipcode", "500")
                         .param("product[0].id", "1")
-                        .param("product[0].quantity", "2"))
+                .param("product[0].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/main"));
+                .andExpect(redirectedUrl("/orders/10?created=true"));
 
         verify(orderService).order(eq(1L), any(Address.class), anyList());
     }
 
     @Test
     void 선택된_상품만_주문된다() throws Exception {
+        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
                         .with(csrf())
@@ -125,9 +131,9 @@ class OrderControllerMvcTest {
                         .param("product[0].selected", "true")
                         .param("product[1].id", "2")
                         .param("product[1].quantity", "3")
-                        .param("product[1].selected", "false"))
+                .param("product[1].selected", "false"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/main"));
+                .andExpect(redirectedUrl("/orders/10?created=true"));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
@@ -199,6 +205,8 @@ class OrderControllerMvcTest {
 
     @Test
     void 장바구니발_주문이면_orderFromCart로_체크된_상품만_주문한다() throws Exception {
+        when(orderService.orderFromCart(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
                         .with(csrf())
@@ -211,9 +219,9 @@ class OrderControllerMvcTest {
                         .param("product[0].selected", "true")
                         .param("product[1].id", "2")
                         .param("product[1].quantity", "3")
-                        .param("product[1].selected", "false"))
+                .param("product[1].selected", "false"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/main"));
+                .andExpect(redirectedUrl("/orders/10?created=true"));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
@@ -228,6 +236,8 @@ class OrderControllerMvcTest {
 
     @Test
     void 바로구매_주문이면_장바구니_정리없이_주문한다() throws Exception {
+        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
                         .with(csrf())
@@ -235,9 +245,9 @@ class OrderControllerMvcTest {
                         .param("delivery.street", "관악구")
                         .param("delivery.zipcode", "500")
                         .param("product[0].id", "1")
-                        .param("product[0].quantity", "2"))
+                .param("product[0].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/main"));
+                .andExpect(redirectedUrl("/orders/10?created=true"));
 
         verify(orderService).order(eq(1L), any(Address.class), anyList());
         verify(orderService, never()).orderFromCart(anyLong(), any(Address.class), anyList());
@@ -285,7 +295,7 @@ class OrderControllerMvcTest {
     }
 
     /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
-    private com.jhg.hgpage.oms.dto.OrderDetailDto detailDto(boolean canceled) {
+    private com.jhg.hgpage.oms.dto.OrderDetailDto detailDto(boolean canceled, boolean shipped) {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
         product.setName("테스트상품");
@@ -295,7 +305,9 @@ class OrderControllerMvcTest {
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
         order.markOrdered(); // ORDER 상태(예약 성공)
-        if (canceled) {
+        if (shipped) {
+            order.completeDelivery();
+        } else if (canceled) {
             order.cancel();
         }
         return com.jhg.hgpage.oms.dto.OrderDetailDto.from(order);
@@ -303,7 +315,7 @@ class OrderControllerMvcTest {
 
     @Test
     void 주문_상세를_렌더링하고_취소가능하면_취소버튼이_보인다() throws Exception {
-        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false));
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, false));
 
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
@@ -311,6 +323,17 @@ class OrderControllerMvcTest {
                 .andExpect(model().attributeExists("order"))
                 .andExpect(content().string(containsString("테스트상품")))
                 .andExpect(content().string(containsString("주문 취소")));
+    }
+
+    @Test
+    void 출고된_주문_상세에는_출고완료로_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, true));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("출고 완료")))
+                .andExpect(content().string(not(containsString("배송 완료"))))
+                .andExpect(content().string(containsString(">출고 완료</span>")));
     }
 
     @Test
@@ -335,11 +358,36 @@ class OrderControllerMvcTest {
 
     @Test
     void 취소된_주문_상세에는_취소버튼이_없다() throws Exception {
-        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(true));
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(true, false));
 
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("주문 취소"))));
+                .andExpect(content().string(not(containsString("/orders/10/cancel"))));
+    }
+
+    @Test
+    void 내_주문_화면을_렌더링한다() throws Exception {
+        when(orderService.findOrders(1L)).thenReturn(List.of(
+                new com.jhg.hgpage.oms.dto.OrderDto(
+                        10L,
+                        com.jhg.hgpage.oms.domain.enums.OrderStatus.BACKORDERED,
+                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.READY,
+                        20000,
+                        java.time.LocalDateTime.of(2026, 7, 25, 12, 0)),
+                new com.jhg.hgpage.oms.dto.OrderDto(
+                        11L,
+                        com.jhg.hgpage.oms.domain.enums.OrderStatus.ORDER,
+                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.COMP,
+                        10000,
+                        java.time.LocalDateTime.of(2026, 7, 24, 12, 0))));
+
+        mockMvc.perform(get("/orders").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("orders"))
+                .andExpect(model().attributeExists("orders"))
+                .andExpect(content().string(containsString("입고 대기")))
+                .andExpect(content().string(containsString("출고 완료")))
+                .andExpect(content().string(containsString("/orders/10")));
     }
 
     @Test
@@ -366,7 +414,7 @@ class OrderControllerMvcTest {
 
     @Test
     void 취소불가_주문이면_에러_flash와_함께_상세로_돌아간다() throws Exception {
-        doThrow(new IllegalStateException("이미 배송완료된 상품은 취소가 불가능합니다."))
+        doThrow(new IllegalStateException("이미 출고 완료된 상품은 취소가 불가능합니다."))
                 .when(orderService).cancelOrder(10L, 1L);
 
         mockMvc.perform(post("/orders/10/cancel")

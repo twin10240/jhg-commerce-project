@@ -10,12 +10,14 @@ import com.jhg.hgpage.wms.dto.InventoryRow;
 import com.jhg.hgpage.wms.dto.ReplenishmentRequestDto;
 import com.jhg.hgpage.wms.web.controller.InventoryAdminController;
 import com.jhg.hgpage.wms.web.form.ReplenishmentRequestForm;
+import com.jhg.hgpage.oms.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +38,7 @@ class InventoryAdminControllerMvcTest {
     @Autowired MockMvc mockMvc;
     @MockitoBean WmsInventoryQueryAdapter wmsInventoryQueryAdapter;
     @MockitoBean WmsReplenishmentRequestAdapter requestAdapter;
+    @MockitoBean OrderService orderService;
 
     private UserPrincipal admin() {
         return new UserPrincipal(2L, "admin@admin.com", "admin", "010-1111-2222", "pw", Role.ADMIN);
@@ -46,35 +49,82 @@ class InventoryAdminControllerMvcTest {
     }
 
     @Test
-    void inventoryShowsProductsOnly() throws Exception {
-        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, "상품 1", 15)));
+    void inventorySplitsBackorderDemandIntoInboundAndAllocationWaitingQuantities() throws Exception {
+        var products = List.of(
+                new InventoryRow(1L, "상품 1", 20, 2, 18),
+                new InventoryRow(3L, "상품 3", 45, 0, 45),
+                new InventoryRow(4L, "상품 4", 60, 0, 60),
+                new InventoryRow(10L, "상품 10", 150, 0, 150));
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(products);
+        when(orderService.backorderDemandByProductId(List.of(1L, 3L, 4L, 10L)))
+                .thenReturn(java.util.Map.of(1L, 20, 3L, 2, 4L, 1, 10L, 1));
+        when(requestAdapter.findAll()).thenReturn(List.of());
 
         mockMvc.perform(get("/admin/inventory").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/inventory"))
-                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, "상품 1", 15))))
+                .andExpect(model().attribute("products", products))
+                .andExpect(model().attribute("backorderQty", 24))
+                .andExpect(model().attribute("inboundRequiredQty", 2))
+                .andExpect(model().attribute("allocationWaitingQty", 22))
+                .andExpect(model().attribute("pendingRequests", java.util.Map.of()))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("백오더 총수량")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("입고 필요 수량")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("할당 대기 수량")))
                 .andExpect(model().attributeDoesNotExist("requests", "requestForm"));
 
-        verifyNoInteractions(requestAdapter);
+        verify(requestAdapter).findAll();
+    }
+
+    @Test
+    void inventoryShowsConnectionErrorInsteadOfZeroStockWhenWmsIsDown() throws Exception {
+        when(wmsInventoryQueryAdapter.allRows()).thenThrow(new ResourceAccessException("WMS down"));
+
+        mockMvc.perform(get("/admin/inventory").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/inventory"))
+                .andExpect(model().attribute("inventoryUnavailable", true))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("WMS에 연결할 수 없어")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("가용재고 0 상품"))));
+
+        verifyNoInteractions(orderService, requestAdapter);
     }
 
     @Test
     void replenishmentRequestsShowsProductsRequestsAndNewForm() throws Exception {
         var request = request(UUID.randomUUID());
-        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, "상품 1", 15)));
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(List.of(new InventoryRow(1L, "상품 1", 15, 3, 12)));
         when(requestAdapter.findAll()).thenReturn(List.of(request));
 
         var result = mockMvc.perform(get("/admin/replenishment-requests").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/replenishment-requests"))
-                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, "상품 1", 15))))
+                .andExpect(model().attribute("products", List.of(new InventoryRow(1L, "상품 1", 15, 3, 12))))
                 .andExpect(model().attribute("requests", List.of(request)))
                 .andExpect(model().attributeExists("requestForm"))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("상품 1 (#1) · 가용 12개")))
                 .andReturn();
 
         ReplenishmentRequestForm form = (ReplenishmentRequestForm) result.getModelAndView().getModel().get("requestForm");
         assertThat(form.getRequestKey()).isNotNull();
         assertThat(form.getItems()).hasSize(1);
+    }
+
+    @Test
+    void inventoryRowLinkPrefillsReplenishmentProduct() throws Exception {
+        when(wmsInventoryQueryAdapter.allRows()).thenReturn(
+                List.of(new InventoryRow(1L, "상품 1", 15, 3, 12)));
+        when(requestAdapter.findAll()).thenReturn(List.of());
+
+        var result = mockMvc.perform(get("/admin/replenishment-requests")
+                        .param("productId", "1")
+                        .with(user(admin())))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        ReplenishmentRequestForm form = (ReplenishmentRequestForm) result.getModelAndView().getModel().get("requestForm");
+        assertThat(form.getItems().get(0).getProductId()).isEqualTo(1L);
     }
 
     @Test
@@ -91,7 +141,8 @@ class InventoryAdminControllerMvcTest {
                         .param("items[0].requestedQty", "3"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/replenishment-requests"))
-                .andExpect(flash().attributeExists("successMessage"));
+                .andExpect(flash().attribute(
+                        "successMessage", "재고 보충 요청이 WMS에 접수되었습니다."));
 
         verify(requestAdapter).create(key, List.of(new RequestLine(1L, 3)), "low stock");
     }

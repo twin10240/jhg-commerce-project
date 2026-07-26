@@ -8,7 +8,10 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -29,10 +32,35 @@ public class OrderAdminController {
         try {
             orderService.completeDelivery(orderId);
             redirectAttributes.addFlashAttribute("successMessage",
-                    "배송완료 처리되었습니다. (주문 #" + orderId + ")");
+                    "출고 처리되었습니다. (주문 #" + orderId + ")");
         } catch (IllegalStateException | EntityNotFoundException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
+        return "redirect:/admin/orders";
+    }
+
+    @PostMapping("/admin/orders/complete-deliveries")
+    public String completeDeliveries(@RequestParam(required = false) List<Long> orderIds,
+                                     RedirectAttributes redirectAttributes) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            redirectAttributes.addFlashAttribute("errorMessage", "출고할 주문을 선택해주세요.");
+            return "redirect:/admin/orders";
+        }
+
+        int successCount = 0;
+        int failureCount = 0;
+        for (Long orderId : orderIds.stream().distinct().toList()) {
+            try {
+                orderService.completeDelivery(orderId);
+                successCount++;
+            } catch (IllegalStateException | EntityNotFoundException | RestClientException e) {
+                failureCount++;
+            }
+        }
+
+        String message = "출고 처리 결과: 성공 " + successCount + "건 / 실패 " + failureCount + "건.";
+        redirectAttributes.addFlashAttribute(
+                failureCount == 0 ? "successMessage" : "errorMessage", message);
         return "redirect:/admin/orders";
     }
 }

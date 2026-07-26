@@ -45,17 +45,31 @@ class OrderRepositoryAdminListTest {
     }
 
     @Test
-    void 전체_주문을_회원_배송과_함께_최신순으로_조회한다() {
-        Order first = saveOrderOf("회원A");
-        Order second = saveOrderOf("회원B");
+    void 미처리_우선으로_그룹화하고_진행중은_오래된순_종료건은_최신순으로_조회한다() {
+        Order completedOld = saveOrderOf("완료A");
+        completedOld.completeDelivery();
+        Order readyOld = saveOrderOf("배송대기A");
+        Order canceledOld = saveOrderOf("취소A");
+        canceledOld.cancel();
+        Order backorderOld = saveOrderOf("입고대기A");
+        backorderOld.markBackordered();
+        Order readyNew = saveOrderOf("배송대기B");
+        Order backorderNew = saveOrderOf("입고대기B");
+        backorderNew.markBackordered();
+        Order completedNew = saveOrderOf("완료B");
+        completedNew.completeDelivery();
+        Order canceledNew = saveOrderOf("취소B");
+        canceledNew.cancel();
         em.flush();
         em.clear();
 
         List<Order> orders = orderRepositoryQuery.findAllForAdmin();
 
-        assertThat(orders).hasSize(2);
-        assertThat(orders.get(0).getId()).isEqualTo(second.getId()); // 최신(id 큰 것) 먼저
-        assertThat(orders.get(1).getId()).isEqualTo(first.getId());
+        assertThat(orders).extracting(Order::getId).containsExactly(
+                readyOld.getId(), readyNew.getId(),
+                backorderOld.getId(), backorderNew.getId(),
+                completedNew.getId(), completedOld.getId(),
+                canceledNew.getId(), canceledOld.getId());
         assertThat(Hibernate.isInitialized(orders.get(0).getMember())).isTrue();
         assertThat(Hibernate.isInitialized(orders.get(0).getDelivery())).isTrue();
     }

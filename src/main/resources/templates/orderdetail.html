@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>구매 상세</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
 
   <style>
     :root{
@@ -95,6 +96,7 @@
     tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
     .right{text-align:right}
     .qty-input{max-width:96px; margin-left:auto; text-align:right}
+    .quantity-stepper{margin-left:auto}
     .select-input{width:18px; height:18px; accent-color:var(--accent2); cursor:pointer}
     tr.unselected{opacity:.45}
 
@@ -144,9 +146,10 @@
   </style>
 </head>
 <body>
+<div th:replace="~{fragments/layout :: nav('cart')}"></div>
 <div class="container">
   <div class="page-title">구매 상세</div>
-  <div class="page-desc">회원정보·배송지·결제수단을 확인한 뒤 주문을 완료하세요.</div>
+  <div class="page-desc">회원정보·배송지·주문 상품을 확인한 뒤 주문을 완료하세요.</div>
 
   <!-- 하나의 폼에서 회원/배송/주문/결제 모두 전송 -->
   <form th:action="@{/orders/checkout}" th:object="${checkout}" method="post">
@@ -233,7 +236,8 @@
               </tr>
               </thead>
               <tbody>
-              <tr th:each="p, pStat : ${checkout.product}" th:attr="data-unit-price=${p.price}">
+              <tr th:each="p, pStat : ${checkout.product}"
+                  th:attr="data-unit-price=${p.price}, data-available=${p.availableQty}">
                 <!-- 전송용 숨김필드(아이디/수량) -->
                 <input type="hidden" th:field="*{product[__${pStat.index}__].id}"/>
                 <td>
@@ -241,15 +245,24 @@
                 </td>
                 <td>
                   <div style="display:flex; align-items:center; gap:12px">
-                    <img class="img" alt=""/>
-                    <div style="font-weight:600" th:text="${p.name}">상품명</div>
+                    <img class="img" th:src="@{/images/product-catalog.png}" alt=""/>
+                    <div>
+                      <div style="font-weight:600" th:text="${p.name}">상품명</div>
+                      <small class="hint" data-stock-status
+                             th:hidden="${p.availableQty >= p.quantity}"
+                             th:text="|재고 ${p.quantity - p.availableQty}개 부족|">재고 부족</small>
+                    </div>
                   </div>
                 </td>
                 <td class="right">
                   <span class="unit-price" th:text="${#numbers.formatInteger(p.price,3,'COMMA')}">0</span>원
                 </td>
                 <td class="right">
-                  <input class="input qty-input" type="number" min="1" th:field="*{product[__${pStat.index}__].quantity}"/>
+                  <div class="quantity-stepper">
+                    <button type="button" class="qty-minus" aria-label="수량 감소">−</button>
+                    <input class="input qty-input" type="number" min="1" step="1" th:field="*{product[__${pStat.index}__].quantity}"/>
+                    <button type="button" class="qty-plus" aria-label="수량 증가">＋</button>
+                  </div>
                   <small class="field-error" th:errors="*{product[__${pStat.index}__].quantity}"></small>
                 </td>
                 <td class="right">
@@ -264,37 +277,22 @@
         </section>
       </div>
 
-      <!-- 우측: 결제 요약 (스크롤 따라옴) -->
+      <!-- 우측: 주문 요약 (스크롤 따라옴) -->
       <aside class="sidebar">
         <!-- 합계 -->
         <section class="card">
-          <div class="header">결제 금액</div>
+          <div class="header">주문 금액</div>
           <div class="content sum">
             <div class="line"><span>상품 합계</span><b><span id="productSubtotal" th:text="${#numbers.formatInteger(checkout.productTotalPrice,3,'COMMA')}">0</span>원</b></div>
             <div class="line"><span>배송비</span><b><span id="deliveryFee">0</span>원</b></div>
-            <div class="line"><span>할인 합계</span><b>-<span id="discountTotal">0</span>원</b></div>
-            <div class="line total"><span>총 결제금액</span><b><span id="paymentTotal" th:text="${#numbers.formatInteger(checkout.productTotalPrice,3,'COMMA')}">0</span>원</b></div>
+            <div class="line total"><span>총 주문금액</span><b><span id="paymentTotal" th:text="${#numbers.formatInteger(checkout.productTotalPrice,3,'COMMA')}">0</span>원</b></div>
           </div>
         </section>
 
-        <!-- 결제수단 -->
-        <section class="card">
-          <div class="header">결제 수단</div>
-          <div class="content">
-            <label class="check"><input type="radio" name="paymentMethod" value="CARD" checked/> 신용/체크카드</label>
-            <label class="check"><input type="radio" name="paymentMethod" value="VBANK"/> 무통장입금(가상계좌)</label>
-            <label class="check"><input type="radio" name="paymentMethod" value="EASY"/> 간편결제(페이)</label>
-            <div class="note">결제 단계에서 PG 창이 열립니다.</div>
-          </div>
-        </section>
-
-        <!-- 약관 + 액션 -->
+        <!-- 액션 -->
         <section class="card">
           <div class="content">
-            <label class="check" style="align-items:flex-start">
-              <input type="checkbox" required/>
-              <span>구매 조건 및 개인정보 제3자 제공에 동의합니다.</span>
-            </label>
+            <div class="note" id="fulfillmentSummary" style="margin-bottom:12px" hidden></div>
             <button type="submit" class="btn block">주문하기</button>
             <a class="btn outline block" th:href="@{/main}">계속 쇼핑하기</a>
           </div>
@@ -310,7 +308,6 @@
     const rows = Array.from(document.querySelectorAll('tbody tr[data-unit-price]'));
     const subtotalEl = document.getElementById('productSubtotal');
     const deliveryEl = document.getElementById('deliveryFee');
-    const discountEl = document.getElementById('discountTotal');
     const totalEl = document.getElementById('paymentTotal');
     const countEl = document.getElementById('productCount');
     const selectAllEl = document.getElementById('selectAll');
@@ -333,6 +330,7 @@
     function recalc() {
       let subtotal = 0;
       let selectedCount = 0;
+      let hasShortage = false;
 
       rows.forEach(row => {
         const unitPrice = Number(row.dataset.unitPrice) || 0;
@@ -344,6 +342,7 @@
         if (selected) {
           subtotal += lineTotal;
           selectedCount++;
+          hasShortage ||= (Number(row.dataset.available) || 0) < qty;
         }
         // 해제된 행은 흐리게 + 수량 잠금 (disabled는 폼 전송에서 빠지므로 readonly 사용)
         row.classList.toggle('unselected', !selected);
@@ -351,22 +350,37 @@
 
         const lineEl = row.querySelector('.line-total');
         if (lineEl) lineEl.textContent = fmt.format(lineTotal);
+        const available = Number(row.dataset.available) || 0;
+        const status = row.querySelector('[data-stock-status]');
+        status.hidden = available >= qty;
+        if (!status.hidden) status.textContent = `재고 ${qty - available}개 부족`;
       });
 
       const deliveryFee = numberFrom(deliveryEl);
-      const discount = numberFrom(discountEl);
-      const paymentTotal = Math.max(0, subtotal + deliveryFee - discount);
+      const paymentTotal = subtotal + deliveryFee;
 
       if (subtotalEl) subtotalEl.textContent = fmt.format(subtotal);
       if (totalEl) totalEl.textContent = fmt.format(paymentTotal);
       if (countEl) countEl.textContent = String(selectedCount);
       if (selectAllEl) selectAllEl.checked = rows.length > 0 && rows.every(isRowSelected);
+      const summary = document.getElementById('fulfillmentSummary');
+      summary.hidden = !hasShortage;
+      if (hasShortage) summary.textContent =
+        '재고가 부족한 상품이 있어 선택한 주문 전체가 입고 대기로 접수됩니다.';
     }
 
     rows.forEach(row => {
       row.querySelector('.qty-input')?.addEventListener('input', recalc);
       row.querySelector('.qty-input')?.addEventListener('change', recalc);
       row.querySelector('.select-input')?.addEventListener('change', recalc);
+      row.querySelector('.quantity-stepper')?.addEventListener('click', event => {
+        const button = event.target.closest('.qty-minus,.qty-plus');
+        if (!button) return;
+        const input = row.querySelector('.qty-input');
+        normalizeQty(input);
+        button.classList.contains('qty-plus') ? input.stepUp() : input.stepDown();
+        recalc();
+      });
     });
 
     selectAllEl?.addEventListener('change', () => {

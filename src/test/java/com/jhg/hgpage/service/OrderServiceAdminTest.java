@@ -4,6 +4,7 @@ import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.contract.InventoryPort;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
@@ -42,6 +43,7 @@ class OrderServiceAdminTest {
     @Mock OrderRepositoryQuery orderRepositoryQuery;
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
+    @Mock InventoryQueryPort inventoryQueryPort;
     @InjectMocks OrderService orderService;
 
     private Order newOrder(String memberName) {
@@ -69,13 +71,42 @@ class OrderServiceAdminTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getMemberName()).isEqualTo("회원A");
         assertThat(result.get(0).getTotalPrice()).isEqualTo(20000);
-        assertThat(result.get(0).isCompletable()).isTrue();   // ORDER + READY → 배송완료 버튼 노출
+        assertThat(result.get(0).isCompletable()).isTrue();   // ORDER + READY → 출고 처리 버튼 노출
         assertThat(result.get(1).getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(result.get(1).isCompletable()).isFalse();  // 취소된 주문은 처리 불가
     }
 
     @Test
-    void 배송완료_처리하면_배송상태가_COMP가_되고_재고_출고를_포트에_위임한다() {
+    void 백오더_상품과_입고필요_여부를_관리자용_DTO로_매핑한다() throws Exception {
+        Member member = Member.createUser("회원A", "010-0000-0000", new Address("서울", "관악구", "500"));
+        Product available = new Product();
+        available.setId(1L);
+        available.setName("재고충분상품");
+        available.setPrice(10000);
+        Product shortage = new Product();
+        shortage.setId(3L);
+        shortage.setName("재고부족상품");
+        shortage.setPrice(12000);
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        Order order = Order.createOrder(member, delivery,
+                OrderItem.createOrderItem(available, available.getPrice(), 2),
+                OrderItem.createOrderItem(shortage, shortage.getPrice(), 3));
+        order.markBackordered();
+        when(orderRepositoryQuery.findAllForAdmin()).thenReturn(List.of(order));
+        when(inventoryQueryPort.availableByProductIds(List.of(1L, 3L))).thenReturn(Map.of(1L, 2, 3L, 1));
+
+        String json = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules()
+                .writeValueAsString(orderService.findAllForAdmin().get(0));
+
+        assertThat(json)
+                .contains("\"productName\":\"재고충분상품\"", "\"quantity\":2", "\"inboundRequired\":false")
+                .contains("\"productName\":\"재고부족상품\"", "\"quantity\":3", "\"inboundRequired\":true");
+        verify(inventoryQueryPort).availableByProductIds(List.of(1L, 3L));
+    }
+
+    @Test
+    void 출고_처리하면_배송상태가_COMP가_되고_재고_출고를_포트에_위임한다() {
         Order order = newOrder("회원A"); // 상품1, 수량 2
         ReflectionTestUtils.setField(order, "id", 10L);
 
@@ -89,7 +120,7 @@ class OrderServiceAdminTest {
     }
 
     @Test
-    void 없는_주문의_배송완료는_EntityNotFoundException을_던진다() {
+    void 없는_주문의_출고처리는_EntityNotFoundException을_던진다() {
         when(orderRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.completeDelivery(99L))

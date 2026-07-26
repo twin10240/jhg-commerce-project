@@ -8,6 +8,7 @@ import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderControllerTest {
@@ -37,6 +39,7 @@ class OrderControllerTest {
     @Mock MemberService memberService;
     @Mock ProductRepository productRepository;
     @Mock OrderService orderService;
+    @Mock InventoryQueryPort inventoryQueryPort;
 
     private ValidatorFactory validatorFactory;
     private Validator validator;
@@ -46,7 +49,7 @@ class OrderControllerTest {
     void setUp() {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
-        orderController = new OrderController(memberService, productRepository, orderService);
+        orderController = new OrderController(memberService, productRepository, orderService, inventoryQueryPort);
     }
 
     @AfterEach
@@ -70,18 +73,20 @@ class OrderControllerTest {
     }
 
     @Test
-    void checkout_정상주문이면_주문하고_메인으로_리다이렉트한다() {
+    void checkout_정상주문이면_주문하고_생성된_상세로_리다이렉트한다() {
         CheckOutForm form = new CheckOutForm();
         form.getDelivery().setCity("서울");
         form.getDelivery().setStreet("관악구");
         form.getDelivery().setZipcode("500");
         form.getProduct().add(new CheckOutForm.ProductDto(1L, "상품1", 10000, 2));
         BindingResult bindingResult = validate(form);
+        when(orderService.order(eq(1L), org.mockito.ArgumentMatchers.any(Address.class),
+                org.mockito.ArgumentMatchers.anyList())).thenReturn(10L);
 
         String viewName = orderController.checkout(userPrincipal(), form, bindingResult);
 
         assertThat(bindingResult.hasErrors()).isFalse();
-        assertThat(viewName).isEqualTo("redirect:/main");
+        assertThat(viewName).isEqualTo("redirect:/orders/10?created=true");
 
         ArgumentCaptor<Address> addressCaptor = ArgumentCaptor.forClass(Address.class);
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor = ArgumentCaptor.forClass(List.class);

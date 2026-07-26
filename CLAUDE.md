@@ -4,9 +4,8 @@
 
 ## 프로젝트 개요
 
-Spring Boot 기반 **학습용 커머스 웹 애플리케이션** (`hgpage`, group `com.jhg`).
-김영한 JPA 강의 스타일의 도메인 설계(Order/OrderItem/Delivery/Inventory)에 Spring Security 인증,
-QueryDSL, 장바구니 REST API를 직접 확장한 구조.
+Spring Boot 기반 **학습용 OMS 웹 애플리케이션** (`hgpage`, group `com.jhg`).
+주문·장바구니·회원·백오더 정책을 소유하고, 별도 `jhg-wms-project`가 재고·예약·발주·입고를 소유한다.
 
 ## 프로젝트 비전 / 로드맵 (2026-06-12 확정)
 
@@ -17,17 +16,20 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
   `availableQty = onHandQty − reservedQty`, 가용분 없으면 거부 대신 `BACKORDERED` 접수,
   실제 차감은 출고 시점, 입고 시 백오더 자동 할당(FIFO). 품절 UI를 "입고 대기 — 주문 가능"으로 전환.
 - ~~**Phase 2 — 모듈 경계**: 패키지를 `oms/`(주문·고객)와 `wms/`(재고·발주·입고·출고)로 재배치, 서비스 인터페이스로만 통신.~~ ✅ **코어 재배치 완료(2026-06-18)**: domain·repository·service를 `contract/`·`catalog/`·`oms/`·`wms/`로 수직 분할, OMS↔WMS는 `contract/` 포트로만 통신(양방향 의존/순환 없음). (사전작업 2026-06-17 완료: ① WMS→OMS 백오더 역방향 결합을 `StockReplenishedHandler` 포트로 의존성 역전 ② OMS→WMS 재고 호출을 `InventoryPort`로 분리 + 전용 할당 컴포넌트로 순환 제거. 2026-06-18: ③ 가용 재고 조회를 `InventoryQueryPort`로 포트화 ④ 코어 패키지 물리 분리. 아래 해결됨 참고.) **web 계층 분리 완료(2026-06-22)**: 컨트롤러·폼·뷰DTO도 컨텍스트별로 수직 분할 — 응답 DTO→`oms/dto`, 폼→`oms/web/form`·`wms/web/form`, OMS 컨트롤러·api→`oms/web/{controller,api}`, `AdminController`→`OrderAdminController`(oms)+`InventoryAdminController`(wms) 분할, 교차/중립 `Home`·`Main`→공용 `web/`. 순수 이동(동작·DB·화면·URL 불변).
-- **Phase 3 — WMS 물리 분리 완료**: 별도 Spring Boot 앱이 재고와 보충 요청 원본, 수동 조정·발주·입고를 소유한다. OMS 관리자는 WMS 재고 조회와 보충 요청 제출·이력 관측만 수행한다.
+- **Phase 3 — WMS 물리 분리 완료**: 별도 Spring Boot 앱이 재고와 보충 요청 원본, 수동 조정·발주·부분입고·발주 취소를 소유한다. OMS 관리자는 WMS 재고 조회와 보충 요청 제출·이력 관측만 수행한다.
   주문 이행의 `reserve`·`ship`·`release`와 WMS→OMS 보충 callback은 기존 경계를 유지한다.
   **사전작업(0번) 완료(2026-06-25)**: `catalog/Product ↔ wms/Inventory` JPA 양방향 객체그래프 절단 — `Inventory`가 `productId: Long`만 보유(역참조 제거), `Product`는 재고를 전혀 모름(`inventory` 필드·`addStock` 제거). 재고 접근을 객체그래프(`product.getInventory()`)에서 `InventoryRepository.findByProductId(In)` 경로로 전면 이전, `Product↔Inventory` cascade 시드를 명시 저장으로 전환, 관리자 재고화면을 `InventoryRow` DTO 조립으로 이전. catalog가 wms를 import하지 않게 됨(의존 단방향). 동작·DB데이터·화면·URL 불변. 이제 WMS를 별도 DB로 떼면 `InventoryRepository` 뒷단만 REST로 갈아끼우면 된다(멘탈모델: OMS=지점/WMS=본사). 아래 해결됨 참고.
   **선결작업 S0 완료(2026-06-29)**: `wms/`가 `catalog`를 한 줄도 import하지 않게 정리 + 재고 변경 포트를 `orderId`로 멱등화. ① `PurchaseOrderItem→Product` 그래프 절단(`productId` 소유, 발주 검증을 `InventoryRepository` SKU 존재로) ② 관리자 재고/발주 화면을 `InventoryRow(productId, onHandQty)`로 축소(상품명·가격 미표시 — WMS는 모름) ③ 주문당 멱등 예약 원장 `Reservation`(RESERVED→SHIPPED/RELEASED, orderId 유니크) 도입 ④ `InventoryPort.reserveAll/shipAll/releaseAll`에 `orderId` 추가 + 원장 기반 멱등 구현(재예약/재출고/재해제 no-op), `OrderService.order`는 예약 전에 저장해 orderId 확보. wms↔catalog 양방향 import 0 검증. **의도된 동작 변경 2가지**: 재고화면이 상품명·가격 대신 productId 표시 / 발주 검증이 catalog→재고 SKU 기준. 설계/계획: `docs/superpowers/{specs,plans}/2026-06-26-phase3-*`. `gradlew build` 통과. **영속 H2(TCP)는 `purchase_order_item.product_id` FK 제거 + `reservation` 테이블 추가로 `--spring.profiles.active=local` 1회 리셋 필요**(TDD 임베디드 H2는 무관). 이제 S1~ 물리 분리 착수 가능.
   **S1 완료(2026-07-01, master 병합됨)**: 별도 WMS 앱 `C:\study\jhg-wms-project`(`com.jhg.wms`, Java 21, Spring Boot 3.5.5, 포트 8081, 자체 H2 `~/jhg-wms`) 신설 — 재고 조회(`GET /api/inventory/availability?productIds=`) + 재고 쓰기(reserve/ship/release/adjust) REST 제공. OMS는 인프로세스 `Inventory`·`Reservation` 도메인/서비스/레포지토리 삭제하고 `WmsInventoryAdapter`(InventoryPort 구현)·`WmsInventoryQueryAdapter`(InventoryQueryPort 구현, RestClient, `wms.base-url` 설정)로 전환. WMS 다운 시 메인 페이지 500 방지 fallback(가용수량 0·reserveAll 백오더 접수) 포함.
   **S2 완료(2026-07-01 구현, 2026-07-06 통합검증)**: 발주/입고(PurchaseOrder)를 WMS로 이사 — WMS에 PO 도메인(ORDERED→RECEIVED, 중복입고 방어)·서비스(입고 시 재고 자동 증가)·REST(`GET/POST /api/purchase-orders`, `POST /api/purchase-orders/receive` — 404/409 분기)·관리자 Thymeleaf UI(`8081/admin/inventory`·`/admin/purchase-orders`) 신설. OMS `InventoryAdminController`는 `WmsPurchaseOrderAdapter`+`WmsInventoryAdapter`로만 동작, 인프로세스 `wms/{domain,service,repository}` 완전 삭제(잔존: adapter·dto·web/controller·web/form). OMS DB local 리셋 완료(inventory·reservation·purchase_order* 테이블 OMS에서 제거). 두 앱 동시 기동 통합 검증 통과: OMS 재고조정→WMS 반영, OMS 발주 생성→WMS 저장→입고→가용수량 증가→OMS 메인 그리드 표시. 플랜: `docs/superpowers/plans/2026-07-01-phase3-s2-write-extraction.md`.
-  **S3 완료(2026-07-07)**: WMS→OMS 재고 보충 콜백(채널3) — WMS `InventoryService.adjust`(재고 증가 3경로가 전부 통과하는 단일 지점)가 `delta > 0`이면 커밋 후(`TransactionSynchronizationManager` afterCommit) `POST /api/replenishments {productIds}`를 OMS에 발화(`OmsReplenishmentNotifier`, try-catch best-effort — OMS 다운 시 조정은 성공·통지만 warn 유실). OMS는 `ReplenishmentApiController`(permitAll + CSRF 예외)가 수신해 `StockReplenishedHandler.onReplenished`(=`BackorderAllocator`)로 위임 — 통지는 자연 멱등(사실 전달뿐, 승격은 BACKORDERED 상태 기반 + `Reservation` orderId UNIQUE). `InventoryAdminController`의 인프로세스 직접 트리거 제거(OMS adjust 승격은 라운드트립: OMS→WMS adjust→콜백→승격). 주문 취소 경로 승격은 OMS 내부 `BackorderAllocator.allocate` 직접 호출 그대로(경계 안 넘음). 두 앱 통합 검증 통과(입고→승격, 라운드트립 승격, OMS 다운 best-effort). 스키마 변경 없음. 플랜: `docs/superpowers/plans/2026-07-07-phase3-s3-replenishment-callback.md`.
+  **S3 완료(2026-07-07)**: WMS→OMS 재고 보충 콜백(채널3) — WMS `InventoryService.adjust`(재고 증가 3경로가 전부 통과하는 단일 지점)가 `delta > 0`이면 커밋 후(`TransactionSynchronizationManager` afterCommit) `POST /api/replenishments {productIds}`를 OMS에 발화(`OmsReplenishmentNotifier`, try-catch best-effort — OMS 다운 시 조정은 성공·통지만 warn 유실). OMS는 `ReplenishmentApiController`가 수신해 `StockReplenishedHandler.onReplenished`(=`BackorderAllocator`)로 위임한다. 최초 구현은 `permitAll`이었고 2026-07-21 전용 Basic 인증으로 보강됐다. 통지는 자연 멱등이며, 주문 취소 경로 승격은 OMS 내부 `BackorderAllocator.allocate` 호출을 유지한다.
   **S4 완료(2026-07-08)**: 회복탄력성 — ① 타임아웃: 양쪽 앱 `spring.http.client.connect-timeout: 1s`/`read-timeout: 2s`(yml 2줄, 자동구성 RestClient.Builder 전체 적용)로 hang 무기한 블록 소멸 ② 예약 재시도: `WmsInventoryAdapter.reserveAll`이 `ResourceAccessException` 시 1회 재시도 후 실패면 false→BACKORDERED 강등("예약 못 해본 백오더" — WMS orderId 멱등 원장 덕에 재시도 안전) ③ ship/release/발주 실패: `GlobalExceptionHandler`에 `ResourceAccessException` 핸들러(화면 flash+redirect:/main, API 503) ④ 보상 스윕: `BackorderSweeper` `@Scheduled`(기본 60s, `backorder.sweep-delay`)가 BACKORDERED 상품id를 모아 `BackorderAllocator.allocate` 재사용 호출 — 콜백 유실·WMS 다운 중 접수분 회수, 스윕/콜백 동시 승격은 orderId 멱등으로 안전 ⑤ WMS `shipAll`에 RELEASED 가드 + `releaseAll`에 SHIPPED 가드(최종 리뷰 발견, 대칭 결함) — 타임아웃 반쪽 상태에서의 예약 이중 차감(reservedQty 음수 오염) 차단. 스키마 변경 없음. 두 앱 통합 검증 5/5 통과(타임아웃 실적용·강등 접수·스윕 승격·취소 flash·정상 회귀). 설계/플랜: `docs/superpowers/{specs,plans}/2026-07-08-phase3-s4-*`.
+- **포트폴리오 1차 구현 완료(2026-07-26)**: 고객 상품 상세·내 주문·상태 타임라인,
+  OMS 백오더 수량 분해·주문상품 표시·선택 일괄 출고, WMS 원장·부분입고·발주 취소·폼 로그인·역할 인가를 구현했다.
+  남은 완료 조건은 `docs/manual-verification-scenarios.md` 실행과 증거 기록이다.
 - (선택) Phase 4 — REST → 이벤트/메시지 기반 전환.
 
-> 주의: "품절 시 구매 차단 강화" 같은 쇼핑몰 방향 개선은 이 비전과 충돌한다. 기존 품절 UX(C)는 Phase 1에서 백오더 UX로 대체 예정.
+> 주의: "품절 시 구매 차단 강화" 같은 쇼핑몰 방향 개선은 이 비전과 충돌한다.
 
 ## 기술 스택
 
@@ -66,12 +68,19 @@ QueryDSL, 장바구니 REST API를 직접 확장한 구조.
 
 ## 배포 (Railway)
 
+> 현재 Railway 서비스는 중단 상태다. 아래는 재배포 시 적용할 운영 구성과 과거 검증 기록이다.
+
 - **빌드**: 루트 `Dockerfile`(멀티스테이지 — JDK17 빌드 / JRE17 실행). Railway는 Dockerfile 존재 시 Nixpacks 대신 이걸 사용. `.dockerignore`로 `build/`·`.git/` 등 제외(깨진 ACL `problems-report.html`도 컨텍스트에서 빠져 Docker 빌드는 `clean`이 무해).
 - **포트**: `application.yml`의 `server.port: ${PORT:8080}` — Railway가 주입하는 `${PORT}`에 바인딩(로컬은 8080).
 - **DB**: `prod` 프로파일(PostgreSQL). `SPRING_PROFILES_ACTIVE=prod` + Railway PostgreSQL 플러그인이 주입하는 `PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD` 참조. 스키마는 **Flyway가 관리**(`db/migration` V1~, `ddl-auto: validate` — Hibernate는 검증만) → `initDb`가 빈 DB 시드. SQL 로깅·p6spy off. (로컬/테스트는 H2 + `ddl-auto`, Flyway off.)
 - **드라이버**: `build.gradle`에 `runtimeOnly 'org.postgresql:postgresql'`(H2와 공존, prod에서만 사용). `devtools`는 `developmentOnly`라 운영 jar에 미포함.
 - **관리자 비밀번호**: 코드에 박지 않고 `ADMIN_PASSWORD` 환경변수로 주입(`initDb`, 로컬 기본값 `1111`). 운영은 Railway 앱 서비스 Variables에 강한 값 설정. 시드는 빈 DB에만 돌므로 **기존 DB의 관리자 비번은 코드 수정만으로 안 바뀜** → 비번 적용엔 DB 리셋(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`) 후 재배포 필요. H2 콘솔은 prod에서 미사용(Postgres).
-- **WMS 앱(2026-07-08~)**: 별도 Railway 서비스(`jhg-wms-project` 리포) + 자체 PostgreSQL. `SPRING_PROFILES_ACTIVE=prod` + PG* 변수, 스키마는 `ddl-auto: update`(Flyway 미도입), 빈 DB면 `InitDb`가 재고 1~20 시드. **공개 도메인 없음** — OMS↔WMS는 Railway Private Networking(`http://<service>.railway.internal:<PORT>`, PORT는 Variables로 OMS 8080/WMS 8081 고정). 통신 주소는 env로 주입: OMS `WMS_BASE_URL`, WMS `OMS_BASE_URL`(로컬 기본값은 localhost — yml placeholder). **V3 마이그레이션**이 OMS DB에서 inventory·reservation·purchase_order* 테이블/시퀀스 DROP(데이터 이관 없음, 이후 S1 이전 빌드로 롤백 불가). 관리 작업(재고조정·발주·입고)은 OMS 관리자 화면이 어댑터로 프록시 — WMS UI 접근 불필요. 부수 효과: `/api/replenishments`·WMS API 인터넷 미노출로 #15의 콜백 보호가 네트워크 격리로 해소. **두 앱 Railway 실배포 + 스모크 5/5 통과(2026-07-09)**: ①메인 실재고 표시(채널1, 입고 대기 0) ②주문→ORDER(채널2 예약) ③관리자 재고조정 +delta→백오더 3초 내 승격(채널3 콜백 라운드트립, false-timeout #23 미발생) ④발주 생성→입고→백오더 3초 내 승격 ⑤주문 취소→CANCEL. WMS는 자체 Postgres(`Postgres-HHGY`)·prod 프로파일로 기동, InitDb 재고 20건 시드 확인. **운영 배포 함정 2건(기록)**: ⓐ `railway add --repo --branch master`가 브랜치를 무시하고 옛 브랜치에 연결될 수 있음 → `railway service source connect --branch master`로 교정(옛 브랜치엔 java.home·Dockerfile 부재로 빌드 실패했었음) ⓑ CLI 생성 서비스는 Dockerfile 대신 Railpack 기본값을 쓸 수 있음 → 레포 `railway.json`(`build.builder=DOCKERFILE`) + `RAILWAY_DOCKERFILE_PATH=Dockerfile` env로 강제.
+- **WMS 앱(2026-07-08~)**: 별도 Railway 서비스(`jhg-wms-project`)와 PostgreSQL을 사용한다.
+  OMS↔WMS는 private networking을 유지하고, 공개 WMS 관리자 화면은 폼 로그인으로 보호한다.
+  `/api/**`는 `WMS_BASIC_*`, WMS→OMS 콜백은 `OMS_CALLBACK_*` 전용 Basic을 사용한다.
+  WMS 관리자 계정은 `WMS_OPERATOR_*`, `WMS_MANAGER_*`로 시드하며 prod에는 기본값이 없다.
+  **V3 마이그레이션**은 OMS DB에서 재고·예약·발주 테이블을 제거했다.
+  두 앱 Railway 스모크 5/5는 2026-07-09에 통과했지만 현재 서비스는 중단 상태다.
 
 > 현재 운영 경계: OMS 관리자 화면은 WMS inventory read와 보충 요청 제출·이력 조회만 제공한다. 수동 재고 조정·발주 생성·입고는 WMS에서 수행한다.
 
@@ -84,15 +93,15 @@ Service (Account/Member/Product/Cart/Order)   ← @Transactional(readOnly=true) 
         │
 Repository (Spring Data JPA + QueryDSL 별도 클래스 *RepositoryQuery)
         │
-Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Delivery / Product ─ Inventory)
+Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Delivery / Product)
 ```
 
 ### 패키지 구조 (`src/main/java/com/jhg/hgpage`)
 
 **바운디드 컨텍스트 코어** (2026-06-18 코어 재배치 + 2026-06-22 web 계층 분리 완료 — domain·repository·service·web을 컨텍스트별로 수직 분할):
 - `contract/` — **OMS↔WMS 경계 포트**(컨슈머가 아니라 공용에 둬 양방향 의존/순환 차단): `InventoryPort`(OMS→WMS 재고 예약/해제/출고), `InventoryQueryPort`(OMS→WMS 가용수량 조회, CQRS 읽기), `StockReplenishedHandler`(WMS→OMS 재고 보충 통지 콜백). oms·wms는 서로 직접 import하지 않고 contract에만 의존.
-- `catalog/` — 상품 카탈로그(OMS·WMS 공통 참조): `Product`, `ProductRepository`, `ProductService`(메인 그리드 카드 조립 — 카탈로그 + `InventoryQueryPort` 가용수량), `ProductCardDto`.
-- `oms/` — 주문·장바구니·고객. `domain/`(`Order`/`OrderItem`/`Delivery`/`Cart`/`CartItem`/`Account`/`Member`/`Address` + `enums/`(OrderStatus/DeliveryStatus)), `repository/`(주문·장바구니·회원 Spring Data + QueryDSL `*RepositoryQuery` + `SearchOption`), `service/`(`OrderService`/`OrderAllocationService`/`CartService`/`AccountService`/`MemberService`/`BackorderAllocator`), `dto/`(응답 뷰DTO `OrderDto`/`OrderDetailDto`/`AdminOrderDto`/`CartItemDto` — repository→web 역의존 회피 위해 web 밑이 아닌 컨텍스트 레벨), `web/`(`controller/`: `AuthController`/`CartController`/`OrderController`/`OrderAdminController`, `api/`: `CartApiController`/`OrderApiController`, `form/`: `CheckOutForm`/`OrderRequest`/`SignUpForm`).
+- `catalog/` — OMS 상품 카탈로그: `Product`, `ProductRepository`, `ProductService`(메인 그리드 카드 조립 — 카탈로그 + `InventoryQueryPort` 가용수량), `ProductCardDto`. WMS는 상품 엔티티를 공유하지 않고 `productId`만 사용한다.
+- `oms/` — 주문·장바구니·고객. `domain/`(`Order`/`OrderItem`/`Delivery`/`Cart`/`CartItem`/`Account`/`Member`/`Address` + `enums/`), `repository/`, `service/`, `dto/`, `web/`(`controller/`: `AuthController`/`CartController`/`OrderController`/`OrderAdminController`, `api/`: `CartApiController`/`ReplenishmentApiController`, `form/`).
 - `wms/` — WMS REST adapter·DTO와 `InventoryAdminController`/`ReplenishmentRequestForm`. 관리자 화면은 재고 조회와 보충 요청 제출·이력 관측만 제공하며 수동 조정·발주·입고 control은 없다.
 
 > `OrderAdminController`는 배송을, `InventoryAdminController`는 `/admin/inventory`의 WMS 재고 조회·보충 요청 화면을 담당한다.
@@ -109,23 +118,29 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 - **Account ↔ Member (1:1 분리)**: 인증정보(Account: email/password/role)와 회원정보(Member: name/phone/address)를 분리. `UserPrincipal`이 둘을 합쳐 Spring Security 주체로 동작.
 - **Member → Cart (1:1, cascade ALL)**: `Member.createUser()` 시 장바구니 자동 생성, `createAdmin()`은 장바구니 없음.
 - **Order → OrderItem → Product / Delivery**: 주문은 **예약/백오더 모델** — `OrderAllocationService.allocate(order)`가 `InventoryPort.reserveAll`(원자적 전부-아니면-실패)로 전 라인 예약을 시도해 성공이면 ORDER, 부족하면 거부 없이 `BACKORDERED` 접수. **`Order` 도메인은 상태 전이(`markOrdered/markBackordered/cancel/completeDelivery`)만 담당하고 재고 연산(예약/해제/출고)은 모두 서비스가 `InventoryPort`(WMS)에 위임**한다(객체 그래프 `getProduct().getInventory()` 결합 제거 — Phase 2 사전 정지작업). 취소는 예약 해제(ORDER만), 출고(`completeDelivery`)에서 비로소 실물 차감. 백오더는 출고 불가, 입고/재고증가 시 `BackorderAllocator`가 FIFO로 재할당해 ORDER로 승격.
-- **Product ↔ Inventory (1:1)**: 재고를 별도 엔티티로 분리. `onHandQty`(실물)/`reservedQty`(예약)/`availableQty`(가용=실물−예약, 계산값). 도메인 연산은 `reserve/release/ship`만 노출(OMS는 `InventoryPort`를 통해서만 호출). `@Version` 낙관적 락.
-- **PurchaseOrder → PurchaseOrderItem → Product**: 관리자 발주(`ORDERED`) → 입고(`receive()`: 재고 증가 + `RECEIVED`). 중복 입고 거부.
+- **Product**: OMS 카탈로그는 상품 ID·이름·가격만 소유한다. 재고 객체 참조가 없으며 WMS 가용수량을 `InventoryQueryPort`로 합성한다.
+- **WMS Inventory / Reservation / PurchaseOrder**: 별도 WMS 앱이 소유한다. 상품별 보유·예약·가용수량,
+  `orderId` 예약 원장, 발주(`ORDERED -> PARTIALLY_RECEIVED -> RECEIVED/CANCELLED`)를 관리한다.
 
 ### 주요 흐름
 - **회원가입**: `AuthController` → `AccountService.signUp(member, account)` 단일 트랜잭션으로 Member+Account 원자적 저장. 이메일 중복 시 `DuplicateEmailException` → 컨트롤러가 signup 폼의 email 필드 에러로 안내.
 - **로그인**: `AccountService.loadUserByUsername`(email 조회) → `UserPrincipal`. 로그인 파라미터는 `email`/`password`, 성공 시 `/main`. 로그인 화면 템플릿은 `home.html`.
-- **메인**: `GET /main` — 상품 페이징·검색(`keyword`, size=10, sort=id) + 내 주문 목록 + (ADMIN이면) 전체 재고 목록. 페이지 네비게이션은 숫자 클릭형(`이전 | 1 … 4 [5] 6 … 12 | 다음`, 윈도우 최대 5개) — 컨트롤러가 0-based `beginPage`/`endPage`를 모델로 내려준다.
+- **상품**: `GET /main`은 상품 검색·페이징, `GET /products/{id}`는 상품 상세와 주문 진입점을 제공한다.
 - **장바구니**: `CartApiController`(REST) — fetch 호출용. 담기/수량변경/삭제/카운트. 모든 응답에 최신 장바구니 count 반환.
-- **주문**: 메인·장바구니 → `POST /orders/checkout-form`(주문서 생성) → `POST /orders/checkout`(확정, `@Valid CheckOutForm` — 상품 0개·수량 0 검증 있음). 주문서에서 상품별 체크박스(`ProductDto.selected`, 기본 true)로 일부만 골라 주문 가능 — 체크된 상품만 OrderLine으로 변환되고, 전부 해제 시 `product` 필드 에러. 장바구니에서 온 주문서는 `CheckOutForm.fromCart`(hidden) = true — 주문 확정 시 `OrderService.orderFromCart()`가 주문 생성과 함께 주문된 상품만 장바구니에서 제거(단일 트랜잭션). 바로 구매는 장바구니 불변. `GET /orders/me`는 새로고침 폼의 JS 폴백(`redirect:/main`) — 실제 새로고침은 `GET /api/orders/me`(JSON) fetch.
-- **주문 상세/취소**: `GET /orders/{id}`(`orderview.html`) — `findDetailById` fetch join 단건 조회, **본인 주문만**(타인/없는 주문은 404로 존재를 숨김, IDOR 방지). `POST /orders/{id}/cancel` — `Order.cancel()` 호출(재고 복구, 배송완료·재취소 거부 가드), 성공/실패를 flash로 상세에 표시. 취소 버튼은 `OrderDetailDto.cancelable`(ORDER 상태 + 배송완료 전)일 때만 노출.
-- **관리자 배송 관리**: `GET /admin/orders` — 전체 주문 목록(최신순), READY 건에만 "배송완료" 버튼 → `POST /admin/orders/complete-delivery` → `Order.completeDelivery()`(READY→COMP, 취소된 주문·중복 처리 거부).
+- **주문**: 메인·상품 상세·장바구니 → `POST /orders/checkout-form` → `POST /orders/checkout`.
+  생성 후 `/orders/{id}?created=true`로 이동하며, `GET /orders`가 최신 주문 목록을 서버 렌더링한다.
+  장바구니 주문은 주문된 상품만 같은 트랜잭션에서 제거하고 바로 구매는 장바구니를 바꾸지 않는다.
+- **주문 상세/취소**: `GET /orders/{id}`는 본인 주문만 보여준다. `POST /orders/{id}/cancel`은
+  WMS 예약 해제 성공 후 상태를 전이하며, WMS 장애 시 롤백하고 통신 실패 flash를 표시한다.
+- **관리자 배송 관리**: `GET /admin/orders`는 주문상품과 백오더 입고 필요 상품을 표시한다.
+  `POST /admin/orders/complete-delivery`는 단건, `/complete-deliveries`는 선택 주문을 독립적으로 일괄 출고한다.
+  화면 용어는 `출고 대기/출고 완료`이며 실제 배송사 배송완료는 아직 모델링하지 않는다.
 - **가격 정책**: 가격은 항상 서버에서 `Product`를 재조회해 사용한다. 클라이언트가 보낸 가격을 신뢰하지 않는다. 주문/장바구니에 당시 가격을 스냅샷(`orderPrice`/`productPrice`)으로 저장.
 
 ### 초기 시드 계정 (`initDb`)
 - 관리자: `admin@admin.com` / **`${ADMIN_PASSWORD:1111}`** (ROLE_ADMIN, 장바구니 없음). 비번은 `ADMIN_PASSWORD` env로 주입(로컬 기본 `1111`, 운영은 Railway에 강한 값). `initService` 생성자가 `@Value`로 받음 — 테스트는 생성자에 직접 주입.
 - 일반회원: `twin10240@naver.com` / `1111` (ROLE_USER, 데모 계정이라 하드코딩 유지)
-- 상품 20개("상품1"~"상품20", 가격 10000~29000) + 각 재고 자동 생성
+- 상품 20개("상품1"~"상품20", 가격 10000~29000). 재고 시드는 별도 WMS가 같은 productId로 생성한다.
 - **빈 DB에만 시드된다**(Account 존재 시 skip). 처음부터 다시 시드하려면 `local` 프로파일로 실행.
 
 ## 컨벤션 / 주의사항
@@ -213,6 +228,7 @@ Domain (Account ─ Member ─ Cart ─ CartItem / Order ─ OrderItem ─ Deliv
 21. `OptionalTest`(Java API 연습장), `PassWordTest`(bcrypt 해시 출력용 `@SpringBootTest`) — 프로젝트 검증과 무관한 연습 테스트. 정리 후보(사용자 결정으로 보존 중).
 
 ### 개선 우선순위
-1. (선택) Phase 4 — REST → 이벤트/메시지 기반 전환(콜백·통지를 브로커로).
-2. (선택) Phase 2 잔여 — 컨트롤러·DTO의 컨텍스트별 분리 정리.
-3. 운영 배포 단계 시 `update` 대신 Flyway 마이그레이션 도입 검토(#15 H2 콘솔 정리 포함. WMS도 스키마 진화 시작되면 Flyway 도입 검토).
+1. `docs/manual-verification-scenarios.md` 전체 실행과 캡처·수량 증거 기록.
+2. 양쪽 저장소 전체 테스트 후 기능별 커밋 정리.
+3. Railway 재배포 시 private networking·자격증명·PostgreSQL 유지 스모크.
+4. (선택) Phase 4 메시지 브로커, 실제 배송완료, WMS 실사·반품·위치 기능.

@@ -21,7 +21,7 @@ public class OrderDetailDto {
     private final String zipcode;
     private final List<OrderLineDto> items;
     private final int totalPrice;
-    // 취소 버튼 노출 조건: 주문 상태가 ORDER이고 아직 배송완료 전
+    // 취소 버튼 노출 조건: 주문 상태가 ORDER이고 아직 출고완료 전
     private final boolean cancelable;
 
     private OrderDetailDto(Order order) {
@@ -37,7 +37,7 @@ public class OrderDetailDto {
                 .map(oi -> new OrderLineDto(oi.getProduct().getName(), oi.getOrderPrice(), oi.getCount(), oi.getTotalPrice()))
                 .toList();
         this.totalPrice = order.getTotalPrice();
-        // 백오더는 예약이 없어 자유롭게 취소 가능. 배송완료/이미취소만 불가.
+        // 백오더는 예약이 없어 자유롭게 취소 가능. 출고완료/이미취소만 불가.
         this.cancelable = (order.getStatus() == OrderStatus.ORDER || order.getStatus() == OrderStatus.BACKORDERED)
                 && order.getDelivery().getStatus() != DeliveryStatus.COMP;
     }

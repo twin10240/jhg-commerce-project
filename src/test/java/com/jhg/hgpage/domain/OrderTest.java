@@ -77,12 +77,13 @@ class OrderTest {
     }
 
     @Test
-    void 배송완료된_주문은_취소할_수_없다() {
+    void 출고완료된_주문은_취소할_수_없다() {
         Order order = createOrderedOrder(product(), 2);
-        order.completeDelivery(); // 배송완료(COMP)로 전이
+        order.completeDelivery(); // 출고완료(COMP)로 전이
 
         assertThatThrownBy(order::cancel)
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("이미 출고 완료된 상품은 취소가 불가능합니다.");
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
     }
@@ -98,7 +99,7 @@ class OrderTest {
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL); // 재취소 가드로 상태 불변
     }
 
-    // ── 출고(배송완료) ─────────────────────────────────────────────
+    // ── 출고 ──────────────────────────────────────────────────────
 
     @Test
     void 출고_처리하면_배송상태가_COMP가_된다() {
@@ -120,23 +121,25 @@ class OrderTest {
     }
 
     @Test
-    void 취소된_주문은_배송완료_처리할_수_없다() {
+    void 취소된_주문은_출고_처리할_수_없다() {
         Order order = createOrderedOrder(product(), 2);
         order.cancel();
 
         assertThatThrownBy(order::completeDelivery)
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("취소된 주문은 출고 처리할 수 없습니다.");
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
     }
 
     @Test
-    void 이미_배송완료된_주문은_다시_처리할_수_없다() {
+    void 이미_출고완료된_주문은_다시_처리할_수_없다() {
         Order order = createOrderedOrder(product(), 2);
         order.completeDelivery(); // 1회차: COMP로 전이
 
         assertThatThrownBy(order::completeDelivery)
-                .isInstanceOf(IllegalStateException.class);
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("이미 출고 완료된 주문입니다.");
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP); // 상태 불변(이중 처리 차단)
     }

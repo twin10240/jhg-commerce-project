@@ -1,6 +1,7 @@
 package com.jhg.hgpage.oms.service;
 
 import com.jhg.hgpage.contract.InventoryPort;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.domain.*;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.dto.AdminOrderDto;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ public class OrderService {
     private final CartService cartService;
     private final BackorderAllocator backorderAllocator;
     private final InventoryPort inventoryPort;
+    private final InventoryQueryPort inventoryQueryPort;
     private final OrderAllocationService orderAllocationService;
 
     public List<Order> findAllOrders() {
@@ -89,8 +92,18 @@ public class OrderService {
 
     // 관리자 배송 관리 목록
     public List<AdminOrderDto> findAllForAdmin() {
-        return orderRepositoryQuery.findAllForAdmin().stream()
-                .map(AdminOrderDto::from)
+        List<Order> orders = orderRepositoryQuery.findAllForAdmin();
+        List<Long> backorderedProductIds = orders.stream()
+                .filter(order -> order.getStatus() == OrderStatus.BACKORDERED)
+                .flatMap(order -> order.getOrderItems().stream())
+                .map(orderItem -> orderItem.getProduct().getId())
+                .distinct()
+                .toList();
+        Map<Long, Integer> availability = backorderedProductIds.isEmpty()
+                ? Map.of()
+                : inventoryQueryPort.availableByProductIds(backorderedProductIds);
+        return orders.stream()
+                .map(order -> AdminOrderDto.from(order, availability))
                 .toList();
     }
 
@@ -137,7 +150,19 @@ public class OrderService {
     public List<OrderDto> findOrders(Long memberId) {
         List<Order> orders = orderRepositoryQuery.findOrders(memberId);
         return orders.stream()
-                .map(o -> new OrderDto(o.getId(), o.getStatus(), o.getTotalPrice(), o.getOrderDate()))
+                .map(o -> new OrderDto(o.getId(), o.getStatus(), o.getDelivery().getStatus(),
+                        o.getTotalPrice(), o.getOrderDate()))
                 .collect(Collectors.toList());
+    }
+
+    public Map<Long, Integer> backorderDemandByProductId(List<Long> productIds) {
+        if (productIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Integer> demand = new HashMap<>();
+        orderRepositoryQuery.findBackordersContaining(productIds)
+                .forEach(order -> order.quantitiesByProductId()
+                        .forEach((productId, quantity) -> demand.merge(productId, quantity, Integer::sum)));
+        return demand;
     }
 }

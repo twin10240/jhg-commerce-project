@@ -1,6 +1,7 @@
 package com.jhg.hgpage.oms.dto;
 
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -13,6 +14,8 @@ public class OrderDto {
     private Long id;
 
     private OrderStatus status;
+
+    private DeliveryStatus deliveryStatus;
 
     private int totalAmount;
 

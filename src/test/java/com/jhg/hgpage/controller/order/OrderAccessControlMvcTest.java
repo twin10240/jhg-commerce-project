@@ -6,6 +6,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.web.controller.OrderController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +38,7 @@ class OrderAccessControlMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean InventoryQueryPort inventoryQueryPort;
 
     private UserPrincipal adminPrincipal() {
         return new UserPrincipal(99L, "admin@admin.com", "관리자", "010-1111-2222", "password", Role.ADMIN);

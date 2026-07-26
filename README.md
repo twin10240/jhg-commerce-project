@@ -1,7 +1,20 @@
 # 그니 마켓 (jhg-commerce)
 
-Spring Boot 기반 **학습용 커머스 웹 애플리케이션**입니다.
-JPA 도메인 설계(주문/배송/재고)에 Spring Security 인증, QueryDSL, 장바구니 REST API를 직접 확장하며 만들고 있습니다.
+[![CI](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml/badge.svg)](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml)
+
+**재고가 없어도 주문을 접수하고, 입고 순서에 따라 자동으로 이행하는 OMS입니다.**
+
+재고 부족을 구매 실패가 아닌 `BACKORDERED` 주문으로 접수하고, WMS 예약으로 오버셀을 방지합니다.
+입고되면 대기 주문을 FIFO로 자동 할당하며, WMS 장애 중에도 주문 접수와 사후 복구가 가능합니다.
+주문·백오더 정책과 고객 화면은 OMS가, 재고·예약·발주·입고는 별도
+[JHG-WMS](https://github.com/twin10240/jhg-wms-project)가 소유합니다.
+
+| | |
+|---|---|
+| 주문 정책 | 재고 확보 또는 `BACKORDERED` 접수, 입고 시 FIFO 자동 할당 |
+| 시스템 경계 | OMS는 주문, WMS는 재고 정본을 소유하고 REST로 통신 |
+| 장애 복구 | 타임아웃·멱등 예약·백오더 보상 스윕 |
+| 테스트 | 175개 (도메인·서비스·MVC·HTTP 통합) |
 
 ## 프로젝트 비전 — 미니 OMS + 별도 WMS
 
@@ -22,15 +35,18 @@ JPA 도메인 설계(주문/배송/재고)에 Spring Security 인증, QueryDSL, 
 | 영역 | 기능 |
 |------|------|
 | 회원 | 회원가입(Member+Account 단일 트랜잭션, 이메일 중복·비밀번호 일치 서버 검증), 로그인/로그아웃 |
-| 상품 | 키워드 검색 + 숫자 페이지 네비게이션(`이전 \| 1 … 4 [5] 6 … 12 \| 다음`), 가용 재고·입고 대기 표시 |
+| 상품 | 키워드 검색·페이징, 상품 상세, WMS 가용 재고·입고 대기 표시 |
 | 장바구니 | REST API 기반 담기/수량변경/삭제, 실시간 카운트 배지 |
-| 주문 | 바로 구매 / 장바구니 주문, 주문서에서 **상품 선택 주문**, 검증 실패 인라인 에러 |
+| 주문 | 바로 구매·선택 주문, 생성 주문 상세 이동, 내 주문·상태 타임라인·취소 |
 | 백오더 | 재고 부족해도 **주문 접수(입고 대기)**, 입고 시 **FIFO 자동 충족**, 출고 시점에 실물 차감 |
-| 재고 | 예약 모델(`가용 = 실물 − 예약`), `@Version` 낙관적 락으로 동시 주문 오버셀 방지 |
-| 관리자 | WMS 재고 조회, 보충 요청 제출·이력 관측, 배송완료 처리 |
+| 재고 | WMS 예약 모델(`가용 = 실물 − 예약`)과 `orderId` 멱등 원장 |
+| 관리자 | WMS 재고·백오더 수량 조회, 보충 요청, 주문상품 확인, 단건·선택 일괄 출고 |
 | 공통 | 전역 예외 처리(화면: 에러 페이지·flash / API: ProblemDetail JSON), 다크 모드 지원 |
 
 OMS 관리자에게는 수동 재고 조정·발주 생성·입고 권한이 없습니다. 해당 작업과 보충 요청 원본은 WMS가 소유합니다. 주문 이행을 위한 `reserve`·`ship`·`release` 호출은 기존과 같이 OMS 주문 흐름에서 유지됩니다.
+
+현재 `COMP`는 출고 완료를 뜻합니다. 실제 배송완료 단계 분리는
+[출고 처리 용어 정비 설계](docs/superpowers/specs/2026-07-26-shipment-wording-design.md)의 고도화 전략으로 관리합니다.
 
 ## 기술 스택
 
@@ -49,35 +65,65 @@ OMS(주문)와 WMS(재고)의 도메인·서비스·리포지토리를 **컨텍�
 ```
 src/main/java/com/jhg/hgpage
 ├── contract/   OMS↔WMS 주문 이행 경계 포트 (InventoryPort · InventoryQueryPort · StockReplenishedHandler)
-├── catalog/    상품 카탈로그 (Product — OMS·WMS 공통) + ProductService/Repository
+├── catalog/    OMS 상품 카탈로그 (Product) + ProductService/Repository
 ├── oms/        주문·장바구니·고객   (domain · repository · service)
 │                 Order · Cart · Account · Member · OrderService · BackorderAllocator …
 ├── wms/        WMS REST adapter·DTO와 OMS 관리자 보충 요청 화면
-├── api/        장바구니·주문 REST API
 ├── config/     Security, QueryDSL 설정
-├── controller/ 화면 컨트롤러 (auth / main / cart / order / admin) + form DTO
-├── domain/     공용 응답 DTO(view) · UserPrincipal · Role enum
+├── web/        상품 목록·상세 등 공용 화면
+├── domain/     UserPrincipal · Role enum
 ├── exception/  전역 예외 처리 (GlobalExceptionHandler 등)
 └── initDb      초기 시드 (빈 DB에만 실행)
 ```
 
 > OMS→WMS의 주문 이행 호출(예약/해제/출고)과 가용 조회는 `contract` 포트를 거칩니다. 관리자 보충 요청 제출·이력 조회는 전용 WMS REST adapter를 사용합니다.
 
+### OMS ↔ WMS 책임 경계
+
+Phase 3에서 WMS를 물리적으로 분리한 뒤, 재고의 정본(source of truth)은 **WMS 한 곳**입니다. OMS는 재고 수량을 저장하지 않고 필요할 때마다 WMS에 HTTP로 조회/차감합니다(미러 아님 — 라이브 리드).
+
+| | OMS (이 저장소, :8080) | WMS (jhg-wms, :8081) |
+|---|---|---|
+| 소유 도메인 | 주문·장바구니·고객·판매, 백오더 | 재고 수량·예약·발주(PO)·입고·재고 원장 |
+| 재고에 대해 | 조회(실시간 질의) + "보충해줘" 요청 | 재고 정본. 수동 조정·발주·입고·요청 승인 |
+| 관리자 권한 | 재고 조정·발주·입고 **없음**(설계상 제거) | 위 전부 소유 (OPERATOR/MANAGER 롤) |
+| DB | 주문·고객 (재고 수량 없음) | 재고·예약·발주·원장 |
+
+#### 통신 채널 (Basic 인증)
+
+| 채널 | 방향 | 용도 |
+|------|------|------|
+| S1 | OMS → WMS | 가용수량 조회 `GET /api/inventory/availability` |
+| S2 | OMS → WMS | 주문 이행 `reserve` / `ship` / `release` |
+| S3 | WMS → OMS | 재고 증가(입고·조정) 통지 → OMS 백오더 FIFO 승격 |
+| S4 | 양방향 | 회복탄력성 — 타임아웃 · best-effort · 보상 스윕 |
+
+보충 흐름: OMS가 백오더로 부족을 감지 → WMS에 **보충 요청** → WMS 관리자가 **승인 → 발주 생성 → 입고** → 재고 증가 → S3로 OMS에 통지 → OMS가 백오더 승격.
+
+> 핵심: **"몇 개 있냐"는 오직 WMS.** OMS는 그 재고를 실시간으로 조회·차감할 뿐 자기 수량을 갖지 않는다. WMS가 응답하지 않으면 OMS는 가용수량 0으로 폴백(품절/백오더)해 무너지지 않는다.
+
 ## 로컬 실행
 
 ```bash
-# 1. H2 TCP 서버 실행 (datasource: jdbc:h2:tcp://localhost/~/hgpage)
+# 1. H2 TCP 서버 실행
+# OMS: jdbc:h2:tcp://localhost/~/hgpage
+# WMS: jdbc:h2:tcp://localhost/~/jhg-wms
 
-# 2. 애플리케이션 실행
-./gradlew bootRun          # Windows: .\gradlew.bat bootRun
+# 2. WMS(:8081) 실행 - jhg-wms-project
+./gradlew bootRun
+
+# 3. OMS(:8080) 실행 - 이 저장소
+./gradlew bootRun
 
 # 스키마 리셋 + 재시드가 필요하면 local 프로파일 (ddl-auto: create)
 ./gradlew bootRun --args='--spring.profiles.active=local'
 
-# 3. http://localhost:8080 접속
+# 4. http://localhost:8080 접속
 ```
 
-> JDK 17 이상이 필요합니다 (`JAVA_HOME` 확인). 테스트는 임베디드 H2를 쓰므로 TCP 서버 없이 돕니다.
+로컬 기본 서비스 자격증명은 양쪽 모두 `WMS_BASIC_USER=wms`,
+`WMS_BASIC_PASSWORD=wms`, `OMS_CALLBACK_USER=wms`, `OMS_CALLBACK_PASSWORD=wms`입니다.
+OMS는 JDK 17 이상, WMS는 JDK 21이 필요합니다. 테스트는 임베디드 H2를 사용합니다.
 
 ### 초기 계정 (자동 시드)
 
@@ -86,11 +132,12 @@ src/main/java/com/jhg/hgpage
 | 관리자 | `admin@admin.com` | `ADMIN_PASSWORD` 환경변수 (로컬 기본 `1111`) |
 | 일반회원 | `twin10240@naver.com` | `1111` |
 
-상품 20개와 재고가 함께 시드됩니다. 관리자 비밀번호는 코드에 박지 않고 `ADMIN_PASSWORD` 환경변수로 주입합니다.
+OMS는 상품 20개를, WMS는 같은 ID의 재고 20개를 각각 시드합니다. 관리자 비밀번호는
+`ADMIN_PASSWORD` 환경변수로 주입합니다.
 
 ## 배포 (Railway)
 
-GitHub `master`에 push하면 Railway가 자동 빌드·배포합니다.
+Railway 배포 설정은 보존돼 있지만 **현재 서비스는 중단 상태**입니다. 아래 내용은 재배포 시 사용하는 구성입니다.
 
 - **빌드**: 루트 `Dockerfile`(JDK17 멀티스테이지 — 빌드/실행 분리). `railway.json`이 Dockerfile 빌더를 강제.
 - **DB**: `prod` 프로파일 + Railway PostgreSQL 플러그인. 앱 서비스에 환경변수 설정:
@@ -98,6 +145,9 @@ GitHub `master`에 push하면 Railway가 자동 빌드·배포합니다.
   SPRING_PROFILES_ACTIVE=prod
   PGHOST / PGPORT / PGDATABASE / PGUSER / PGPASSWORD   # Postgres 서비스 값
   ADMIN_PASSWORD=<강한 비밀번호>
+  WMS_BASE_URL=http://<wms>.railway.internal:8081
+  WMS_BASIC_USER / WMS_BASIC_PASSWORD
+  OMS_CALLBACK_USER / OMS_CALLBACK_PASSWORD
   ```
 - **포트**: `server.port=${PORT:8080}` 로 Railway가 주입하는 포트에 바인딩.
 - **스키마**: Flyway로 버전 관리(`prod` 프로파일). 첫 기동 시 `V1__init_schema.sql`이 적용돼 스키마를 생성하고 `initDb`가 빈 DB를 시드. `ddl-auto: validate`로 엔티티-스키마 불일치를 기동 시 감지.
@@ -110,11 +160,13 @@ GitHub `master`에 push하면 Railway가 자동 빌드·배포합니다.
 ./gradlew test
 ```
 
-- **단위 테스트**: Mockito 기반 서비스/도메인 테스트 (`InventoryServiceTest`, `OrderAllocationServiceTest`, `PurchaseOrderTest` 등)
+- **단위 테스트**: Mockito 기반 서비스/도메인 테스트 (`OrderServiceTest`, `OrderAllocationServiceTest`, `BackorderAllocatorTest` 등)
 - **슬라이스 테스트**: `@WebMvcTest`(Security 포함 컨트롤러·템플릿 렌더링 검증), `@DataJpaTest`(임베디드 H2 — 낙관적 락, fetch join 쿼리, 시드 멱등성 검증 — 별도 DB 서버 불필요)
 
 ## 문서
 
 - [`docs/기획서.md`](docs/기획서.md) — 프로젝트 기획서(배경·비전·핵심 시나리오·로드맵)
+- [`docs/manual-verification-scenarios.md`](docs/manual-verification-scenarios.md) — OMS·WMS 통합 수동 검증 기준본
+- [`risk.md`](risk.md) — 열린 운영·정합성 리스크
 - [`CLAUDE.md`](CLAUDE.md) — 아키텍처·도메인 규칙·배포·알려진 이슈·개선 우선순위
-- [`docs/`](docs/) — 기능별 설계 문서
+- [`docs/superpowers/`](docs/superpowers/) — 날짜별 설계·구현 계획 기록

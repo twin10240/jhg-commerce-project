@@ -5,6 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>그니 마켓</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
 
     <!-- CSRF (세션 기반 Security) -->
     <meta name="_csrf_parameter" th:content="${_csrf.parameterName}" />
@@ -52,10 +53,6 @@
             box-shadow:0 10px 20px rgba(231,111,81,.28);
         }
         h1{margin:0; font-size:22px; letter-spacing:-.2px}
-        .pill{
-            padding:6px 10px; border-radius:999px; background:#fff; border:1px solid #eadfd6;
-            font-size:12px; color:#7b6f66;
-        }
         nav.tabs{
             display:flex; gap:8px; margin:10px 0 4px; flex-wrap:wrap;
         }
@@ -100,7 +97,13 @@
         tbody tr td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
         tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
 
-        .cart-link { position: relative; display:inline-flex; align-items:center; }
+        .cart-link {
+          position:relative; width:44px; height:44px; display:inline-flex; align-items:center; justify-content:center;
+          color:var(--ink); background:var(--card); border:1px solid #eadfd6; border-radius:13px;
+          box-shadow:0 4px 12px rgba(68,60,51,.1);
+        }
+        .cart-link:hover{color:var(--accent2);border-color:var(--accent1)}
+        .cart-link svg{width:27px;height:27px;stroke:currentColor}
         .cartbadge {
           position:absolute; top:-6px; right:-10px;
           min-width:18px; height:18px; padding:0 5px;
@@ -135,6 +138,10 @@
             box-shadow:0 14px 30px rgba(68,60,51,.14);
             border-color:#f1c7a1;                  /* accent 톤으로 살짝 강조 */
         }
+        .product-card-link{position:absolute;inset:0;z-index:1;border-radius:14px}
+        .product-card-link:focus-visible{outline:3px solid var(--accent2);outline-offset:3px}
+        .product-actions{position:relative;z-index:2}
+        .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
         /* 제목이 길어도 자연스럽게 줄바꿈 */
         .product h3{ overflow-wrap:anywhere; }
@@ -263,6 +270,7 @@
             .product{ background:#201d1a; }
             .input, select{background:#161412; border-color:#39322c; color:#f1eee9}
             .tab{background:#161412; border-color:#39322c; color:#d9d4cf}
+            .cart-link{background:#161412; border-color:#39322c; color:#f1eee9}
             .page-num{background:#161412; border-color:#39322c; color:#d9d4cf}
             thead th{color:#bfb4a9}
             /*tbody tr{background:#161412; border-color:#39322c}*/
@@ -271,6 +279,7 @@
     </style>
 </head>
 <body>
+<div th:replace="~{fragments/layout :: nav('products')}"></div>
 <div class="container">
     <div class="card">
         <header>
@@ -282,11 +291,12 @@
                 </div>
             </div>
             <div>
-                <span class="pill" sec:authorize="hasRole('USER')">ROLE_USER</span>
-                <span class="pill" sec:authorize="hasRole('ADMIN')">ROLE_ADMIN</span>
-
                 <a href="/cart" class="cart-link" aria-label="장바구니" sec:authorize="hasRole('USER')">
-                    <img src="/images/cart.png" alt="장바구니 아이콘" width="24" height="24">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="9" cy="20" r="1"></circle>
+                        <circle cx="19" cy="20" r="1"></circle>
+                        <path d="M3 4h2l2.4 10.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 7H6"></path>
+                    </svg>
                     <span id="cartBadge" class="cartbadge" aria-live="polite">0</span>
                 </a>
             </div>
@@ -296,13 +306,6 @@
         <div th:if="${errorMessage}" th:text="${errorMessage}" role="alert"
              style="margin-top:14px; padding:12px 16px; border:1px solid #e3b4ac; border-radius:10px; color:#c0392b; background:#fdf3f1;"></div>
 
-        <!-- 탭 -->
-        <nav class="tabs" id="tabs">
-            <button class="tab active" data-target="products">상품</button>
-            <button class="tab" data-target="orders" sec:authorize="hasRole('USER')">내 주문</button>
-            <button class="tab" data-target="inventory" sec:authorize="hasRole('ADMIN')">재고(관리자)</button>
-        </nav>
-
         <!-- 상품 섹션 -->
         <section id="products" class="section active">
             <div class="toolbar">
@@ -310,17 +313,16 @@
                 <form th:action="@{/main}" method="get" style="margin:0; flex:1; display:flex;">
                     <input class="input" type="text" name="keyword" th:value="${keyword}" placeholder="상품 검색..." />
                 </form>
-                <!-- 로그아웃: POST 권장 -->
-                <form th:action="@{/logout}" method="post" style="margin:0;">
-                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                    <button class="btn muted" type="submit">로그아웃</button>
-                </form>
             </div>
 
             <div class="grid" id="productGrid">
                 <!-- 가용수량(available = 실물 - 예약) 기준. 가용 0이어도 백오더로 주문 가능하므로 버튼을 막지 않는다 -->
                 <article class="product" th:each="p : ${productPage.content}"
                          th:with="stock=${p.availableQty}">
+                    <a class="product-card-link" th:href="@{|/products/${p.id}|}" th:aria-label="|${p.name} 상세 보기|">
+                        <span class="sr-only" th:text="|${p.name} 상세 보기|">상품 상세 보기</span>
+                    </a>
+                    <img class="catalog-image" th:src="@{/images/product-catalog.png}" alt="">
                     <h3>
                         <span th:text="${p.name}">허니 라떼</span>
                         <span class="soldout-badge" th:if="${stock <= 0}">입고 대기</span>
@@ -328,8 +330,7 @@
                     <div class="price">
                         <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
                     </div>
-                    <div class="low-stock" th:if="${stock > 0 and stock < 10}" th:text="|${stock}개 남음|">3개 남음</div>
-                    <div class="low-stock" th:if="${stock <= 0}">주문 시 입고 후 출고됩니다</div>
+                    <div class="low-stock" sec:authorize="hasRole('USER')" th:if="${stock <= 0}">주문 시 전체 수량이 입고 대기로 접수됩니다</div>
 
                     <!-- 관리자: 구매 버튼 대신 가용 재고 수량 표기 -->
                     <div class="stock-chip" sec:authorize="hasRole('ADMIN')">
@@ -344,7 +345,11 @@
 
                         <div class="qty">
                             <label class="hint" th:for="|qty-${p.id}|">수량</label>
-                            <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" value="1" />
+                            <div class="quantity-stepper">
+                                <button type="button" class="qty-minus" aria-label="수량 감소">−</button>
+                                <input th:id="|qty-${p.id}|" class="input" type="number" name="qty" min="1" step="1" value="1" />
+                                <button type="button" class="qty-plus" aria-label="수량 증가">＋</button>
+                            </div>
                         </div>
 
                         <button class="btn" type="submit">바로 구매</button>
@@ -356,6 +361,7 @@
                     검색 결과가 없습니다.
                 </div>
             </div>
+            <div id="cartMessage" class="inline-message" role="status" aria-live="polite"></div>
 
             <!-- 페이지 네비게이션 (검색어 유지): 이전 | 1 … 4 [5] 6 … 12 | 다음 -->
             <nav class="paging" th:if="${productPage.totalPages > 1}">
@@ -384,70 +390,6 @@
             </nav>
         </section>
 
-        <!-- 내 주문 섹션 — 고객(USER) 전용. admin은 운영자라 주문이 없음 -->
-        <section id="orders" class="section" sec:authorize="hasRole('USER')">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin:6px 2px 12px;">
-                <div class="hint">최근 주문 내역입니다.</div>
-
-                <div class="toolbar">
-                    <!-- JS가 submit을 가로채 fetch(/api/orders/me)로 목록만 갱신. action은 JS 비활성 시 폴백 -->
-                    <form id="orderRefreshForm" th:action="@{/orders/me}" th:object="${searchOption}" method="get" class="form-inline">
-                        <input class="input" id="productName" th:field="*{productName}" placeholder="상품 검색..." />
-
-                        <select id="orderStatus" th:field="*{orderStatus}" class="form-control">
-                            <option value="">주문상태</option>
-                            <option th:each="status : ${T(com.jhg.hgpage.oms.domain.enums.OrderStatus).values()}"
-                                    th:value="${status}"
-                                    th:text="${status}">option</option>
-                        </select>
-
-                        <button class="btn muted" type="submit">새로고침</button>
-                    </form>
-                </div>
-            </div>
-
-            <div style="overflow:auto;">
-                <table>
-                    <thead>
-                    <tr>
-                        <th>주문번호</th>
-                        <th>상태</th>
-                        <th>주문금액</th>
-                        <th>주문일시</th>
-                        <th style="width:140px">더보기</th>
-                    </tr>
-                    </thead>
-                    <tbody id="ordersTbody">
-                    <!-- 서버에서 orders: List<OrderDto>. 새로고침 시 JS가 같은 형태로 다시 그린다 -->
-                    <tr th:each="o : ${orders}">
-                        <td th:text="${o.id}">101</td>
-                        <td th:text="${o.status}">PAID</td>
-                        <td><span th:text="${#numbers.formatInteger(o.totalAmount,3,'COMMA')}">23,000</span>원</td>
-                        <td th:text="${#temporals.format(o.createdAt,'yyyy-MM-dd HH:mm')}">2025-08-26 10:22</td>
-                        <td>
-                            <a class="btn ghost" th:href="@{|/orders/${o.id}|}">상세</a>
-                        </td>
-                    </tr>
-                    <tr th:if="${#lists.isEmpty(orders)}">
-                        <td colspan="5" class="hint">표시할 주문이 없습니다.</td>
-                    </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- 재고(관리자) 섹션 — 조회·조정·발주·입고는 전용 관리 화면으로 분리 -->
-        <section id="inventory" class="section" sec:authorize="hasRole('ADMIN')">
-            <div class="card" style="padding:18px;">
-                <h2 style="margin:2px 0 4px; font-size:18px;">재고 / 발주 관리</h2>
-                <div class="hint" style="margin-bottom:14px;">OMS에서는 재고 현황 조회와 재고 보충 요청을 제공합니다. 재고 조정·발주·입고는 WMS에서 처리합니다.</div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <a class="btn" th:href="@{/admin/inventory}">재고 관리</a>
-                    <a class="btn" th:href="@{/admin/replenishment-requests}">재고 보충 요청</a>
-                    <a class="btn muted" th:href="@{/admin/orders}">배송 관리</a>
-                </div>
-            </div>
-        </section>
     </div>
 </div>
 
@@ -455,6 +397,14 @@
     const badge = document.getElementById('cartBadge');
     const csrf = { token: document.querySelector('meta[name="_csrf"]')?.content,
                    header: document.querySelector('meta[name="_csrf_header"]')?.content };
+
+    document.getElementById('productGrid')?.addEventListener('click', (event) => {
+      const button = event.target.closest('.qty-minus,.qty-plus');
+      if (!button) return;
+      const input = button.parentElement.querySelector('input');
+      input.value = String(Math.max(1, Number(input.value) || 1));
+      button.classList.contains('qty-plus') ? input.stepUp() : input.stepDown();
+    });
 
     function bumpBadge() {
       if (!badge) return;
@@ -470,6 +420,15 @@
       try { localStorage.setItem('cartCount', String(n)); } catch(e){}
     }
 
+    let cartMessageTimer;
+    function showCartMessage(text, error = false) {
+      const message = document.getElementById('cartMessage');
+      message.textContent = text;
+      message.className = 'inline-message show' + (error ? ' error' : '');
+      clearTimeout(cartMessageTimer);
+      cartMessageTimer = setTimeout(() => message.className = 'inline-message', 3000);
+    }
+
     // 초기화: 페이지 로드 시 현재 개수 가져오기
     (async function initCartCount(){
       try {
@@ -481,45 +440,9 @@
       } catch (e) { /* 무시 */ }
     })();
 
-    // 내 주문 새로고침: 페이지 이동 없이 목록 데이터만 다시 그린다
-    const orderRefreshForm = document.getElementById('orderRefreshForm');
-    const ordersTbody = document.getElementById('ordersTbody');
-
-    function renderOrders(orders) {
-      if (!ordersTbody) return;
-      ordersTbody.innerHTML = '';
-      if (!orders || orders.length === 0) {
-        ordersTbody.innerHTML = '<tr><td colspan="5" class="hint">표시할 주문이 없습니다.</td></tr>';
-        return;
-      }
-      const fmt = new Intl.NumberFormat('ko-KR');
-      for (const o of orders) {
-        const tr = document.createElement('tr');
-        const createdAt = (o.createdAt || '').replace('T', ' ').slice(0, 16);
-        tr.innerHTML = `
-          <td>${o.id}</td>
-          <td>${o.status}</td>
-          <td><span>${fmt.format(o.totalAmount)}</span>원</td>
-          <td>${createdAt}</td>
-          <td><a class="btn ghost" href="/orders/${o.id}">상세</a></td>`;
-        ordersTbody.appendChild(tr);
-      }
-    }
-
-    if (orderRefreshForm) {
-      orderRefreshForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        try {
-          const r = await fetch('/api/orders/me', { credentials: 'include' });
-          if (!r.ok) return; // 실패 시 기존 화면 유지
-          renderOrders(await r.json());
-        } catch (err) { /* 실패 시 기존 화면 유지 */ }
-      });
-    }
-
     // 다른 탭에서 변경되면 동기화(선택)
     window.addEventListener('storage', (e) => {
-      if (e.key === 'cartCount' && e.newValue != null) {
+      if (badge && e.key === 'cartCount' && e.newValue != null) {
         badge.textContent = e.newValue;
         bumpBadge();
       }
@@ -554,28 +477,15 @@
         const data = await r.json();              // {count: 장바구니 전체 수량}
         if (typeof data.count === 'number') setCartCount(data.count);
 
-        alert('장바구니에 담겼어요!');
+        showCartMessage('장바구니에 담겼어요!');
       } catch (e) {
         // 실패 시 롤백
         setCartCount(before);
-        alert('담기에 실패했어요. 잠시 후 다시 시도해 주세요.');
+        showCartMessage('담기에 실패했어요. 잠시 후 다시 시도해 주세요.', true);
       } finally {
         addLock = false;
       }
     }
-
-    // 탭 전환
-    (function(){
-        const tabs = document.getElementById('tabs');
-        const sections = document.querySelectorAll('.section');
-        tabs?.addEventListener('click', (e) => {
-            const btn = e.target.closest('.tab'); if(!btn) return;
-            document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-            btn.classList.add('active');
-            const id = btn.dataset.target;
-            sections.forEach(s => s.classList.toggle('active', s.id === id));
-        });
-    })();
 
 //# sourceURL=/html/main.js
 </script>

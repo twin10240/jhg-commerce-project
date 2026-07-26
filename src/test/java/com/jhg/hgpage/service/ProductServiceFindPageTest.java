@@ -17,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -90,5 +91,17 @@ class ProductServiceFindPageTest {
 
         assertThat(result.getContent()).singleElement()
                 .satisfies(card -> assertThat(card.getAvailableQty()).isEqualTo(0));
+    }
+
+    @Test
+    void 상품상세도_카탈로그와_WMS_가용수량을_합쳐_반환한다() {
+        when(productRepository.findById(4L)).thenReturn(Optional.of(product(4L, "상품4", 40000)));
+        when(inventoryQueryPort.availableByProductIds(List.of(4L))).thenReturn(Map.of(4L, 3));
+
+        ProductCardDto result = productService.findCard(4L);
+
+        assertThat(result.getName()).isEqualTo("상품4");
+        assertThat(result.getPrice()).isEqualTo(40000);
+        assertThat(result.getAvailableQty()).isEqualTo(3);
     }
 }

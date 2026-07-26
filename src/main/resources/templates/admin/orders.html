@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>배송 관리</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
 
   <style>
     :root{
@@ -49,6 +50,9 @@
     }
     .btn.outline{background:#fff; color:#6e6259; border:1px solid #eadfd6; box-shadow:none}
     .btn.small{padding:6px 12px; font-size:13px}
+    .btn:disabled{cursor:not-allowed;opacity:.45;box-shadow:none}
+    .bulk-actions{display:flex;align-items:center;gap:10px}
+    .shipment-order-checkbox{width:18px;height:18px;accent-color:var(--accent2)}
 
     .flash{
       margin-bottom:14px; padding:12px 16px; border-radius:10px; font-size:14px;
@@ -74,6 +78,8 @@
     .status-badge.backorder{color:#a4690f; background:#fff4e0; border:1px solid #ecd2a3}
     .status-badge.ready{color:#1f5f8b; background:#eef6fb; border:1px solid #b5d4e8}
     .status-badge.comp{color:#2e7d32; background:#f1f8ef; border:1px solid #b7d9b0}
+    .order-lines{display:grid;gap:6px;min-width:180px}.order-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.inbound-required{color:#a4690f;font-size:12px;font-weight:800}
+    @media(max-width:720px){.page-head{align-items:flex-start;flex-direction:column}.table-wrap{overflow-x:auto}table{min-width:950px}.mobile-hide{display:none}}
 
     @media (prefers-color-scheme: dark){
       body{background:linear-gradient(180deg,#1b1917,#26211d); background-attachment:fixed}
@@ -85,64 +91,110 @@
   </style>
 </head>
 <body>
+<div th:replace="~{fragments/layout :: nav('shipping')}"></div>
 <div class="container">
   <div class="page-head">
     <div>
       <div class="page-title">배송 관리</div>
-      <div class="page-desc">전체 주문 목록입니다. 배송 전(READY) 주문만 배송완료 처리할 수 있습니다.</div>
+      <div class="page-desc">배송 가능·입고 대기 주문을 우선 표시하며, 진행 중 주문은 오래된 순서로 처리합니다.</div>
     </div>
-    <div style="display:flex; gap:8px;">
-      <a class="btn outline" th:href="@{/admin/inventory}">재고 관리</a>
-      <a class="btn outline" th:href="@{/main}">메인으로</a>
-    </div>
+    <form id="bulk-shipment-form" class="bulk-actions"
+          th:action="@{/admin/orders/complete-deliveries}" method="post">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+      <button id="bulk-shipment-button" class="btn" type="submit" disabled>선택 출고 처리</button>
+    </form>
   </div>
 
   <div class="flash success" th:if="${successMessage}" th:text="${successMessage}"></div>
   <div class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
 
-  <div class="card">
+  <div class="card table-wrap">
     <table>
       <thead>
       <tr>
+        <th style="width:44px">
+          <input id="select-all-orders" class="shipment-order-checkbox" type="checkbox"
+                 aria-label="출고 가능 주문 전체 선택">
+        </th>
         <th style="width:90px">주문번호</th>
         <th>주문자</th>
+        <th>주문 상품</th>
         <th style="width:100px">주문상태</th>
         <th style="width:100px">배송상태</th>
-        <th class="right" style="width:120px">주문금액</th>
-        <th style="width:150px">주문일시</th>
+        <th class="right mobile-hide" style="width:120px">주문금액</th>
+        <th class="mobile-hide" style="width:150px">주문일시</th>
         <th style="width:120px">처리</th>
       </tr>
       </thead>
       <tbody>
       <tr th:each="o : ${orders}">
+        <td>
+          <input th:if="${o.completable}" class="shipment-order-checkbox shipment-order-item"
+                 type="checkbox" name="orderIds" th:value="${o.id}" form="bulk-shipment-form"
+                 th:aria-label="|주문 #${o.id} 선택|">
+        </td>
         <td th:text="${o.id}">101</td>
         <td th:text="${o.memberName}">주문자A</td>
         <td>
+          <div class="order-lines">
+            <div class="order-line" th:each="item : ${o.items}">
+              <span th:text="|${item.productName} × ${item.quantity}|">상품1 × 2</span>
+              <span class="inbound-required" th:if="${item.inboundRequired}">입고 필요</span>
+            </div>
+          </div>
+        </td>
+        <td>
           <span class="status-badge"
                 th:classappend="${o.status.name() == 'CANCEL'} ? 'cancel' : (${o.status.name() == 'BACKORDERED'} ? 'backorder' : 'order')"
-                th:text="${o.status}">ORDER</span>
+                th:text="${o.status.name() == 'CANCEL'} ? '주문 취소' : (${o.status.name() == 'BACKORDERED'} ? '입고 대기' : '재고 확보')">재고 확보</span>
         </td>
         <td>
           <span class="status-badge" th:classappend="${o.deliveryStatus.name() == 'COMP'} ? 'comp' : 'ready'"
-                th:text="${o.deliveryStatus}">READY</span>
+                th:text="${o.deliveryStatus.name() == 'COMP'} ? '출고 완료' : '출고 대기'">출고 대기</span>
         </td>
-        <td class="right"><span th:text="${#numbers.formatInteger(o.totalPrice,3,'COMMA')}">23,000</span>원</td>
-        <td th:text="${#temporals.format(o.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</td>
+        <td class="right mobile-hide"><span th:text="${#numbers.formatInteger(o.totalPrice,3,'COMMA')}">23,000</span>원</td>
+        <td class="mobile-hide" th:text="${#temporals.format(o.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</td>
         <td>
           <form th:if="${o.completable}" th:action="@{/admin/orders/complete-delivery}" method="post"
-                onsubmit="return confirm('이 주문을 배송완료 처리하시겠습니까?');">
+                onsubmit="return confirm('이 주문을 출고 처리하시겠습니까?');">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <input type="hidden" name="orderId" th:value="${o.id}" />
-            <button class="btn small" type="submit">배송완료</button>
+            <button class="btn small" type="submit">출고 처리</button>
           </form>
         </td>
       </tr>
       <tr th:if="${#lists.isEmpty(orders)}">
-        <td colspan="7" class="hint">주문 내역이 없습니다.</td>
+        <td colspan="9" class="hint">주문 내역이 없습니다.</td>
       </tr>
       </tbody>
     </table>
   </div>
 </div>
+<script>
+  const shipmentBoxes = [...document.querySelectorAll('.shipment-order-item')];
+  const selectAllOrders = document.getElementById('select-all-orders');
+  const bulkShipmentButton = document.getElementById('bulk-shipment-button');
+  const bulkShipmentForm = document.getElementById('bulk-shipment-form');
+
+  function syncShipmentSelection() {
+    const selectedCount = shipmentBoxes.filter(checkbox => checkbox.checked).length;
+    bulkShipmentButton.disabled = selectedCount === 0;
+    selectAllOrders.checked = shipmentBoxes.length > 0 && selectedCount === shipmentBoxes.length;
+    selectAllOrders.indeterminate = selectedCount > 0 && selectedCount < shipmentBoxes.length;
+  }
+
+  selectAllOrders.disabled = shipmentBoxes.length === 0;
+  selectAllOrders.addEventListener('change', () => {
+    shipmentBoxes.forEach(checkbox => checkbox.checked = selectAllOrders.checked);
+    syncShipmentSelection();
+  });
+  shipmentBoxes.forEach(checkbox => checkbox.addEventListener('change', syncShipmentSelection));
+  bulkShipmentForm.addEventListener('submit', event => {
+    const selectedCount = shipmentBoxes.filter(checkbox => checkbox.checked).length;
+    if (selectedCount === 0 || !confirm(`선택한 ${selectedCount}건을 출고 처리하시겠습니까?`)) {
+      event.preventDefault();
+    }
+  });
+</script>
 </body>
 </html>
