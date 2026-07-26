@@ -1,6 +1,10 @@
 # 로컬 기본은 8080, Railway 등 PaaS는 주입되는 ${PORT}에 바인딩한다.
 server:
   port: ${PORT:8080}
+  servlet:
+    session:
+      cookie:
+        name: OMSSESSION
 
 spring:
   datasource:
