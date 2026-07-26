@@ -56,4 +56,12 @@ class ResponsiveTemplateContractTest {
         assertThat(shipping).contains(".table-wrap{overflow-x:auto}");
         assertThat(shipping).contains(".bulk-actions{align-items:stretch;width:100%}");
     }
+
+    @Test
+    void catalogActionsStackAtTabletWidth() throws Exception {
+        String html = read("src/main/resources/templates/main.html");
+
+        assertThat(html).contains(".product-actions{grid-template-columns:1fr}");
+        assertThat(html).contains(".product-actions .btn{width:100%;min-width:0}");
+    }
 }
