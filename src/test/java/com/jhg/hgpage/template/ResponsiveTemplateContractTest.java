@@ -87,7 +87,8 @@ class ResponsiveTemplateContractTest {
 
         assertThat(html).contains("<span class=\"mobile-label\">수량</span>");
         assertThat(html).contains("<span class=\"mobile-label\">단가</span>");
-        assertThat(html).contains("<span class=\"mobile-label\">합계</span>");
+        assertThat(html).contains("<div class=\"line-total\"><span class=\"mobile-label\">합계</span><span data-line-total");
+        assertThat(html).doesNotContain("<div class=\"line-total\" data-line-total>");
         assertThat(html).contains(".mobile-label{display:none}");
         assertThat(html).contains(".mobile-label{display:block}");
     }

@@ -177,7 +177,7 @@
           </div>
 
           <div class="price"><span class="mobile-label">단가</span><span th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')}">0</span>원</div>
-          <div class="line-total" data-line-total><span class="mobile-label">합계</span><span th:text="${#numbers.formatInteger(ci.lineTotalPrice, 3, 'COMMA')}">0</span>원</div>
+          <div class="line-total"><span class="mobile-label">합계</span><span data-line-total th:text="${#numbers.formatInteger(ci.lineTotalPrice, 3, 'COMMA')}">0</span>원</div>
         </div>
         <!-- // row -->
       </div>
