@@ -72,4 +72,23 @@ class ResponsiveTemplateContractTest {
         assertThat(html).contains("width:min(100%,480px)");
         assertThat(html).doesNotContain("width:min(94vw,480px)");
     }
+
+    @Test
+    void signupCardStaysWithinBodyPadding() throws Exception {
+        String html = read("src/main/resources/templates/signup.html");
+
+        assertThat(html).contains("width:min(100%,680px)");
+        assertThat(html).doesNotContain("width:min(94vw,680px)");
+    }
+
+    @Test
+    void cartMobileRowsKeepQuantityAndPricesLabeled() throws Exception {
+        String html = read("src/main/resources/templates/cart.html");
+
+        assertThat(html).contains("<span class=\"mobile-label\">수량</span>");
+        assertThat(html).contains("<span class=\"mobile-label\">단가</span>");
+        assertThat(html).contains("<span class=\"mobile-label\">합계</span>");
+        assertThat(html).contains(".mobile-label{display:none}");
+        assertThat(html).contains(".mobile-label{display:block}");
+    }
 }
