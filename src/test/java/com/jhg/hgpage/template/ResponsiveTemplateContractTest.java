@@ -43,4 +43,17 @@ class ResponsiveTemplateContractTest {
         assertThat(html).contains(".meta{grid-template-columns:1fr}");
         assertThat(html).contains(".actions{align-items:stretch;flex-direction:column}");
     }
+
+    @Test
+    void administratorTablesUseLocalOverflow() throws Exception {
+        String inventory = read("src/main/resources/templates/admin/inventory.html");
+        String replenishment = read("src/main/resources/templates/admin/replenishment-requests.html");
+        String shipping = read("src/main/resources/templates/admin/orders.html");
+
+        assertThat(inventory).contains(".table-wrap{overflow-x:auto}");
+        assertThat(inventory).contains(".inventory-table{min-width:620px}");
+        assertThat(replenishment).contains(".table-wrap{overflow-x:auto}");
+        assertThat(shipping).contains(".table-wrap{overflow-x:auto}");
+        assertThat(shipping).contains(".bulk-actions{align-items:stretch;width:100%}");
+    }
 }

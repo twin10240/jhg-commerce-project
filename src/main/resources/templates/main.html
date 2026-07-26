@@ -258,9 +258,14 @@
             .row{grid-template-columns:1fr 100px 100px}
         }
         @media (max-width:640px){
+            body{padding:16px}
+            .container{min-width:0}
             .grid{grid-template-columns: 1fr}
+            .product{min-width:0}
             .row{grid-template-columns:1fr; gap:8px}
+            .row .btn{width:100%}
             nav.tabs{gap:6px}
+            .paging{flex-wrap:wrap}
         }
 
         /* 다크 모드 보완 */
