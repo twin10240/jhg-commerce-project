@@ -64,4 +64,12 @@ class ResponsiveTemplateContractTest {
         assertThat(html).contains(".product-actions{grid-template-columns:1fr}");
         assertThat(html).contains(".product-actions .btn{width:100%;min-width:0}");
     }
+
+    @Test
+    void loginCardStaysWithinBodyPadding() throws Exception {
+        String html = read("src/main/resources/templates/home.html");
+
+        assertThat(html).contains("width:min(100%,480px)");
+        assertThat(html).doesNotContain("width:min(94vw,480px)");
+    }
 }
