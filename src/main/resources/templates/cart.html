@@ -77,7 +77,18 @@
     .muted{color:var(--muted)}
 
     @media (max-width: 720px){
-      .grid{grid-template-columns: 28px 1fr 120px 120px 70px}
+      body{padding:16px}
+      .card header{align-items:stretch;flex-direction:column;gap:14px}
+      .card header .toolbar{display:grid;grid-template-columns:1fr 1fr}
+      .card header .toolbar .btn{width:100%}
+      .grid.head{display:none}
+      .grid.row{grid-template-columns:28px minmax(0,1fr);gap:12px;padding:16px}
+      .grid.row>div:nth-child(n+3){grid-column:2}
+      .grid.row .price,.grid.row .line-total{text-align:left}
+      .footer{align-items:stretch;flex-direction:column}
+      .footer{gap:14px}
+      .summary{align-items:stretch;flex-direction:column;gap:8px}
+      .footer .toolbar,.footer .toolbar .btn{width:100%}
     }
 
     @media (prefers-color-scheme: dark){

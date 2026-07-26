@@ -54,6 +54,18 @@
     .btn:active{transform:translateY(1px)}
     .btn.muted{background:linear-gradient(135deg,#b8b8b8,#7d7d7d)}
     .btn.danger{background:linear-gradient(135deg,#ef6f6f,#e5484d)}
+    @media (max-width: 720px){
+      body{padding:16px}
+      .wrap{margin:0 auto;padding:0}
+      .panel{padding:20px 18px}
+      .meta{grid-template-columns:1fr}
+      .meta dt{margin-top:8px}
+      .actions{align-items:stretch;flex-direction:column}
+      .actions{gap:10px}
+      .actions form,.actions .btn{box-sizing:border-box;width:100%}
+      .block{overflow-x:auto}
+      table{min-width:520px}
+    }
     @media (prefers-color-scheme:dark){
       .phead{border-color:var(--line)}
       .flash.ok,.badge.order{background:#173528}

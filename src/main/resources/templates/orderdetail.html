@@ -129,6 +129,10 @@
     }
     @media (max-width:640px){
       .form-row.cols-3, .form-row.addr{grid-template-columns:1fr}
+      .actions{align-items:stretch;flex-direction:column}
+      .actions .btn{width:100%}
+      .table-wrap{overflow-x:auto}
+      .table{min-width:560px}
     }
 
     /* 다크 모드 보완 */
@@ -225,6 +229,7 @@
 
             <small class="field-error" th:if="${#fields.hasErrors('product')}" th:errors="*{product}"></small>
 
+            <div class="table-wrap">
             <table class="table">
               <thead>
               <tr>
@@ -271,6 +276,7 @@
               </tr>
               </tbody>
             </table>
+            </div>
 
             <div class="note">수량을 변경하면 합계가 다시 계산됩니다.</div>
           </div>

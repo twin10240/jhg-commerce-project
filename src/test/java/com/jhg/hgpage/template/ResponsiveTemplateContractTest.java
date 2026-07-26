@@ -24,4 +24,23 @@ class ResponsiveTemplateContractTest {
         assertThat(css).contains(".app-card{padding:18px}");
         assertThat(css).contains(".app-btn{min-height:44px}");
     }
+
+    @Test
+    void cartRowsBecomeMobileCards() throws Exception {
+        String html = read("src/main/resources/templates/cart.html");
+
+        assertThat(html).contains("@media (max-width: 720px)");
+        assertThat(html).contains(".grid.head{display:none}");
+        assertThat(html).contains(".grid.row{grid-template-columns:28px minmax(0,1fr)");
+        assertThat(html).contains(".footer{align-items:stretch;flex-direction:column}");
+    }
+
+    @Test
+    void orderDetailStacksMetadataAndActions() throws Exception {
+        String html = read("src/main/resources/templates/orderview.html");
+
+        assertThat(html).contains("@media (max-width: 720px)");
+        assertThat(html).contains(".meta{grid-template-columns:1fr}");
+        assertThat(html).contains(".actions{align-items:stretch;flex-direction:column}");
+    }
 }
