@@ -19,15 +19,16 @@
 
 ---
 
-### Task 1: Responsive contract test
+### Task 1: Responsive contract and shared layout
 
 **Files:**
 - Create: `src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java`
+- Modify: `src/main/resources/static/css/app.css`
 - Test: `src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java`
 
 **Interfaces:**
 - Consumes: CSS and HTML files under `src/main/resources`
-- Produces: a regression contract for shared breakpoints, cart mobile rows, order-detail mobile layout, and administrator table wrappers
+- Produces: a regression contract for the shared mobile breakpoint and layout primitives
 
 - [ ] **Step 1: Write the failing test**
 
@@ -58,38 +59,6 @@ class ResponsiveTemplateContractTest {
         assertThat(css).contains(".app-card{padding:18px}");
         assertThat(css).contains(".app-btn{min-height:44px}");
     }
-
-    @Test
-    void cartRowsBecomeMobileCards() throws Exception {
-        String html = read("src/main/resources/templates/cart.html");
-
-        assertThat(html).contains("@media (max-width: 720px)");
-        assertThat(html).contains(".grid.head{display:none}");
-        assertThat(html).contains(".grid.row{grid-template-columns:28px minmax(0,1fr)");
-        assertThat(html).contains(".footer{align-items:stretch;flex-direction:column}");
-    }
-
-    @Test
-    void orderDetailStacksMetadataAndActions() throws Exception {
-        String html = read("src/main/resources/templates/orderview.html");
-
-        assertThat(html).contains("@media (max-width: 720px)");
-        assertThat(html).contains(".meta{grid-template-columns:1fr}");
-        assertThat(html).contains(".actions{align-items:stretch;flex-direction:column}");
-    }
-
-    @Test
-    void administratorTablesUseLocalOverflow() throws Exception {
-        String inventory = read("src/main/resources/templates/admin/inventory.html");
-        String replenishment = read("src/main/resources/templates/admin/replenishment-requests.html");
-        String shipping = read("src/main/resources/templates/admin/orders.html");
-
-        assertThat(inventory).contains(".table-wrap{overflow-x:auto}");
-        assertThat(inventory).contains(".inventory-table{min-width:620px}");
-        assertThat(replenishment).contains(".table-wrap{overflow-x:auto}");
-        assertThat(shipping).contains(".table-wrap{overflow-x:auto}");
-        assertThat(shipping).contains(".bulk-actions{align-items:stretch;width:100%}");
-    }
 }
 ```
 
@@ -102,21 +71,9 @@ JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
   bash gradlew test --tests "com.jhg.hgpage.template.ResponsiveTemplateContractTest" --rerun-tasks
 ```
 
-Expected: FAIL because the shared 720px contract and mobile cart/order-detail/administrator rules are absent.
+Expected: FAIL because the shared 720px contract is absent.
 
----
-
-### Task 2: Shared customer and administrator layout
-
-**Files:**
-- Modify: `src/main/resources/static/css/app.css`
-- Test: `src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java`
-
-**Interfaces:**
-- Consumes: existing `.site-nav`, `.app-shell`, `.app-card`, `.app-btn`, `.product-detail`, and `.order-card` classes
-- Produces: shared width containment, touch targets, navigation scrolling, and mobile card stacking used by all OMS templates
-
-- [ ] **Step 1: Replace the existing 700px media rule with the shared 720px contract**
+- [ ] **Step 3: Replace the existing 700px media rule with the shared 720px contract**
 
 ```css
 @media(max-width:720px){
@@ -137,7 +94,7 @@ Expected: FAIL because the shared 720px contract and mobile cart/order-detail/ad
 }
 ```
 
-- [ ] **Step 2: Add global width containment without changing desktop sizing**
+- [ ] **Step 4: Add global width containment without changing desktop sizing**
 
 ```css
 *,*:before,*:after{box-sizing:border-box}
@@ -145,7 +102,7 @@ html,body{max-width:100%;overflow-x:hidden}
 img,svg,video{max-width:100%}
 ```
 
-- [ ] **Step 3: Run the shared-layout test**
+- [ ] **Step 5: Run the shared-layout test**
 
 Run:
 
@@ -156,7 +113,7 @@ JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/main/resources/static/css/app.css \
@@ -166,7 +123,7 @@ git commit -m "feat(oms): add shared responsive layout"
 
 ---
 
-### Task 3: Customer transaction screens
+### Task 2: Customer transaction screens
 
 **Files:**
 - Modify: `src/main/resources/templates/cart.html`
@@ -175,10 +132,49 @@ git commit -m "feat(oms): add shared responsive layout"
 - Test: `src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java`
 
 **Interfaces:**
-- Consumes: shared responsive rules from Task 2
+- Consumes: shared responsive rules from Task 1
 - Produces: mobile cart cards, stacked checkout fields and summary, and readable order details
 
-- [ ] **Step 1: Convert cart rows to mobile cards**
+- [ ] **Step 1: Add the customer-screen contract tests**
+
+Add these methods to `ResponsiveTemplateContractTest`:
+
+```java
+@Test
+void cartRowsBecomeMobileCards() throws Exception {
+    String html = read("src/main/resources/templates/cart.html");
+
+    assertThat(html).contains("@media (max-width: 720px)");
+    assertThat(html).contains(".grid.head{display:none}");
+    assertThat(html).contains(".grid.row{grid-template-columns:28px minmax(0,1fr)");
+    assertThat(html).contains(".footer{align-items:stretch;flex-direction:column}");
+}
+
+@Test
+void orderDetailStacksMetadataAndActions() throws Exception {
+    String html = read("src/main/resources/templates/orderview.html");
+
+    assertThat(html).contains("@media (max-width: 720px)");
+    assertThat(html).contains(".meta{grid-template-columns:1fr}");
+    assertThat(html).contains(".actions{align-items:stretch;flex-direction:column}");
+}
+```
+
+- [ ] **Step 2: Run the focused tests to verify they fail**
+
+Run:
+
+```bash
+JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
+  bash gradlew test \
+  --tests "com.jhg.hgpage.template.ResponsiveTemplateContractTest.cartRowsBecomeMobileCards" \
+  --tests "com.jhg.hgpage.template.ResponsiveTemplateContractTest.orderDetailStacksMetadataAndActions" \
+  --rerun-tasks
+```
+
+Expected: FAIL because the mobile cart and order-detail rules are absent.
+
+- [ ] **Step 3: Convert cart rows to mobile cards**
 
 Add to the existing cart 720px media block:
 
@@ -196,7 +192,7 @@ body{padding:16px}
 .footer .toolbar,.footer .toolbar .btn{width:100%}
 ```
 
-- [ ] **Step 2: Stack checkout and order-detail content**
+- [ ] **Step 4: Stack checkout and order-detail content**
 
 In `orderdetail.html`, keep the existing 980px single-column layout and ensure the 640px block makes the action button, table wrapper, and summary fit the viewport:
 
@@ -225,7 +221,7 @@ In `orderview.html`, add:
 }
 ```
 
-- [ ] **Step 3: Run customer responsive tests**
+- [ ] **Step 5: Run customer responsive tests**
 
 Run:
 
@@ -240,18 +236,19 @@ JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/main/resources/templates/cart.html \
   src/main/resources/templates/orderdetail.html \
-  src/main/resources/templates/orderview.html
+  src/main/resources/templates/orderview.html \
+  src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java
 git commit -m "feat(oms): make customer flows responsive"
 ```
 
 ---
 
-### Task 4: Product and administrator screens
+### Task 3: Product and administrator screens
 
 **Files:**
 - Modify: `src/main/resources/templates/main.html`
@@ -261,10 +258,40 @@ git commit -m "feat(oms): make customer flows responsive"
 - Test: `src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java`
 
 **Interfaces:**
-- Consumes: shared responsive rules from Task 2
+- Consumes: shared responsive rules from Task 1
 - Produces: one-column mobile catalog, stacked administrator forms and statistics, and table-local horizontal scrolling
 
-- [ ] **Step 1: Finish catalog mobile containment**
+- [ ] **Step 1: Add the administrator-screen contract test**
+
+Add this method to `ResponsiveTemplateContractTest`:
+
+```java
+@Test
+void administratorTablesUseLocalOverflow() throws Exception {
+    String inventory = read("src/main/resources/templates/admin/inventory.html");
+    String replenishment = read("src/main/resources/templates/admin/replenishment-requests.html");
+    String shipping = read("src/main/resources/templates/admin/orders.html");
+
+    assertThat(inventory).contains(".table-wrap{overflow-x:auto}");
+    assertThat(inventory).contains(".inventory-table{min-width:620px}");
+    assertThat(replenishment).contains(".table-wrap{overflow-x:auto}");
+    assertThat(shipping).contains(".table-wrap{overflow-x:auto}");
+    assertThat(shipping).contains(".bulk-actions{align-items:stretch;width:100%}");
+}
+```
+
+- [ ] **Step 2: Run the focused test to verify it fails**
+
+Run:
+
+```bash
+JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
+  bash gradlew test --tests "com.jhg.hgpage.template.ResponsiveTemplateContractTest.administratorTablesUseLocalOverflow" --rerun-tasks
+```
+
+Expected: FAIL because the administrator table containment rules are absent.
+
+- [ ] **Step 3: Finish catalog mobile containment**
 
 In the existing `main.html` 640px media block:
 
@@ -276,7 +303,7 @@ body{padding:16px}
 .paging{flex-wrap:wrap}
 ```
 
-- [ ] **Step 2: Make inventory and replenishment layouts mobile-safe**
+- [ ] **Step 4: Make inventory and replenishment layouts mobile-safe**
 
 Keep the existing mobile-hidden inventory columns and add:
 
@@ -287,7 +314,7 @@ Keep the existing mobile-hidden inventory columns and add:
 
 For replenishment requests, retain the one-column form and add `max-width:100%` to `.table-wrap`.
 
-- [ ] **Step 3: Keep shipping actions accessible**
+- [ ] **Step 5: Keep shipping actions accessible**
 
 In `admin/orders.html`, extend the existing 720px block:
 
@@ -299,7 +326,7 @@ In `admin/orders.html`, extend the existing 720px block:
 
 Keep the shipping table minimum width because order selection, status, and action columns must remain available.
 
-- [ ] **Step 4: Run the administrator contract test**
+- [ ] **Step 6: Run the administrator contract test**
 
 Run:
 
@@ -310,19 +337,20 @@ JAVA_HOME=/Users/jo/Library/Java/JavaVirtualMachines/ms-21.0.12/Contents/Home \
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/main/resources/templates/main.html \
   src/main/resources/templates/admin/inventory.html \
   src/main/resources/templates/admin/replenishment-requests.html \
-  src/main/resources/templates/admin/orders.html
+  src/main/resources/templates/admin/orders.html \
+  src/test/java/com/jhg/hgpage/template/ResponsiveTemplateContractTest.java
 git commit -m "feat(oms): make administrator screens responsive"
 ```
 
 ---
 
-### Task 5: Visual and regression verification
+### Task 4: Visual and regression verification
 
 **Files:**
 - Test: all OMS tests
@@ -381,4 +409,4 @@ git diff --check
 git status --short
 ```
 
-Expected: no whitespace errors and only the responsive implementation plus the previously acknowledged session-cookie changes remain uncommitted.
+Expected: no whitespace errors and a clean worktree.
