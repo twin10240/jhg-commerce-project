@@ -5,6 +5,7 @@ import com.jhg.hgpage.contract.ReturnPort.CreateItem;
 import com.jhg.hgpage.contract.ReturnPort.CreateRequest;
 import com.jhg.hgpage.contract.ReturnPort.ReturnResult;
 import com.jhg.hgpage.wms.adapter.WmsReturnAdapter;
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.client.RestClientTest;
@@ -126,6 +127,41 @@ class WmsReturnAdapterTest {
     }
 
     @Test
+    void create_maps_empty_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns")).andRespond(withSuccess());
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_maps_partial_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess("{\"rmaId\":30}", MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_maps_malformed_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess("{\"rmaId\":", MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_maps_unsupported_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess("remote-secret", MediaType.TEXT_PLAIN));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
     void find_gets_wms_return_shape() {
         server.expect(requestTo("http://wms-test/api/returns/30"))
                 .andExpect(method(HttpMethod.GET))
@@ -150,6 +186,41 @@ class WmsReturnAdapterTest {
         server.verify();
     }
 
+    @Test
+    void find_maps_empty_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30")).andRespond(withSuccess());
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_maps_partial_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess("{\"rmaId\":30}", MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_maps_malformed_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess("{\"rmaId\":", MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_maps_unsupported_success_response_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess("remote-secret", MediaType.TEXT_PLAIN));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
     private CreateRequest request() {
         return new CreateRequest(REQUEST_KEY, 100L, "불량", List.of(new CreateItem(501L, 1L, 2)));
     }
@@ -164,5 +235,13 @@ class WmsReturnAdapterTest {
         return """
                 {"rmaId":30,"requestKey":"00000000-0000-0000-0000-000000000001","orderId":100,"status":"COMPLETED","items":[{"orderItemId":501,"productId":1,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]}
                 """;
+    }
+
+    private void assertInvalidSuccessResponse(ThrowingCallable call) {
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(ReturnPort.TransientReturnFailure.class, error -> {
+                    assertThat(error.getCause()).isExactlyInstanceOf(IllegalStateException.class);
+                    assertThat(error.getCause()).hasMessage("Invalid WMS return response");
+                });
     }
 }

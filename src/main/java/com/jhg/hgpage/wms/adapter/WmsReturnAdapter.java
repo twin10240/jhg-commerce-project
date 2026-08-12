@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Component
 public class WmsReturnAdapter implements ReturnPort {
@@ -25,7 +26,7 @@ public class WmsReturnAdapter implements ReturnPort {
     @Override
     public ReturnResult create(CreateRequest request) {
         try {
-            return restClient.post()
+            return validResponse(restClient.post()
                     .uri("/api/returns")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(request)
@@ -33,25 +34,44 @@ public class WmsReturnAdapter implements ReturnPort {
                     .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
                         throw postFailure(response.getStatusCode());
                     })
-                    .body(ReturnResult.class);
+                    .body(ReturnResult.class));
         } catch (ResourceAccessException exception) {
             throw new TransientReturnFailure(exception);
+        } catch (RestClientException exception) {
+            throw invalidResponse();
         }
     }
 
     @Override
     public ReturnResult find(Long rmaId) {
         try {
-            return restClient.get()
+            return validResponse(restClient.get()
                     .uri("/api/returns/{rmaId}", rmaId)
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (httpRequest, response) -> {
                         throw findFailure(response.getStatusCode(), rmaId);
                     })
-                    .body(ReturnResult.class);
+                    .body(ReturnResult.class));
         } catch (ResourceAccessException exception) {
             throw new TransientReturnFailure(exception);
+        } catch (RestClientException exception) {
+            throw invalidResponse();
         }
+    }
+
+    private ReturnResult validResponse(ReturnResult result) {
+        if (result == null || result.rmaId() == null || result.rmaId() <= 0
+                || result.requestKey() == null || result.orderId() == null || result.orderId() <= 0
+                || result.status() == null || result.status().isBlank() || result.items() == null
+                || result.items().stream().anyMatch(item -> item == null || item.orderItemId() == null
+                || item.productId() == null || item.requestedQuantity() <= 0)) {
+            throw invalidResponse();
+        }
+        return result;
+    }
+
+    private TransientReturnFailure invalidResponse() {
+        return new TransientReturnFailure(new IllegalStateException("Invalid WMS return response"));
     }
 
     private RuntimeException postFailure(HttpStatusCode status) {
