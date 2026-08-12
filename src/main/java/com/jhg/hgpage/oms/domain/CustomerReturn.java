@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,10 @@ public class CustomerReturn {
             if (result == null) {
                 throw new IllegalArgumentException("반품 품목 결과가 일치하지 않습니다.");
             }
+            item.validateResult(result.acceptedQuantity(), result.disposition());
+        }
+        for (CustomerReturnItem item : items) {
+            ResultItem result = resultsByOrderItemId.get(item.getOrderItem().getId());
             item.applyResult(result.acceptedQuantity(), result.disposition());
         }
         changeStatus(CustomerReturnStatus.COMPLETED);
@@ -167,6 +172,10 @@ public class CustomerReturn {
     private void changeStatus(CustomerReturnStatus status) {
         this.status = status;
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public List<CustomerReturnItem> getItems() {
+        return Collections.unmodifiableList(items);
     }
 
     public record RequestItem(OrderItem orderItem, int quantity) {}

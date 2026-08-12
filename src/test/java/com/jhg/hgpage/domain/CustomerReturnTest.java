@@ -12,6 +12,7 @@ import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,21 +35,28 @@ class CustomerReturnTest {
 
     @Test
     void 승인0은_REJECTED만_허용한다() {
-        CustomerReturnItem item = pendingItem(2);
+        CustomerReturn result = pendingReturn(2);
+        Long orderItemId = result.getItems().get(0).getOrderItem().getId();
 
-        assertThatThrownBy(() -> item.applyResult(0, ReturnDisposition.RESTOCKED))
+        assertThatThrownBy(() -> result.complete(List.of(new CustomerReturn.ResultItem(
+                orderItemId, 0, ReturnDisposition.RESTOCKED))))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        item.applyResult(0, ReturnDisposition.REJECTED);
+        result.complete(List.of(new CustomerReturn.ResultItem(orderItemId, 0, ReturnDisposition.REJECTED)));
     }
 
     @Test
     void 승인수량이_있으면_RESTOCKED나_DISPOSED만_허용한다() {
-        CustomerReturnItem item = pendingItem(2);
+        CustomerReturn rejected = pendingReturn(2);
+        Long rejectedOrderItemId = rejected.getItems().get(0).getOrderItem().getId();
+        CustomerReturn exceeded = pendingReturn(2);
+        Long exceededOrderItemId = exceeded.getItems().get(0).getOrderItem().getId();
 
-        assertThatThrownBy(() -> item.applyResult(1, ReturnDisposition.REJECTED))
+        assertThatThrownBy(() -> rejected.complete(List.of(new CustomerReturn.ResultItem(
+                rejectedOrderItemId, 1, ReturnDisposition.REJECTED))))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> item.applyResult(3, ReturnDisposition.RESTOCKED))
+        assertThatThrownBy(() -> exceeded.complete(List.of(new CustomerReturn.ResultItem(
+                exceededOrderItemId, 3, ReturnDisposition.RESTOCKED))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -65,26 +73,82 @@ class CustomerReturnTest {
         assertThatThrownBy(result::markReceived).isInstanceOf(IllegalStateException.class);
     }
 
-    private CustomerReturnItem pendingItem(int quantity) {
+    @Test
+    void 완료된_반품의_품목목록은_외부에서_변경할수없다() {
+        CustomerReturn result = completedReturn();
+        CustomerReturnItem item = result.getItems().get(0);
+
+        assertThatThrownBy(() -> result.getItems().clear()).isInstanceOf(UnsupportedOperationException.class);
+
+        assertThat(item.getAcceptedQuantity()).isEqualTo(1);
+        assertThat(item.getDisposition()).isEqualTo(ReturnDisposition.RESTOCKED);
+    }
+
+    @Test
+    void 반품품목의_결과변경은_공개_API로_노출하지않는다() {
+        assertThatThrownBy(() -> CustomerReturnItem.class.getMethod("applyResult", int.class, ReturnDisposition.class))
+                .isInstanceOf(NoSuchMethodException.class);
+    }
+
+    @Test
+    void 잘못된_나중_결과가_있으면_어떤_품목도_변경하지않는다() {
+        Fixture fixture = deliveredOrder(2, 2);
+        CustomerReturn result = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
+                fixture.orderItems().stream().map(item -> new CustomerReturn.RequestItem(item, 2)).toList());
+        result.markRequested(1L);
+
+        assertThatThrownBy(() -> result.complete(List.of(
+                new CustomerReturn.ResultItem(fixture.orderItems().get(0).getId(), 1, ReturnDisposition.RESTOCKED),
+                new CustomerReturn.ResultItem(fixture.orderItems().get(1).getId(), 3, ReturnDisposition.RESTOCKED))))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThat(result.getStatus()).isEqualTo(CustomerReturnStatus.REQUESTED);
+        assertThat(result.getItems()).extracting(CustomerReturnItem::getAcceptedQuantity)
+                .containsOnly(null, null);
+        assertThat(result.getItems()).extracting(CustomerReturnItem::getDisposition)
+                .containsOnly(null, null);
+    }
+
+    private CustomerReturn pendingReturn(int quantity) {
         Fixture fixture = deliveredOrder();
         return CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
-                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), quantity))).getItems().get(0);
+                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), quantity)));
     }
 
     private Fixture deliveredOrder() {
-        Product product = new Product();
-        product.setName("상품");
-        product.setPrice(10000);
+        return deliveredOrder(2);
+    }
+
+    private Fixture deliveredOrder(int... quantities) {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        OrderItem orderItem = OrderItem.createOrderItem(product, product.getPrice(), 2);
-        orderItem.setId(1L);
-        Order order = Order.createOrder(member, delivery, orderItem);
+        List<OrderItem> orderItems = new ArrayList<>();
+        for (int index = 0; index < quantities.length; index++) {
+            Product product = new Product();
+            product.setName("상품" + index);
+            product.setPrice(10000);
+            OrderItem orderItem = OrderItem.createOrderItem(product, product.getPrice(), quantities[index]);
+            orderItem.setId((long) index + 1);
+            orderItems.add(orderItem);
+        }
+        Order order = Order.createOrder(member, delivery, orderItems.toArray(new OrderItem[0]));
         order.ship();
         order.deliver();
-        return new Fixture(order, orderItem);
+        return new Fixture(order, orderItems);
     }
 
-    private record Fixture(Order order, OrderItem orderItem) {}
+    private CustomerReturn completedReturn() {
+        CustomerReturn result = pendingReturn(2);
+        result.markRequested(1L);
+        result.complete(List.of(new CustomerReturn.ResultItem(
+                result.getItems().get(0).getOrderItem().getId(), 1, ReturnDisposition.RESTOCKED)));
+        return result;
+    }
+
+    private record Fixture(Order order, List<OrderItem> orderItems) {
+        private OrderItem orderItem() {
+            return orderItems.get(0);
+        }
+    }
 }

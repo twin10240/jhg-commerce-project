@@ -47,7 +47,7 @@ public class CustomerReturnItem {
         return item;
     }
 
-    public void applyResult(int acceptedQuantity, ReturnDisposition disposition) {
+    void validateResult(int acceptedQuantity, ReturnDisposition disposition) {
         if (acceptedQuantity < 0 || acceptedQuantity > requestedQuantity) {
             throw new IllegalArgumentException("승인 수량이 요청 수량 범위를 벗어났습니다.");
         }
@@ -58,6 +58,10 @@ public class CustomerReturnItem {
                 && disposition != ReturnDisposition.DISPOSED) {
             throw new IllegalArgumentException("승인 수량이 있으면 RESTOCKED 또는 DISPOSED여야 합니다.");
         }
+    }
+
+    void applyResult(int acceptedQuantity, ReturnDisposition disposition) {
+        validateResult(acceptedQuantity, disposition);
         this.acceptedQuantity = acceptedQuantity;
         this.disposition = disposition;
     }
