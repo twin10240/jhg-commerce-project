@@ -1,4 +1,4 @@
-# OMS RMA Integration Implementation Plan
+# OMS V2 RMA Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - 구현 루트는 `/Users/jo/study/jhg-commerce-project`이며 WMS 저장소는 수정하지 않는다.
-- 기준 설계는 `docs/superpowers/specs/2026-08-12-oms-rma-integration-design.md`다.
+- 기준 설계는 `docs/superpowers/specs/2026-08-12-oms-v2-rma-integration-design.md`다.
 - WMS 계약은 현재 구현 중인 `POST /api/returns`, `GET /api/returns/{rmaId}`, `POST /api/return-status-events` JSON과 맞춘다.
 - OMS `requestKey`는 `UUID`로 저장하되 JSON에서는 WMS의 문자열 필드와 호환되는 UUID 문자열로 직렬화한다.
 - 새 라이브러리, 메시지 브로커, outbox, feature flag를 추가하지 않는다.
