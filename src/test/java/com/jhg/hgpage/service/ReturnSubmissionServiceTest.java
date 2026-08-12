@@ -18,6 +18,7 @@ import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.oms.service.ReturnSubmissionService;
+import com.jhg.hgpage.oms.service.ReturnSyncService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,12 +38,13 @@ import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({CustomerReturnService.class, ReturnSubmissionService.class})
+@Import({CustomerReturnService.class, ReturnSyncService.class, ReturnSubmissionService.class})
 class ReturnSubmissionServiceTest {
 
     @Autowired ReturnSubmissionService returnSubmissionService;
@@ -51,6 +53,44 @@ class ReturnSubmissionServiceTest {
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
     @MockitoBean ReturnPort returnPort;
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("invalidPostResults")
+    void POST_성공결과도_전체_계약을_검증한다(String ignored,
+                                      java.util.function.UnaryOperator<ReturnResult> corrupt) {
+        Fixture fixture = pendingReturn();
+        when(returnPort.create(any())).thenReturn(corrupt.apply(result(fixture)));
+
+        assertThatThrownBy(() -> returnSubmissionService.submit(fixture.returnId()))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        assertThat(saved(fixture.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
+    }
+
+    @Test
+    void POST가_완료결과를_반환하면_즉시_품목결과까지_적용한다() {
+        Fixture fixture = pendingReturn();
+        when(returnPort.create(any())).thenReturn(completedResult(fixture));
+
+        returnSubmissionService.submit(fixture.returnId());
+
+        CustomerReturn saved = saved(fixture.returnId());
+        assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.COMPLETED);
+        assertThat(saved.getItems().get(0).getAcceptedQuantity()).isEqualTo(1);
+    }
+
+    @Test
+    void POST가_다른_유효한_반품결과를_반환해도_현재_접수와_상관관계를_검증한다() {
+        Fixture submitted = pendingReturn();
+        Fixture other = pendingReturn();
+        when(returnPort.create(any())).thenReturn(result(other));
+
+        assertThatThrownBy(() -> returnSubmissionService.submit(submitted.returnId()))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        assertThat(saved(submitted.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
+        assertThat(saved(other.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
+    }
 
     @Test
     void WMS_접수는_DB_트랜잭션_밖에서_요청을_보내고_RMA를_저장한다() {
@@ -130,6 +170,44 @@ class ReturnSubmissionServiceTest {
         assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.RECEIVED);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"BAD_REQUEST", "CONFLICT"})
+    void 콜백이_완료시킨_뒤_도착한_영구거절은_no_op이다(String code) {
+        Fixture fixture = pendingReturn();
+        when(returnPort.create(any())).thenAnswer(invocation -> {
+            transactionTemplate.executeWithoutResult(status -> {
+                CustomerReturn customerReturn = saved(fixture.returnId());
+                customerReturn.markRequested(fixture.rmaId());
+                customerReturn.complete(List.of(new CustomerReturn.ResultItem(
+                        fixture.orderItemId(), 1, com.jhg.hgpage.oms.domain.enums.ReturnDisposition.RESTOCKED)));
+            });
+            throw new ReturnPort.PermanentReturnRejection(code);
+        });
+
+        returnSubmissionService.submit(fixture.returnId());
+
+        assertThat(saved(fixture.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.COMPLETED);
+    }
+
+    private static Stream<org.junit.jupiter.params.provider.Arguments> invalidPostResults() {
+        return Stream.of(
+                org.junit.jupiter.params.provider.Arguments.of("requestKey", change(result -> new ReturnResult(
+                        result.rmaId(), UUID.randomUUID(), result.orderId(), result.status(), result.items()))),
+                org.junit.jupiter.params.provider.Arguments.of("orderId", change(result -> new ReturnResult(
+                        result.rmaId(), result.requestKey(), result.orderId() + 1, result.status(), result.items()))),
+                org.junit.jupiter.params.provider.Arguments.of("item", change(result -> new ReturnResult(
+                        result.rmaId(), result.requestKey(), result.orderId(), result.status(), List.of(
+                        new ResultItem(result.items().get(0).orderItemId() + 1,
+                                result.items().get(0).productId(), 2, 0, null))))),
+                org.junit.jupiter.params.provider.Arguments.of("status", change(result -> new ReturnResult(
+                        result.rmaId(), result.requestKey(), result.orderId(), "RETURNED", result.items()))));
+    }
+
+    private static java.util.function.UnaryOperator<ReturnResult> change(
+            java.util.function.UnaryOperator<ReturnResult> change) {
+        return change;
+    }
+
     private static Stream<RuntimeException> retryableFailures() {
         return Stream.of(
                 new TransientReturnFailure(new IllegalStateException("network")),
@@ -167,6 +245,11 @@ class ReturnSubmissionServiceTest {
     private ReturnResult result(Fixture fixture) {
         return new ReturnResult(fixture.rmaId(), fixture.requestKey(), fixture.orderId(), "REQUESTED", List.of(
                 new ResultItem(fixture.orderItemId(), fixture.productId(), 2, 0, null)));
+    }
+
+    private ReturnResult completedResult(Fixture fixture) {
+        return new ReturnResult(fixture.rmaId(), fixture.requestKey(), fixture.orderId(), "COMPLETED", List.of(
+                new ResultItem(fixture.orderItemId(), fixture.productId(), 2, 1, "RESTOCKED")));
     }
 
     private record Fixture(Long returnId, UUID requestKey, Long orderId,

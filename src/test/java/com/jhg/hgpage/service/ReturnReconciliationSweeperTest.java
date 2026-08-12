@@ -37,6 +37,8 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
@@ -61,6 +63,25 @@ class ReturnReconciliationSweeperTest {
         sweeper.sweep();
 
         verifyNoInteractions(returnPort);
+    }
+
+    @Test
+    void 접수대상_스캔이_실패해도_활성_RMA_스캔은_계속한다() {
+        CustomerReturnService customerReturnService = mock(CustomerReturnService.class);
+        ReturnSubmissionService submissionService = mock(ReturnSubmissionService.class);
+        ReturnSyncService syncService = mock(ReturnSyncService.class);
+        ReturnPort port = mock(ReturnPort.class);
+        ReturnResult result = mock(ReturnResult.class);
+        when(customerReturnService.pendingSubmissionIds()).thenThrow(new IllegalStateException("scan"));
+        when(customerReturnService.activeReturns()).thenReturn(List.of(
+                new CustomerReturnService.ActiveReturn(1L, 10L)));
+        when(port.find(10L)).thenReturn(result);
+        ReturnReconciliationSweeper isolated = new ReturnReconciliationSweeper(
+                customerReturnService, submissionService, syncService, port);
+
+        isolated.sweep();
+
+        verify(syncService).apply(result);
     }
 
     @Test

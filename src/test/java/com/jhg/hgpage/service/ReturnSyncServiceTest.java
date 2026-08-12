@@ -118,6 +118,21 @@ class ReturnSyncServiceTest {
         assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.REQUESTED);
     }
 
+    @Test
+    void 다른_반품이_소유한_RMA는_계약불일치로_거절한다() {
+        Fixture owner = pendingReturn();
+        Fixture target = pendingReturn();
+        returnSyncService.apply(result(owner, "REQUESTED"));
+        ReturnResult targetResult = result(target, "REQUESTED");
+        ReturnResult reused = copy(targetResult, targetResult.requestKey(), owner.rmaId(),
+                targetResult.orderId(), targetResult.status(), targetResult.items());
+
+        assertThatThrownBy(() -> returnSyncService.apply(reused))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        assertThat(saved(target.returnId()).getRmaId()).isNull();
+    }
+
     @ParameterizedTest(name = "{0}")
     @MethodSource("statusAndResultMismatches")
     void 상태별_승인수량과_처분계약이_다르면_아무것도_적용하지_않는다(

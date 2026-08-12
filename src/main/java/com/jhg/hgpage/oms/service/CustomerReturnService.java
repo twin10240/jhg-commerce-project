@@ -80,12 +80,15 @@ public class CustomerReturnService {
 
     @Transactional
     public void markRequested(Long returnId, Long rmaId) {
-        find(returnId).markRequested(rmaId);
+        findForUpdate(returnId).markRequested(rmaId);
     }
 
     @Transactional
     public void markSubmissionFailed(Long returnId, String failureCode) {
-        find(returnId).failSubmission(failureCode);
+        CustomerReturn customerReturn = findForUpdate(returnId);
+        if (customerReturn.getStatus() == CustomerReturnStatus.PENDING_SUBMISSION) {
+            customerReturn.failSubmission(failureCode);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -163,6 +166,11 @@ public class CustomerReturnService {
 
     private CustomerReturn find(Long returnId) {
         return customerReturnRepository.findDetailedById(returnId)
+                .orElseThrow(() -> new EntityNotFoundException("CustomerReturn", returnId));
+    }
+
+    private CustomerReturn findForUpdate(Long returnId) {
+        return customerReturnRepository.findDetailedByIdForUpdate(returnId)
                 .orElseThrow(() -> new EntityNotFoundException("CustomerReturn", returnId));
     }
 

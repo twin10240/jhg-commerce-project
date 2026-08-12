@@ -17,13 +17,17 @@ import org.springframework.stereotype.Service;
 public class ReturnSubmissionService {
 
     private final CustomerReturnService customerReturnService;
+    private final ReturnSyncService returnSyncService;
     private final ReturnPort returnPort;
 
     public void submit(Long returnId) {
         CustomerReturnService.Submission submission = customerReturnService.pendingSubmission(returnId);
         try {
             ReturnResult result = returnPort.create(toRequest(submission));
-            customerReturnService.markRequested(returnId, result.rmaId());
+            if (!submission.requestKey().equals(result.requestKey())) {
+                throw new ReturnSyncService.ReturnContractMismatchException();
+            }
+            returnSyncService.apply(result);
         } catch (PermanentReturnRejection exception) {
             customerReturnService.markSubmissionFailed(returnId, exception.code());
         } catch (TransientReturnFailure | ReturnAuthenticationFailure exception) {

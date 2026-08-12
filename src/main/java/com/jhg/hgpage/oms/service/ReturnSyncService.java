@@ -28,10 +28,12 @@ public class ReturnSyncService {
         require(result != null && result.requestKey() != null && result.rmaId() != null && result.rmaId() > 0
                 && result.orderId() != null && result.orderId() > 0 && result.items() != null);
         CustomerReturnStatus target = status(result.status());
-        CustomerReturn customerReturn = customerReturnRepository.findDetailedByRequestKey(result.requestKey())
+        CustomerReturn customerReturn = customerReturnRepository.findDetailedByRequestKeyForUpdate(result.requestKey())
                 .orElseThrow(ReturnContractMismatchException::new);
         require((customerReturn.getRmaId() == null || customerReturn.getRmaId().equals(result.rmaId()))
                 && customerReturn.getOrder().getId().equals(result.orderId()));
+        require(customerReturnRepository.findByRmaId(result.rmaId())
+                .map(owner -> owner.getId().equals(customerReturn.getId())).orElse(true));
 
         Map<Long, ResultItem> results = validateItems(customerReturn, result.items(), target);
         CustomerReturnStatus current = customerReturn.getStatus();
@@ -66,6 +68,7 @@ public class ReturnSyncService {
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new ReturnContractMismatchException();
         }
+        customerReturnRepository.flush();
     }
 
     private Map<Long, ResultItem> validateItems(CustomerReturn customerReturn, List<ResultItem> remoteItems,

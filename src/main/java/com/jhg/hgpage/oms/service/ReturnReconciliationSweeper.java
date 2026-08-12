@@ -19,6 +19,19 @@ public class ReturnReconciliationSweeper {
     @Scheduled(fixedDelayString = "${returns.sweep-delay:60s}",
                initialDelayString = "${returns.sweep-delay:60s}")
     public void sweep() {
+        try {
+            sweepSubmissions();
+        } catch (RuntimeException exception) {
+            log.warn("RMA 접수 대상 스캔 실패", exception);
+        }
+        try {
+            sweepActiveReturns();
+        } catch (RuntimeException exception) {
+            log.warn("RMA 상태 대상 스캔 실패", exception);
+        }
+    }
+
+    private void sweepSubmissions() {
         for (Long returnId : customerReturnService.pendingSubmissionIds()) {
             try {
                 returnSubmissionService.submit(returnId);
@@ -26,6 +39,9 @@ public class ReturnReconciliationSweeper {
                 log.warn("RMA 접수 스윕 실패: returnId={}", returnId, exception);
             }
         }
+    }
+
+    private void sweepActiveReturns() {
         for (CustomerReturnService.ActiveReturn active : customerReturnService.activeReturns()) {
             try {
                 returnSyncService.apply(returnPort.find(active.rmaId()));
