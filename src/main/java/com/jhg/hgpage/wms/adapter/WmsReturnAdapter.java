@@ -62,9 +62,9 @@ public class WmsReturnAdapter implements ReturnPort {
     private ReturnResult validResponse(ReturnResult result) {
         if (result == null || result.rmaId() == null || result.rmaId() <= 0
                 || result.requestKey() == null || result.orderId() == null || result.orderId() <= 0
-                || result.status() == null || result.status().isBlank() || result.items() == null
-                || result.items().stream().anyMatch(item -> item == null || item.orderItemId() == null
-                || item.productId() == null || item.requestedQuantity() <= 0)) {
+                || result.status() == null || result.status().isBlank() || result.items() == null || result.items().isEmpty()
+                || result.items().stream().anyMatch(item -> item == null || item.orderItemId() == null || item.orderItemId() <= 0
+                || item.productId() == null || item.productId() <= 0 || item.requestedQuantity() <= 0)) {
             throw invalidResponse();
         }
         return result;

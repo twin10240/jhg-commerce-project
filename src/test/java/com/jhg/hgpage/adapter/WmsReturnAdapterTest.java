@@ -162,6 +162,26 @@ class WmsReturnAdapterTest {
     }
 
     @Test
+    void create_maps_empty_items_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess(responseJson("[]"), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_maps_non_positive_nested_ids_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":0,"productId":-1,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
     void find_gets_wms_return_shape() {
         server.expect(requestTo("http://wms-test/api/returns/30"))
                 .andExpect(method(HttpMethod.GET))
@@ -221,6 +241,26 @@ class WmsReturnAdapterTest {
         server.verify();
     }
 
+    @Test
+    void find_maps_empty_items_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess(responseJson("[]"), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_maps_non_positive_nested_ids_to_safe_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":0,"productId":-1,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
     private CreateRequest request() {
         return new CreateRequest(REQUEST_KEY, 100L, "불량", List.of(new CreateItem(501L, 1L, 2)));
     }
@@ -232,9 +272,15 @@ class WmsReturnAdapterTest {
     }
 
     private String responseJson() {
+        return responseJson("""
+                [{"orderItemId":501,"productId":1,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]
+                """);
+    }
+
+    private String responseJson(String items) {
         return """
-                {"rmaId":30,"requestKey":"00000000-0000-0000-0000-000000000001","orderId":100,"status":"COMPLETED","items":[{"orderItemId":501,"productId":1,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]}
-                """;
+                {"rmaId":30,"requestKey":"00000000-0000-0000-0000-000000000001","orderId":100,"status":"COMPLETED","items":%s}
+                """.formatted(items);
     }
 
     private void assertInvalidSuccessResponse(ThrowingCallable call) {
