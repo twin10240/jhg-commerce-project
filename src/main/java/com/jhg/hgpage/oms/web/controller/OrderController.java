@@ -10,6 +10,11 @@ import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.CustomerReturnService;
+import com.jhg.hgpage.oms.dto.CustomerReturnDto;
+import com.jhg.hgpage.oms.dto.OrderDetailDto;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.web.form.CustomerReturnForm;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.HashMap;
 
 @Controller
 @RequiredArgsConstructor
@@ -36,6 +42,7 @@ public class OrderController {
     private final ProductRepository productRepository;
     private final OrderService orderService;
     private final InventoryQueryPort inventoryQueryPort;
+    private final CustomerReturnService customerReturnService;
 
     @PostMapping("/orders/checkout-form")
     public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderRequest req, Model model) {
@@ -172,7 +179,28 @@ public class OrderController {
     public String orderDetail(@AuthenticationPrincipal UserPrincipal user,
                               @PathVariable Long orderId,
                               Model model) {
-        model.addAttribute("order", orderService.findOrderDetail(orderId, user.getId()));
+        OrderDetailDto order = orderService.findOrderDetail(orderId, user.getId());
+        model.addAttribute("order", order);
+        if (order.getDeliveryStatus() == DeliveryStatus.DELIVERED) {
+            List<CustomerReturnDto> returns = customerReturnService.findForOwnedOrder(orderId, user.getId()).stream()
+                    .map(CustomerReturnDto::from)
+                    .toList();
+            Map<Long, Integer> claimed = new HashMap<>();
+            returns.forEach(customerReturn -> customerReturn.getItems().forEach(item ->
+                    claimed.merge(item.getOrderItemId(), item.getClaimedQuantity(), Integer::sum)));
+            Map<Long, Integer> remaining = order.getItems().stream().collect(Collectors.toMap(
+                    OrderDetailDto.OrderLineDto::getOrderItemId,
+                    item -> Math.max(0, item.getCount() - claimed.getOrDefault(item.getOrderItemId(), 0))));
+            model.addAttribute("customerReturns", returns);
+            model.addAttribute("returnableQuantities", remaining);
+            model.addAttribute("hasReturnableItems", remaining.values().stream().anyMatch(quantity -> quantity > 0));
+            if (!model.containsAttribute("returnForm")) {
+                CustomerReturnForm form = new CustomerReturnForm();
+                order.getItems().forEach(item -> form.getLines().add(
+                        new CustomerReturnForm.Line(item.getOrderItemId(), 0)));
+                model.addAttribute("returnForm", form);
+            }
+        }
         return "orderview";
     }
 

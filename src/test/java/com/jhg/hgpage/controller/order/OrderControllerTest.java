@@ -8,6 +8,7 @@ import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
@@ -40,6 +41,7 @@ class OrderControllerTest {
     @Mock ProductRepository productRepository;
     @Mock OrderService orderService;
     @Mock InventoryQueryPort inventoryQueryPort;
+    @Mock CustomerReturnService customerReturnService;
 
     private ValidatorFactory validatorFactory;
     private Validator validator;
@@ -49,7 +51,8 @@ class OrderControllerTest {
     void setUp() {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
-        orderController = new OrderController(memberService, productRepository, orderService, inventoryQueryPort);
+        orderController = new OrderController(memberService, productRepository, orderService, inventoryQueryPort,
+                customerReturnService);
     }
 
     @AfterEach

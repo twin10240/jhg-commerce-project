@@ -6,6 +6,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.web.controller.OrderController;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ class OrderAccessControlMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean CustomerReturnService customerReturnService;
     @MockBean InventoryQueryPort inventoryQueryPort;
 
     private UserPrincipal adminPrincipal() {

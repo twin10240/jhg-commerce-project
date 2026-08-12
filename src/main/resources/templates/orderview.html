@@ -54,6 +54,14 @@
     .btn:active{transform:translateY(1px)}
     .btn.muted{background:linear-gradient(135deg,#b8b8b8,#7d7d7d)}
     .btn.danger{background:linear-gradient(135deg,#ef6f6f,#e5484d)}
+    .return-form{display:grid;gap:14px}
+    .return-form label{display:block;font-weight:700;margin-bottom:6px}
+    .return-form input[type=number],.return-form textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+    .return-form input[type=number]{max-width:110px}
+    .return-form textarea{min-height:110px;resize:vertical}
+    .field-error{color:var(--danger);font-size:13px;margin:6px 0 0}
+    .return-list{display:grid;gap:10px;padding:0;list-style:none}
+    .return-list a{display:flex;justify-content:space-between;gap:12px;color:var(--ink);text-decoration:none;padding:12px;border:1px solid var(--line);border-radius:10px}
     @media (max-width: 720px){
       body{padding:16px}
       .wrap{margin:0 auto;padding:0}
@@ -143,6 +151,53 @@
       <span>총 주문금액</span>
       <span><span th:text="${#numbers.formatInteger(order.totalPrice,3,'COMMA')}">20,000</span>원</span>
     </div>
+  </div>
+
+  <div class="block" th:if="${order.deliveryStatus.name() == 'DELIVERED' and !#lists.isEmpty(customerReturns)}">
+    <h2>반품 내역</h2>
+    <ul class="return-list">
+      <li th:each="customerReturn : ${customerReturns}">
+        <a th:href="@{|/returns/${customerReturn.id}|}">
+          <span th:text="|반품 #${customerReturn.id}|">반품 #1</span>
+          <span th:text="${customerReturn.statusLabel}">반품 접수</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+
+  <div class="block" th:if="${order.deliveryStatus.name() == 'DELIVERED' and hasReturnableItems}">
+    <h2>반품 요청</h2>
+    <form class="return-form" th:action="@{|/orders/${order.id}/returns|}" th:object="${returnForm}" method="post"
+          onsubmit="return confirm('선택한 상품의 반품을 요청하시겠습니까?');">
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+      <div class="field-error" role="alert" th:if="${#fields.hasGlobalErrors()}"
+           th:each="error : ${#fields.globalErrors()}" th:text="${error}">반품 요청 오류</div>
+      <div class="field-error" role="alert" th:errors="*{lines}">품목 오류</div>
+      <table>
+        <thead>
+        <tr><th>상품명</th><th class="num">남은 반품 가능 수량</th><th class="num">요청 수량</th></tr>
+        </thead>
+        <tbody>
+        <tr th:each="item, stat : ${order.items}" th:if="${returnableQuantities[item.orderItemId] > 0}">
+          <td th:text="${item.productName}">상품명</td>
+          <td class="num" th:text="${returnableQuantities[item.orderItemId]}">1</td>
+          <td class="num">
+            <input type="hidden" th:field="*{lines[__${stat.index}__].orderItemId}"/>
+            <label th:for="|lines${stat.index}.quantity|" th:text="|${item.productName} 반품 수량|">반품 수량</label>
+            <input type="number" min="0" th:attr="max=${returnableQuantities[item.orderItemId]}"
+                   th:field="*{lines[__${stat.index}__].quantity}"/>
+            <p class="field-error" th:errors="*{lines[__${stat.index}__].quantity}">수량 오류</p>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+      <div>
+        <label for="returnReason">반품 사유</label>
+        <textarea id="returnReason" maxlength="500" th:field="*{reason}" required></textarea>
+        <p class="field-error" th:errors="*{reason}">사유 오류</p>
+      </div>
+      <button class="btn" type="submit">반품 요청</button>
+    </form>
   </div>
 
   <div class="actions">

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>반품 상세</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;padding:24px;color:var(--app-ink);background:var(--app-bg);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial}
+    .wrap{max-width:760px;margin:16px auto;padding:0 16px}
+    .panel{min-width:0;padding:24px 26px;border-radius:var(--app-radius);background:var(--app-card);box-shadow:var(--app-shadow)}
+    h1{margin:0 0 18px;font-size:22px} h2{font-size:18px}
+    .status{display:inline-block;padding:5px 11px;border-radius:999px;background:var(--app-accent-soft);color:var(--app-accent);font-weight:800}
+    .meta{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:0 0 22px}.meta dt{color:var(--app-muted)}.meta dd{margin:0}
+    .table-wrap{max-width:100%;overflow-x:auto}
+    table{width:100%;min-width:560px;border-collapse:collapse}th,td{padding:10px 8px;border-bottom:1px solid var(--app-line);text-align:left}th{color:var(--app-muted)}.num{text-align:right}
+    .actions{margin-top:20px}
+    @media (max-width:720px){body{padding:16px}.wrap{margin:0;padding:0}.panel{padding:20px 18px}.meta{grid-template-columns:1fr}.meta dt{margin-top:8px}.actions .app-btn{width:100%}}
+  </style>
+</head>
+<body>
+<div th:replace="~{fragments/layout :: nav('orders')}"></div>
+<main class="wrap">
+  <section class="panel">
+    <h1>반품 상세</h1>
+    <dl class="meta">
+      <dt>반품번호</dt><dd th:text="${customerReturn.id}">1</dd>
+      <dt>진행상태</dt><dd><span class="status" th:text="${customerReturn.statusLabel}">반품 접수</span></dd>
+      <dt>요청일시</dt><dd th:text="${#temporals.format(customerReturn.requestedAt,'yyyy-MM-dd HH:mm')}">2026-08-12 10:00</dd>
+      <dt>반품 사유</dt><dd th:text="${customerReturn.reason}">단순 변심</dd>
+    </dl>
+    <h2>반품 품목</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>상품명</th><th class="num">요청 수량</th><th class="num">승인 수량</th><th>처리 결과</th></tr></thead>
+        <tbody>
+        <tr th:each="item : ${customerReturn.items}">
+          <td th:text="${item.productName}">상품명</td>
+          <td class="num" th:text="${item.requestedQuantity}">1</td>
+          <td class="num" th:text="${item.acceptedQuantity == null ? '-' : item.acceptedQuantity}">-</td>
+          <td th:text="${item.dispositionLabel == null ? '처리 중' : item.dispositionLabel}">처리 중</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="actions"><a class="app-btn secondary" th:href="@{|/orders/${customerReturn.orderId}|}">주문 상세로</a></div>
+  </section>
+</main>
+</body>
+</html>

@@ -2,6 +2,7 @@ package com.jhg.hgpage.controller.order;
 import com.jhg.hgpage.oms.web.controller.OrderController;
 
 import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.CustomerReturn;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
@@ -10,6 +11,7 @@ import com.jhg.hgpage.exception.NotEnoughStockException;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -18,10 +20,12 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -60,6 +64,7 @@ class OrderControllerMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean CustomerReturnService customerReturnService;
     @MockBean InventoryQueryPort inventoryQueryPort;
 
     private UserPrincipal principal() {
@@ -326,6 +331,68 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 배송완료_주문은_남은수량만큼_반품폼과_CSRF를_렌더링한다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 요청")))
+                .andExpect(content().string(containsString("type=\"number\"")))
+                .andExpect(content().string(containsString("max=\"2\"")))
+                .andExpect(content().string(containsString("maxlength=\"500\"")))
+                .andExpect(content().string(containsString("name=\"_csrf\"")));
+    }
+
+    @Test
+    void 진행중_반품수량은_새_반품의_최대수량에서_제외된다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        CustomerReturn previous = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "한 개 반품",
+                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 1)));
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of(previous));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("max=\"1\"")))
+                .andExpect(content().string(containsString("반품 내역")));
+    }
+
+    @Test
+    void 출고전과_배송중_주문에는_반품폼이_없다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, false));
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("/orders/10/returns"))));
+
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, true));
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("/orders/10/returns"))));
+    }
+
+    @Test
+    void POST에서_보존한_검증오류를_GET이_인라인으로_렌더링한다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of());
+        com.jhg.hgpage.oms.web.form.CustomerReturnForm form = new com.jhg.hgpage.oms.web.form.CustomerReturnForm();
+        form.setReason("");
+        form.getLines().add(new com.jhg.hgpage.oms.web.form.CustomerReturnForm.Line(101L, 1));
+        org.springframework.validation.BeanPropertyBindingResult errors =
+                new org.springframework.validation.BeanPropertyBindingResult(form, "returnForm");
+        errors.rejectValue("reason", "NotBlank", "반품 사유를 입력해주세요.");
+
+        mockMvc.perform(get("/orders/10")
+                        .with(user(principal()))
+                        .flashAttr("returnForm", form)
+                        .flashAttr("org.springframework.validation.BindingResult.returnForm", errors))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 사유를 입력해주세요.")));
+    }
+
+    @Test
     void 출고된_주문_상세에는_출고완료로_표시한다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, true));
 
@@ -497,6 +564,28 @@ class OrderControllerMvcTest {
         verify(productRepository).findAllById(any());
         verify(productRepository, never()).findById(any()); // 라인별 단건 조회(N+1) 미사용
     }
+
+    private DeliveredFixture deliveredFixture() {
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
+        product.setId(501L);
+        product.setName("배송완료상품");
+        product.setPrice(10000);
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.OrderItem item =
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(product, 10000, 2);
+        ReflectionTestUtils.setField(item, "id", 101L);
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery, item);
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.ship();
+        order.deliver();
+        return new DeliveredFixture(order, item, com.jhg.hgpage.oms.dto.OrderDetailDto.from(order));
+    }
+
+    private record DeliveredFixture(com.jhg.hgpage.oms.domain.Order order,
+                                    com.jhg.hgpage.oms.domain.OrderItem orderItem,
+                                    com.jhg.hgpage.oms.dto.OrderDetailDto detail) {}
 
     @Test
     void 장바구니_주문서_생성시_상품을_findAllById로_일괄_조회한다() throws Exception {
