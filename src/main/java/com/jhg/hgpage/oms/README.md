@@ -1,4 +1,4 @@
-# OMS 경계와 실행 흐름
+# OMS V2 경계와 실행 흐름
 
 `com.jhg.hgpage.oms`는 주문·장바구니·회원과 백오더 정책을 담당한다. 재고·예약·발주·입고의
 정본은 별도 `jhg-wms-project`가 소유하며, OMS는 `contract` 포트의 REST 어댑터로만 WMS와 통신한다.
@@ -11,19 +11,20 @@
 | 주문 생성·조회·취소 | 보유·예약·가용수량: WMS |
 | 백오더 상태와 FIFO 재할당 | 주문별 예약·출고·해제 원장: WMS |
 | 출고 지시와 주문 배송상태 | 보충 요청 원본·발주·부분입고: WMS |
+| 고객 반품 신청·가능 수량·결과 조회 | RMA 접수·입고·검수·취소와 `RESTOCKED` 재고 반영: WMS |
 
 ## 패키지
 
 ```text
 oms/
-├── domain/       Order, OrderItem, Delivery, Cart, Account, Member
+├── domain/       Order, OrderItem, Delivery, CustomerReturn, Cart, Account, Member
 ├── repository/   Spring Data JPA와 QueryDSL 조회
 ├── service/      주문·할당·백오더·장바구니·회원 서비스
 ├── dto/          고객·관리자 화면 DTO
 └── web/
     ├── controller/  MVC 컨트롤러
-    ├── api/         장바구니 API와 WMS 보충 콜백
-    └── form/        주문·회원가입 폼
+    ├── api/         장바구니 API와 WMS 보충/RMA 결과 콜백
+    └── form/        주문·반품·회원가입 폼
 ```
 
 OMS 저장소의 `wms/` 패키지에는 WMS 도메인이 아니라 REST 어댑터·DTO와 OMS 관리자용
@@ -39,6 +40,19 @@ OMS 저장소의 `wms/` 패키지에는 WMS 도메인이 아니라 REST 어댑�
 - `DeliveryStatus.DELIVERED`: 배송 완료
 
 WMS 실물 출고는 `SHIPPED`까지만 전이하며, 배송 완료는 OMS가 `DELIVERED`로 전이한다.
+
+### 고객 반품 상태
+
+```text
+PENDING_SUBMISSION → REQUESTED → RECEIVED → COMPLETED
+         │               └───────────────→ CANCELLED
+         └→ SUBMISSION_FAILED
+```
+
+- OMS는 배송 완료 주문의 품목·수량별 신청을 먼저 `PENDING_SUBMISSION`으로 커밋하고 UUID `requestKey`를 소유한다.
+- WMS는 RMA와 `rmaId`, 입고·검수·취소, `RESTOCKED`·`DISPOSED`·`REJECTED` 처분을 소유한다.
+- OMS는 승인 수량과 처분을 고객에게 보여주지만 반품 재고 수량이나 `RETURN` 원장을 소유하지 않는다.
+- 토스페이먼츠 결제와 환불 상태·금액 처리는 다음 단계이며 현재 모델에는 포함하지 않는다.
 
 ## 주문 이행
 
@@ -66,6 +80,19 @@ OrderService
 OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약은 통신 실패 시 한 번 재시도한
 뒤 백오더로 접수하고, 취소·출고 같은 쓰기 실패는 트랜잭션을 롤백해 사용자에게 재시도를 안내한다.
 
+## RMA 접수와 복구
+
+1. OMS가 고객 요청과 `requestKey`를 커밋한 뒤 Basic 인증으로 WMS `POST /api/returns`를 호출한다.
+2. 같은 `requestKey`와 같은 내용은 WMS의 기존 `rmaId`로 수렴한다.
+3. WMS는 완료·취소 결과를 Basic 인증 `POST /api/return-status-events`로 알린다.
+4. OMS는 `requestKey`, `rmaId`, 주문, 전체 품목·상품·수량을 대조하고 불일치 콜백을 `409`로 거부한다.
+5. `ReturnReconciliationSweeper`가 `returns.sweep-delay`(기본 `60s`)마다 미접수 요청을 재전송하고
+   `REQUESTED`·`RECEIVED` RMA를 `GET /api/returns/{rmaId}`로 조회한다.
+
+콜백 경로는 보충 콜백과 같은 `oms.callback.user/password` 보안 체인을 사용한다. 잘못된 Basic 인증은
+로그인 리다이렉트 없이 `401`이며, 네트워크·5xx·인증 실패 또는 단건 계약 불일치는 현재 상태를 보존해
+다음 주기와 다른 RMA의 복구를 막지 않는다.
+
 ## 주요 MVC 경로
 
 | 메서드 | 경로 | 역할 |
@@ -78,6 +105,8 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 | GET | `/orders` | 내 주문 |
 | GET | `/orders/{orderId}` | 본인 주문 상세 |
 | POST | `/orders/{orderId}/cancel` | 주문 취소 |
+| POST | `/orders/{orderId}/returns` | 배송 완료 주문의 고객 반품 신청 |
+| GET | `/returns/{returnId}` | 본인 반품 상세 |
 | GET | `/admin/orders` | 배송관리와 주문상품·백오더 원인 조회 |
 | POST | `/admin/orders/ship` | 단건 출고 |
 | POST | `/admin/orders/ships` | 선택 일괄 출고 |
@@ -91,11 +120,14 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 |---|---|---|
 | GET/POST/PATCH/DELETE | `/api/cart/**` | 장바구니 조회·변경 |
 | POST | `/api/replenishments` | WMS 재고 증가 콜백, 전용 Basic 인증 |
+| POST | `/api/return-status-events` | WMS RMA 완료·취소 콜백, 전용 Basic 인증 |
 
 ## 경계 규칙
 
 - `oms/**`는 `com.jhg.hgpage.wms`를 import하지 않는다.
 - OMS는 재고수량을 저장하지 않는다.
+- OMS는 고객 반품 요청과 동기화 상태만 저장하며 WMS RMA 재고를 저장하지 않는다.
 - `InventoryPort`는 예약·출고·해제를, `InventoryQueryPort`는 가용수량 조회를 담당한다.
 - `StockReplenishedHandler`는 WMS가 재고 증가 사실만 알리고 OMS가 백오더 정책을 결정하게 한다.
 - OMS 주문상태와 WMS 예약상태는 독립된 상태 머신이며 `orderId`로 연결된다.
+- OMS 반품상태와 WMS RMA 상태는 독립된 상태 머신이며 `requestKey`와 `rmaId`로 연결된다.

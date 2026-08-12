@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml/badge.svg)](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml)
 
-**재고가 없어도 주문을 접수하고, 입고 순서에 따라 자동으로 이행하는 OMS입니다.**
+**재고가 없어도 주문을 접수하고, 배송 완료 뒤 반품까지 WMS와 복구 가능하게 연동하는 OMS V2입니다.**
 
 재고 부족을 구매 실패가 아닌 `BACKORDERED` 주문으로 접수하고, WMS 예약으로 오버셀을 방지합니다.
 입고되면 대기 주문을 FIFO로 자동 할당하며, WMS 장애 중에도 주문 접수와 사후 복구가 가능합니다.
@@ -12,9 +12,9 @@
 | | |
 |---|---|
 | 주문 정책 | 재고 확보 또는 `BACKORDERED` 접수, 입고 시 FIFO 자동 할당 |
-| 시스템 경계 | OMS는 주문, WMS는 재고 정본을 소유하고 REST로 통신 |
-| 장애 복구 | 타임아웃·멱등 예약·백오더 보상 스윕 |
-| 테스트 | 176개 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
+| 시스템 경계 | OMS는 주문·고객 반품 요청, WMS는 재고 정본·RMA 처리를 소유하고 REST로 통신 |
+| 장애 복구 | 타임아웃·멱등 요청·백오더/RMA 보상 스윕 |
+| 테스트 | 319개 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
 
 ## 프로젝트 비전 — 미니 OMS + 별도 WMS
 
@@ -27,9 +27,29 @@
 | Phase 2 | 모듈 경계 분리(`contract`·`catalog`·`oms`·`wms`, 서비스 인터페이스 통신) | ✅ 완료 (코어) |
 | Phase 3 | WMS 물리 분리(별도 앱 + REST 통신) | ✅ 완료 |
 | 포트폴리오 1차 | 고객·관리자 UX, 반응형 UI, OMS·WMS 통합 수동 검증 | ✅ 완료 (2026-08-04) |
+| OMS V2 | `READY → SHIPPED → DELIVERED`, 고객 반품·WMS RMA 연동 | OMS 구현 완료, 통합 수동 검증 대기 |
 | Phase 4 | (선택) 이벤트/메시지 기반 전환 | ⬜ |
 
 > 📄 자세한 배경·시나리오·로드맵은 **[기획서](docs/기획서.md)** 를 참고하세요.
+
+## OMS V2 — 배송 완료와 RMA (현재 상태)
+
+배송은 `READY → SHIPPED → DELIVERED`로 구분합니다. 관리자는
+`POST /admin/orders/ship`으로 WMS 출고를 확정하고, 이후
+`POST /admin/orders/deliver`로 배송 완료를 기록합니다. 기존 운영 데이터의 출고 완료 값은
+Flyway V5가 `SHIPPED`로 이전합니다.
+
+OMS는 배송 완료 주문의 고객 반품 신청, 품목별 신청 가능 수량, 멱등 `requestKey`, WMS 결과 동기화와
+고객 조회를 소유합니다. WMS는 RMA 접수·입고·검수·취소, `RESTOCKED` 재고 반영과
+`DISPOSED`·`REJECTED` 판정을 소유합니다. 따라서 OMS에는 반품 재고 수량이나 재고 원장을 두지 않습니다.
+
+OMS → WMS의 `POST /api/returns`와 `GET /api/returns/{rmaId}`는 기존 WMS Basic 인증을 사용합니다.
+WMS → OMS의 `POST /api/return-status-events`는 `oms.callback.user/password`로 인증하며, 계약 불일치는
+`409`, 인증 실패는 `401`입니다. 콜백이나 응답이 유실되면 `returns.sweep-delay`(기본 `60s`) 주기로
+미접수 요청을 재전송하거나 진행 중 RMA를 단건 조회합니다.
+
+토스페이먼츠 결제와 환불 상태·금액 처리는 **다음 단계**입니다. OMS V2 RMA는 WMS 검수 승인 수량까지만
+확정하며 결제·환불을 가장하는 상태나 처리는 포함하지 않습니다.
 
 ## 주요 기능
 
@@ -40,14 +60,12 @@
 | 장바구니 | REST API 기반 담기/수량변경/삭제, 실시간 카운트 배지 |
 | 주문 | 바로 구매·선택 주문, 생성 주문 상세 이동, 내 주문·상태 타임라인·취소 |
 | 백오더 | 재고 부족해도 **주문 접수(입고 대기)**, 입고 시 **FIFO 자동 충족**, 출고 시점에 실물 차감 |
+| 반품 | 배송 완료 주문의 품목·수량별 신청, WMS RMA 접수·검수 결과와 복구 가능한 동기화 |
 | 재고 | WMS 예약 모델(`가용 = 실물 − 예약`)과 `orderId` 멱등 원장 |
-| 관리자 | WMS 재고·백오더 수량 조회, 보충 요청, 주문상품 확인, 단건·선택 일괄 출고 |
+| 관리자 | WMS 재고·백오더 수량 조회, 보충 요청, 주문상품 확인, 단건·선택 일괄 출고·배송 완료 |
 | 공통 | 375px~데스크톱 반응형 UI, 전역 예외 처리(화면: 에러 페이지·flash / API: ProblemDetail JSON), 다크 모드 지원 |
 
 OMS 관리자에게는 수동 재고 조정·발주 생성·입고 권한이 없습니다. 해당 작업과 보충 요청 원본은 WMS가 소유합니다. 주문 이행을 위한 `reserve`·`ship`·`release` 호출은 기존과 같이 OMS 주문 흐름에서 유지됩니다.
-
-현재 `COMP`는 출고 완료를 뜻합니다. 실제 배송완료 단계 분리는
-[출고 처리 용어 정비 설계](docs/superpowers/specs/2026-07-26-shipment-wording-design.md)의 고도화 전략으로 관리합니다.
 
 ## 기술 스택
 
@@ -65,10 +83,10 @@ OMS(주문)와 WMS(재고)의 도메인·서비스·리포지토리를 **컨텍�
 
 ```
 src/main/java/com/jhg/hgpage
-├── contract/   OMS↔WMS 주문 이행 경계 포트 (InventoryPort · InventoryQueryPort · StockReplenishedHandler)
+├── contract/   OMS↔WMS 경계 포트 (InventoryPort · InventoryQueryPort · ReturnPort · StockReplenishedHandler)
 ├── catalog/    OMS 상품 카탈로그 (Product) + ProductService/Repository
 ├── oms/        주문·장바구니·고객   (domain · repository · service)
-│                 Order · Cart · Account · Member · OrderService · BackorderAllocator …
+│                 Order · CustomerReturn · Cart · Account · Member · OrderService · BackorderAllocator …
 ├── wms/        WMS REST adapter·DTO와 OMS 관리자 보충 요청 화면
 ├── config/     Security, QueryDSL 설정
 ├── web/        상품 목록·상세 등 공용 화면
@@ -85,7 +103,7 @@ Phase 3에서 WMS를 물리적으로 분리한 뒤, 재고의 정본(source of t
 
 | | OMS (이 저장소, :8080) | WMS (jhg-wms, :8081) |
 |---|---|---|
-| 소유 도메인 | 주문·장바구니·고객·판매, 백오더 | 재고 수량·예약·발주(PO)·입고·재고 원장 |
+| 소유 도메인 | 주문·장바구니·고객·판매·고객 반품 요청, 백오더 | 재고 수량·예약·발주(PO)·입고·재고 원장·RMA 처리 |
 | 재고에 대해 | 조회(실시간 질의) + "보충해줘" 요청 | 재고 정본. 수동 조정·발주·입고·요청 승인 |
 | 관리자 권한 | 재고 조정·발주·입고 **없음**(설계상 제거) | 위 전부 소유 (OPERATOR/MANAGER 롤) |
 | DB | 주문·고객 (재고 수량 없음) | 재고·예약·발주·원장 |
@@ -98,6 +116,7 @@ Phase 3에서 WMS를 물리적으로 분리한 뒤, 재고의 정본(source of t
 | S2 | OMS → WMS | 주문 이행 `reserve` / `ship` / `release` |
 | S3 | WMS → OMS | 재고 증가(입고·조정) 통지 → OMS 백오더 FIFO 승격 |
 | S4 | 양방향 | 회복탄력성 — 타임아웃 · best-effort · 보상 스윕 |
+| RMA | 양방향 | OMS 접수·단건 조회 ↔ WMS 검수 결과 Basic 인증 콜백 |
 
 보충 흐름: OMS가 백오더로 부족을 감지 → WMS에 **보충 요청** → WMS 관리자가 **승인 → 발주 생성 → 입고** → 재고 증가 → S3로 OMS에 통지 → OMS가 백오더 승격.
 

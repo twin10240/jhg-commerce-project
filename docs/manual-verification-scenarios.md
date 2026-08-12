@@ -1,9 +1,12 @@
-# OMS-WMS 포트폴리오 1차 수동 검증 시나리오
+# OMS-WMS 포트폴리오 1차 수동 검증 시나리오 (OMS V1)
 
 작성일: 2026-07-26
 
 범위: 로컬 OMS(:8080)와 WMS(:8081)의 실제 HTTP 통신, 화면, 권한, 장애 복구를 검증한다.
 이 파일이 두 저장소의 **통합 수동 검증 기준본**이다.
+
+> 현재 검증 대상은 문서 마지막의 **OMS V2 RMA** 섹션이다. 아래 OMS V1 시나리오와
+> 2026-08-04 완료 기록은 기존 주문·재고 회귀 기준으로 보존한다.
 
 ## 0. 실행 기준
 
@@ -188,22 +191,23 @@ curl -i -u wms:wms http://localhost:8081/api/inventory/rows
 - `OPENING/RECEIVE/SHIP`의 사유가 비어 있는 것은 정상이다.
 - 최신 200건까지만 노출된다.
 
-## 12. 단건·일괄 출고
+## 12. 단건·일괄 출고와 배송 완료
 
 ### 절차
 
 1. 상품 5로 출고 가능한 주문을 3건 생성한다.
-2. 한 건은 단건 출고한다.
-3. 나머지 두 건은 선택 일괄 출고한다.
+2. 한 건은 `POST /admin/orders/ship` 단건 출고한다.
+3. 나머지 두 건은 `POST /admin/orders/ships` 선택 일괄 출고한다.
+4. 출고된 한 건을 `POST /admin/orders/deliver`로 배송 완료 처리한다.
 
 ### 기대 결과
 
-- OMS 배송상태는 `출고 완료`가 된다.
+- 출고 직후 OMS 배송상태는 `SHIPPED`(출고 완료)이고 배송 완료 처리 뒤 `DELIVERED`가 된다.
 - WMS 예약상태는 `SHIPPED`가 된다.
 - 보유수량과 예약수량이 주문수량만큼 함께 감소한다.
 - `SHIP` 원장과 `주문 #N` 참조가 생성된다.
 - 일괄 결과는 `성공 2건 / 실패 0건`이다.
-- 취소·백오더·완료 주문에는 선택 체크박스가 없다.
+- 취소·백오더·`SHIPPED`·`DELIVERED` 주문에는 출고 선택 체크박스가 없다.
 
 ## 13. WMS 권한
 
@@ -310,3 +314,108 @@ WMS Docker Compose는 WMS 수평 확장 데모이므로 전체 OMS-WMS 배포 �
 | 14 | 대시보드 집계 | ✅ 통과 | 사용자 수행·완료 확인 | |
 | 15 | 장애와 복구 | ✅ 통과 | 사용자 수행·완료 확인 | |
 | 16 | 최종 화면·자동 검증 | ✅ 통과 | 사용자 수행·완료 확인 | |
+
+## OMS V2 RMA — 현재 수동 검증 대상 (2026-08-12)
+
+상태: **수동 통합 검증 대기**. 자동 계약 테스트와 별개로, 깨끗한 검증용 데이터에서 OMS(:8080)와
+호환 WMS(:8081)를 함께 실행하고 아래 증거를 기록한다. 서비스 Basic 자격증명은 양쪽의
+`WMS_BASIC_USER/WMS_BASIC_PASSWORD`와 `OMS_CALLBACK_USER/OMS_CALLBACK_PASSWORD`가 일치해야 한다.
+복구 검증 시간을 줄일 때만 OMS의 `returns.sweep-delay=5s`를 사용하고 실제 값을 증거에 남긴다.
+
+공통 준비:
+
+1. 고객 주문을 WMS 출고 후 OMS 배송 완료까지 처리해 `DELIVERED`로 만든다.
+2. 주문 ID, 주문상품 ID, 상품 ID, 주문 수량과 WMS 재고·원장 전후 값을 기록한다.
+3. 고객 주문 상세의 반품 신청과 `/returns/{returnId}`, WMS `/admin/returns/{rmaId}`를 함께 확인한다.
+4. 각 시나리오는 별도 주문이나 품목을 사용하고 `returnId`, `requestKey`, `rmaId`를 기록한다.
+
+### V2-1. 단일 품목 전량 승인 `RESTOCKED` (single-line full approval RESTOCKED)
+
+1. 배송 완료 주문의 한 품목 전량을 OMS에서 신청한다.
+2. WMS `/admin/returns/{rmaId}`에서 입고 후 요청 수량 전부를 `RESTOCKED`로 검수 완료한다.
+3. OMS 반품 상세와 WMS 재고·`RETURN` 원장을 확인한다.
+
+기대 결과: OMS는 `COMPLETED`, 승인 수량은 요청 수량, 처분은 `RESTOCKED`다. WMS 재고는 승인
+수량만큼 증가하고 `RETURN` 원장이 한 번만 생긴다.
+
+### V2-2. 복수 품목 부분 승인과 한 품목 `REJECTED` (multi-line partial approval with one REJECTED line)
+
+1. 두 품목 이상을 한 반품으로 신청한다.
+2. 한 품목은 요청 수량보다 적은 양을 `RESTOCKED` 또는 `DISPOSED`로 승인하고, 다른 품목은 승인 수량
+   `0`, 처분 `REJECTED`로 검수 완료한다.
+3. OMS 반품 상세에서 주문상품별 결과를 확인한다.
+
+기대 결과: 전체 반품은 `COMPLETED`이고 각 `orderItemId`의 요청·승인 수량과 처분이 WMS 결과와
+일치한다. 부분 승인 잔여 수량은 거절된 것으로 처리되어 다시 신청할 수 있다.
+
+### V2-3. `DISPOSED` 승인과 OMS 재고 비소유 (DISPOSED approval without OMS inventory ownership)
+
+1. 반품 품목 일부 또는 전부를 `DISPOSED`로 승인해 검수 완료한다.
+2. WMS 재고와 원장을 전후 비교하고 OMS 반품 상세를 확인한다.
+
+기대 결과: OMS에는 승인 수량과 `DISPOSED` 결과만 표시된다. WMS 재고는 증가하지 않고 OMS에는
+재고 수량이나 반품 재고 원장이 생성되지 않는다.
+
+### V2-4. `REQUESTED` 취소 반영 (REQUESTED cancellation reflected in OMS)
+
+1. WMS에 접수되어 `REQUESTED`인 RMA를 입고 전에 `/admin/returns/{rmaId}`에서 취소한다.
+2. 콜백 뒤 OMS 반품 상세를 확인한다.
+
+기대 결과: WMS와 OMS가 모두 `CANCELLED`이며 승인 수량·처분과 재고 변화가 없다. 동일 콜백 재전송도
+상태를 바꾸지 않는다.
+
+### V2-5. 같은 `requestKey` 재시도 멱등성 (same requestKey retry returns the same rmaId)
+
+1. OMS가 WMS에 보낸 `POST /api/returns` 요청의 `requestKey`와 전체 JSON을 기록한다.
+2. 같은 Basic 인증, 같은 `requestKey`, 같은 내용으로 WMS `POST /api/returns`를 다시 호출한다.
+3. WMS RMA 목록과 응답을 비교한다.
+
+기대 결과: 재시도 응답은 최초와 같은 `rmaId`이고 RMA가 추가 생성되지 않는다.
+
+### V2-6. 고객 신청 중 WMS 중단 후 스윕 복구 (WMS unavailable during customer submission then sweeper recovery)
+
+1. WMS를 중단하고 배송 완료 주문의 반품을 OMS에서 신청한다.
+2. OMS 반품 상세가 `PENDING_SUBMISSION`(WMS 전송 중)이고 요청이 보존됐는지 확인한다.
+3. WMS를 재기동하고 `returns.sweep-delay` 한 주기 이상 기다린다.
+
+기대 결과: 고객 신청 자체는 사라지지 않는다. 스윕이 같은 `requestKey`로 접수해 `rmaId`를 결합하고
+OMS가 `REQUESTED`로 수렴한다.
+
+### V2-7. WMS 완료 콜백 유실 후 단건 조회 복구 (OMS unavailable during WMS completion then GET recovery)
+
+1. RMA를 WMS에서 입고해 `RECEIVED`로 만든 뒤 OMS를 중단한다.
+2. WMS에서 검수 완료해 OMS 콜백이 실패하는 것을 확인한다.
+3. OMS를 재기동하고 `returns.sweep-delay` 한 주기 이상 기다린다.
+
+기대 결과: WMS 완료 트랜잭션은 성공한다. OMS 스윕이 `GET /api/returns/{rmaId}`로 결과를 회수해
+`COMPLETED`와 모든 품목 결과로 수렴하며 WMS 재고·원장은 중복 반영되지 않는다.
+
+### V2-8. 변조 콜백 거부 (tampered callback item/product/quantity rejected with 409)
+
+1. 진행 중인 반품의 정상 콜백 JSON을 준비한다.
+2. 올바른 callback Basic 인증을 사용하되 `orderItemId`, `productId`, 요청 수량을 각각 원 요청과 다르게
+   바꿔 `POST /api/return-status-events`로 보낸다.
+3. 각 응답과 OMS 반품 상태를 확인한다.
+
+기대 결과: 세 변조 요청은 각각 `409 Conflict`이고 OMS 상태·품목 결과는 변경되지 않는다.
+
+### V2-9. 잘못된 콜백 인증 거부 (wrong callback Basic credentials rejected with 401)
+
+1. 유효한 콜백 JSON을 잘못된 Basic 자격증명으로 `POST /api/return-status-events`에 보낸다.
+2. 응답 헤더와 OMS 반품 상태를 확인한다.
+
+기대 결과: 로그인 화면 리다이렉트 없이 `401 Unauthorized`이고 `Location` 헤더와 상태 변경이 없다.
+
+### OMS V2 검증 기록
+
+| 시나리오 | 결과 | 근거(`returnId`/`requestKey`/`rmaId`, 상태·수량·HTTP·캡처) |
+|---|---|---|
+| V2-1 단일 품목 전량 `RESTOCKED` | ⬜ 대기 | |
+| V2-2 복수 품목 부분 승인 + `REJECTED` | ⬜ 대기 | |
+| V2-3 `DISPOSED`, OMS 재고 비소유 | ⬜ 대기 | |
+| V2-4 `REQUESTED` 취소 | ⬜ 대기 | |
+| V2-5 같은 `requestKey` 멱등 재시도 | ⬜ 대기 | |
+| V2-6 WMS 중단 후 접수 스윕 | ⬜ 대기 | |
+| V2-7 OMS 중단 후 단건 조회 스윕 | ⬜ 대기 | |
+| V2-8 변조 콜백 `409` | ⬜ 대기 | |
+| V2-9 잘못된 callback Basic `401` | ⬜ 대기 | |
