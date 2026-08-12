@@ -16,8 +16,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
@@ -98,18 +100,14 @@ class ReturnStatusApiControllerMvcTest {
     }
 
     @Test
-    void 필수_중첩_ID와_수량이_null이거나_누락되고_범위를_벗어나면_400이다() throws Exception {
+    void 필수_중첩_ID와_수량이_null이거나_누락되면_400이다() throws Exception {
         for (String items : List.of(
                 "[{\"orderItemId\":null,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
                 "[{\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
                 "[{\"orderItemId\":50,\"productId\":null,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
                 "[{\"orderItemId\":50,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
                 "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":null,\"acceptedQuantity\":0,\"disposition\":null}]",
-                "[{\"orderItemId\":50,\"productId\":60,\"acceptedQuantity\":0,\"disposition\":null}]",
-                "[{\"orderItemId\":0,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
-                "[{\"orderItemId\":50,\"productId\":-1,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
-                "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":0,\"acceptedQuantity\":0,\"disposition\":null}]",
-                "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":-1,\"disposition\":null}]")) {
+                "[{\"orderItemId\":50,\"productId\":60,\"acceptedQuantity\":0,\"disposition\":null}]")) {
             mockMvc.perform(callbackWithItems("CANCELLED", items))
                     .andExpect(status().isBadRequest());
         }
@@ -118,21 +116,40 @@ class ReturnStatusApiControllerMvcTest {
     }
 
     @Test
-    void 상태에_맞지_않는_항목_disposition은_400이다() throws Exception {
+    void 존재하지만_의미적으로_잘못된_콜백은_동기화_서비스의_409을_반환한다() throws Exception {
+        doThrow(new ReturnSyncService.ReturnContractMismatchException())
+                .when(returnSyncService).apply(any());
+
         mockMvc.perform(callbackWithItems("CANCELLED", """
                 [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":0,"disposition":"REJECTED"}]
                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
         mockMvc.perform(callbackWithItems("COMPLETED", """
                 [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":1,"disposition":" "}]
                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
         mockMvc.perform(callbackWithItems("COMPLETED", """
                 [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":1,"disposition":null}]
                 """))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isConflict());
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":0,"productId":60,"requestedQuantity":1,"acceptedQuantity":0,"disposition":null}]
+                """))
+                .andExpect(status().isConflict());
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":0,"acceptedQuantity":0,"disposition":null}]
+                """))
+                .andExpect(status().isConflict());
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":-1,"disposition":null}]
+                """))
+                .andExpect(status().isConflict());
+        mockMvc.perform(callbackWithItems("UNSUPPORTED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":0,"disposition":null}]
+                """))
+                .andExpect(status().isConflict());
 
-        verifyNoInteractions(returnSyncService);
+        verify(returnSyncService, times(7)).apply(any());
     }
 
     @Test

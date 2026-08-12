@@ -33,18 +33,12 @@ public class ReturnStatusApiController {
     private boolean valid(ReturnStatusEvent event) {
         return event != null && event.rmaId() != null && event.requestKey() != null && event.orderId() != null
                 && event.status() != null && event.items() != null && !event.items().isEmpty()
-                && event.items().stream().allMatch(item -> valid(item, event.status()));
+                && event.items().stream().allMatch(this::valid);
     }
 
-    private boolean valid(ReturnStatusItem item, String status) {
-        if (item == null || item.orderItemId() == null || item.orderItemId() <= 0
-                || item.productId() == null || item.productId() <= 0
-                || item.requestedQuantity() == null || item.requestedQuantity() <= 0
-                || item.acceptedQuantity() == null || item.acceptedQuantity() < 0) {
-            return false;
-        }
-        if ("CANCELLED".equals(status)) return item.disposition() == null;
-        return !"COMPLETED".equals(status) || item.disposition() != null && !item.disposition().isBlank();
+    private boolean valid(ReturnStatusItem item) {
+        return item != null && item.orderItemId() != null && item.productId() != null
+                && item.requestedQuantity() != null && item.acceptedQuantity() != null;
     }
 
     public record ReturnStatusEvent(Long rmaId, UUID requestKey, Long orderId, String status,
