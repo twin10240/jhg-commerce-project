@@ -63,7 +63,7 @@ public class Order {
 
         order.setMember(member);
         order.setDelivery(delivery);
-        // 출고 상태를 초기화해야 cancel()의 "출고완료 시 취소 불가" 가드가 동작한다
+        // 출고 상태를 초기화해야 cancel()의 "출고 후 취소 불가" 가드가 동작한다
         delivery.setStatus(DeliveryStatus.READY);
 
         for (OrderItem orderItem: orderItems) {
@@ -96,7 +96,7 @@ public class Order {
     // 취소는 상태 전이만 담당한다. 예약 해제(release)는 서비스 계층이 InventoryPort(WMS)에 위임한다.
     // 예약은 ORDER 상태에만 존재하므로, 해제가 필요한지(취소 직전이 ORDER였는지)는 서비스가 판단한다.
     public void cancel() {
-        if(delivery.getStatus() == DeliveryStatus.COMP){
+        if (delivery.getStatus() != DeliveryStatus.READY) {
             throw new IllegalStateException("이미 출고 완료된 상품은 취소가 불가능합니다.");
         }
         // 재취소를 막지 않으면 예약이 이중 해제된다
@@ -108,17 +108,24 @@ public class Order {
 
     // 관리자 출고 처리 — 상태 전이만 담당한다.
     // 실물 재고 차감(ship)은 서비스 계층이 InventoryPort(WMS)에 위임한다(객체 그래프 결합 제거).
-    public void completeDelivery() {
+    public void ship() {
         if (this.status == OrderStatus.CANCEL) {
-            throw new IllegalStateException("취소된 주문은 출고 처리할 수 없습니다.");
+            throw new IllegalStateException("취소된 주문은 출고할 수 없습니다.");
         }
         if (this.status == OrderStatus.BACKORDERED) {
-            throw new IllegalStateException("입고 대기(백오더) 주문은 출고할 수 없습니다.");
+            throw new IllegalStateException("입고 대기 주문은 출고할 수 없습니다.");
         }
-        if (delivery.getStatus() == DeliveryStatus.COMP) {
-            throw new IllegalStateException("이미 출고 완료된 주문입니다.");
+        if (delivery.getStatus() != DeliveryStatus.READY) {
+            throw new IllegalStateException("출고 준비 상태가 아닙니다.");
         }
-        delivery.setStatus(DeliveryStatus.COMP);
+        delivery.setStatus(DeliveryStatus.SHIPPED);
+    }
+
+    public void deliver() {
+        if (delivery.getStatus() != DeliveryStatus.SHIPPED) {
+            throw new IllegalStateException("출고 완료 상태에서만 배송 완료할 수 있습니다.");
+        }
+        delivery.setStatus(DeliveryStatus.DELIVERED);
     }
 
     public int getTotalPrice() {

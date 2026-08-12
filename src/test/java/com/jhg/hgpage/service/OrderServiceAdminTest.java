@@ -32,6 +32,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -71,9 +72,11 @@ class OrderServiceAdminTest {
         assertThat(result).hasSize(2);
         assertThat(result.get(0).getMemberName()).isEqualTo("회원A");
         assertThat(result.get(0).getTotalPrice()).isEqualTo(20000);
-        assertThat(result.get(0).isCompletable()).isTrue();   // ORDER + READY → 출고 처리 버튼 노출
+        assertThat(result.get(0).isShippable()).isTrue();
+        assertThat(result.get(0).isDeliverable()).isFalse();
         assertThat(result.get(1).getStatus()).isEqualTo(OrderStatus.CANCEL);
-        assertThat(result.get(1).isCompletable()).isFalse();  // 취소된 주문은 처리 불가
+        assertThat(result.get(1).isShippable()).isFalse();
+        assertThat(result.get(1).isDeliverable()).isFalse();
     }
 
     @Test
@@ -106,24 +109,37 @@ class OrderServiceAdminTest {
     }
 
     @Test
-    void 출고_처리하면_배송상태가_COMP가_되고_재고_출고를_포트에_위임한다() {
+    void 출고_처리하면_배송상태가_SHIPPED가_되고_재고_출고를_포트에_위임한다() {
         Order order = newOrder("회원A"); // 상품1, 수량 2
         ReflectionTestUtils.setField(order, "id", 10L);
 
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
 
-        orderService.completeDelivery(10L);
+        orderService.shipOrder(10L);
 
-        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
         // 실물 차감은 도메인이 아니라 InventoryPort(WMS)에 위임한다
         verify(inventoryPort).shipAll(10L, Map.of(1L, 2));
+    }
+
+    @Test
+    void 배송_완료하면_WMS를_호출하지_않는다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.ship();
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        orderService.deliverOrder(10L);
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        verifyNoInteractions(inventoryPort);
     }
 
     @Test
     void 없는_주문의_출고처리는_EntityNotFoundException을_던진다() {
         when(orderRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> orderService.completeDelivery(99L))
+        assertThatThrownBy(() -> orderService.shipOrder(99L))
                 .isInstanceOf(EntityNotFoundException.class);
     }
 }

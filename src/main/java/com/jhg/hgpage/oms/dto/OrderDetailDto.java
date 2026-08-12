@@ -34,12 +34,13 @@ public class OrderDetailDto {
         this.street = address.getStreet();
         this.zipcode = address.getZipcode();
         this.items = order.getOrderItems().stream()
-                .map(oi -> new OrderLineDto(oi.getProduct().getName(), oi.getOrderPrice(), oi.getCount(), oi.getTotalPrice()))
+                .map(oi -> new OrderLineDto(oi.getId(), oi.getProduct().getId(), oi.getProduct().getName(),
+                        oi.getOrderPrice(), oi.getCount(), oi.getTotalPrice()))
                 .toList();
         this.totalPrice = order.getTotalPrice();
         // 백오더는 예약이 없어 자유롭게 취소 가능. 출고완료/이미취소만 불가.
         this.cancelable = (order.getStatus() == OrderStatus.ORDER || order.getStatus() == OrderStatus.BACKORDERED)
-                && order.getDelivery().getStatus() != DeliveryStatus.COMP;
+                && order.getDelivery().getStatus() == DeliveryStatus.READY;
     }
 
     public static OrderDetailDto from(Order order) {
@@ -48,12 +49,16 @@ public class OrderDetailDto {
 
     @Getter
     public static class OrderLineDto {
+        private final Long orderItemId;
+        private final Long productId;
         private final String productName;
         private final int orderPrice;
         private final int count;
         private final int totalPrice;
 
-        public OrderLineDto(String productName, int orderPrice, int count, int totalPrice) {
+        public OrderLineDto(Long orderItemId, Long productId, String productName, int orderPrice, int count, int totalPrice) {
+            this.orderItemId = orderItemId;
+            this.productId = productId;
             this.productName = productName;
             this.orderPrice = orderPrice;
             this.count = count;

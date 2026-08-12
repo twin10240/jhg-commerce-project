@@ -39,8 +39,9 @@ public class OrderRepositoryQuery {
                 .when(order.status.eq(OrderStatus.ORDER)
                         .and(delivery.status.eq(DeliveryStatus.READY))).then(0)
                 .when(order.status.eq(OrderStatus.BACKORDERED)).then(1)
-                .when(delivery.status.eq(DeliveryStatus.COMP)).then(2)
-                .otherwise(3);
+                .when(delivery.status.eq(DeliveryStatus.SHIPPED)).then(2)
+                .when(delivery.status.eq(DeliveryStatus.DELIVERED)).then(3)
+                .otherwise(4);
         var activeAge = new CaseBuilder()
                 .when(order.status.eq(OrderStatus.ORDER)
                         .and(delivery.status.eq(DeliveryStatus.READY))

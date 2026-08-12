@@ -59,7 +59,9 @@ class OrderServiceDetailTest {
 
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
-        Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, product.getPrice(), 2));
+        OrderItem orderItem = OrderItem.createOrderItem(product, product.getPrice(), 2);
+        ReflectionTestUtils.setField(orderItem, "id", 20L);
+        Order order = Order.createOrder(member, delivery, orderItem);
         order.markOrdered(); // ORDER 상태(예약 성공)로 둔다
         ReflectionTestUtils.setField(order, "id", 10L);
         return order;
@@ -75,6 +77,8 @@ class OrderServiceDetailTest {
         assertThat(detail.getDeliveryStatus()).isEqualTo(DeliveryStatus.READY);
         assertThat(detail.getItems()).hasSize(1);
         assertThat(detail.getItems().get(0).getProductName()).isEqualTo("테스트상품");
+        assertThat(detail.getItems().get(0).getOrderItemId()).isEqualTo(20L);
+        assertThat(detail.getItems().get(0).getProductId()).isEqualTo(7L);
         assertThat(detail.getItems().get(0).getTotalPrice()).isEqualTo(20000);
         assertThat(detail.getTotalPrice()).isEqualTo(20000);
         assertThat(detail.isCancelable()).isTrue();

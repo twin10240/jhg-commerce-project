@@ -18,6 +18,7 @@ import org.springframework.web.client.ResourceAccessException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -78,6 +79,17 @@ class OrderAdminControllerMvcTest {
         return AdminOrderDto.from(order);
     }
 
+    private AdminOrderDto shippedAdminOrderDto() {
+        com.jhg.hgpage.oms.domain.Member member = com.jhg.hgpage.oms.domain.Member.createUser(
+                "주문자A", "010-0000-0000", new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
+        delivery.setAddress(new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
+        order.ship();
+        return AdminOrderDto.from(order);
+    }
+
     @Test
     void 관리자는_주문목록을_조회한다() throws Exception {
         when(orderService.findAllForAdmin()).thenReturn(List.of(adminOrderDto()));
@@ -90,8 +102,19 @@ class OrderAdminControllerMvcTest {
                 .andExpect(content().string(containsString(">재고 확보</span>")))
                 .andExpect(content().string(containsString("출고 처리")))
                 .andExpect(content().string(containsString("선택 출고 처리")))
-                .andExpect(content().string(containsString("complete-deliveries")))
+                .andExpect(content().string(containsString("/admin/orders/ships")))
                 .andExpect(content().string(containsString("name=\"orderIds\"")));
+    }
+
+    @Test
+    void 출고된_주문에는_배송_완료_버튼만_표시한다() throws Exception {
+        when(orderService.findAllForAdmin()).thenReturn(List.of(shippedAdminOrderDto()));
+
+        mockMvc.perform(get("/admin/orders").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/admin/orders/deliver")))
+                .andExpect(content().string(containsString(">배송 완료</button>")))
+                .andExpect(content().string(not(containsString("/admin/orders/ship\""))));
     }
 
     @Test
@@ -114,7 +137,7 @@ class OrderAdminControllerMvcTest {
 
     @Test
     void 출고_처리하면_주문목록으로_리다이렉트하고_성공메시지를_담는다() throws Exception {
-        mockMvc.perform(post("/admin/orders/complete-delivery")
+        mockMvc.perform(post("/admin/orders/ship")
                         .with(user(admin()))
                         .with(csrf())
                         .param("orderId", "10"))
@@ -122,15 +145,15 @@ class OrderAdminControllerMvcTest {
                 .andExpect(redirectedUrl("/admin/orders"))
                 .andExpect(flash().attribute("successMessage", "출고 처리되었습니다. (주문 #10)"));
 
-        verify(orderService).completeDelivery(10L);
+        verify(orderService).shipOrder(10L);
     }
 
     @Test
     void 출고_불가_주문이면_에러메시지와_함께_목록으로_돌아간다() throws Exception {
         doThrow(new IllegalStateException("이미 출고 완료된 주문입니다."))
-                .when(orderService).completeDelivery(10L);
+                .when(orderService).shipOrder(10L);
 
-        mockMvc.perform(post("/admin/orders/complete-delivery")
+        mockMvc.perform(post("/admin/orders/ship")
                         .with(user(admin()))
                         .with(csrf())
                         .param("orderId", "10"))
@@ -141,7 +164,7 @@ class OrderAdminControllerMvcTest {
 
     @Test
     void 선택한_주문을_모두_출고_처리한다() throws Exception {
-        mockMvc.perform(post("/admin/orders/complete-deliveries")
+        mockMvc.perform(post("/admin/orders/ships")
                         .with(user(admin()))
                         .with(csrf())
                         .param("orderIds", "10", "11"))
@@ -150,16 +173,16 @@ class OrderAdminControllerMvcTest {
                 .andExpect(flash().attribute(
                         "successMessage", "출고 처리 결과: 성공 2건 / 실패 0건."));
 
-        verify(orderService).completeDelivery(10L);
-        verify(orderService).completeDelivery(11L);
+        verify(orderService).shipOrder(10L);
+        verify(orderService).shipOrder(11L);
     }
 
     @Test
     void 선택_출고는_실패한_주문을_제외하고_계속_처리한다() throws Exception {
         doThrow(new ResourceAccessException("WMS unavailable"))
-                .when(orderService).completeDelivery(11L);
+                .when(orderService).shipOrder(11L);
 
-        mockMvc.perform(post("/admin/orders/complete-deliveries")
+        mockMvc.perform(post("/admin/orders/ships")
                         .with(user(admin()))
                         .with(csrf())
                         .param("orderIds", "10", "11"))
@@ -168,13 +191,13 @@ class OrderAdminControllerMvcTest {
                 .andExpect(flash().attribute(
                         "errorMessage", "출고 처리 결과: 성공 1건 / 실패 1건."));
 
-        verify(orderService).completeDelivery(10L);
-        verify(orderService).completeDelivery(11L);
+        verify(orderService).shipOrder(10L);
+        verify(orderService).shipOrder(11L);
     }
 
     @Test
     void 선택_출고는_중복_주문번호를_한번만_처리한다() throws Exception {
-        mockMvc.perform(post("/admin/orders/complete-deliveries")
+        mockMvc.perform(post("/admin/orders/ships")
                         .with(user(admin()))
                         .with(csrf())
                         .param("orderIds", "10", "10"))
@@ -182,12 +205,12 @@ class OrderAdminControllerMvcTest {
                 .andExpect(flash().attribute(
                         "successMessage", "출고 처리 결과: 성공 1건 / 실패 0건."));
 
-        verify(orderService).completeDelivery(10L);
+        verify(orderService).shipOrder(10L);
     }
 
     @Test
     void 선택한_주문이_없으면_출고하지_않는다() throws Exception {
-        mockMvc.perform(post("/admin/orders/complete-deliveries")
+        mockMvc.perform(post("/admin/orders/ships")
                         .with(user(admin()))
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
@@ -196,5 +219,18 @@ class OrderAdminControllerMvcTest {
                         "errorMessage", "출고할 주문을 선택해주세요."));
 
         verifyNoInteractions(orderService);
+    }
+
+    @Test
+    void 배송_완료하면_주문목록으로_리다이렉트하고_성공메시지를_담는다() throws Exception {
+        mockMvc.perform(post("/admin/orders/deliver")
+                        .with(user(admin()))
+                        .with(csrf())
+                        .param("orderId", "10"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("successMessage", "배송 완료되었습니다. (주문 #10)"));
+
+        verify(orderService).deliverOrder(10L);
     }
 }

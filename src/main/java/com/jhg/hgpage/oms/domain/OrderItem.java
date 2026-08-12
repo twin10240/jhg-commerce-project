@@ -26,7 +26,7 @@ public class OrderItem {
 
     private int count;
 
-    // 생성은 순수하다 — 재고 예약/차감 여부는 Order.allocate()/completeDelivery()가 결정한다
+    // 생성은 순수하다 — 재고 예약/차감 여부는 Order.allocate()/ship()이 결정한다
     public static OrderItem createOrderItem(Product product, int orderPrice, int count) {
         OrderItem orderItem = new OrderItem();
         orderItem.setProduct(product);

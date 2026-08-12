@@ -19,8 +19,8 @@ public class AdminOrderDto {
     private final int totalPrice;
     private final LocalDateTime orderDate;
     private final List<Item> items;
-    // 출고 처리 버튼 노출 조건: 진행 중(ORDER) + 아직 출고 전(READY)
-    private final boolean completable;
+    private final boolean shippable;
+    private final boolean deliverable;
 
     public record Item(Long productId, String productName, int quantity, boolean inboundRequired) {}
 
@@ -41,8 +41,9 @@ public class AdminOrderDto {
                             orderItem.getCount(), inboundRequired);
                 })
                 .toList();
-        this.completable = order.getStatus() == OrderStatus.ORDER
+        this.shippable = order.getStatus() == OrderStatus.ORDER
                 && order.getDelivery().getStatus() == DeliveryStatus.READY;
+        this.deliverable = order.getDelivery().getStatus() == DeliveryStatus.SHIPPED;
     }
 
     public static AdminOrderDto from(Order order) {

@@ -77,9 +77,9 @@ class OrderTest {
     }
 
     @Test
-    void 출고완료된_주문은_취소할_수_없다() {
+    void 출고후에는_주문을_취소할수없다() {
         Order order = createOrderedOrder(product(), 2);
-        order.completeDelivery(); // 출고완료(COMP)로 전이
+        order.ship();
 
         assertThatThrownBy(order::cancel)
                 .isInstanceOf(IllegalStateException.class)
@@ -102,19 +102,19 @@ class OrderTest {
     // ── 출고 ──────────────────────────────────────────────────────
 
     @Test
-    void 출고_처리하면_배송상태가_COMP가_된다() {
+    void 출고하면_READY에서_SHIPPED로_전이한다() {
         Order order = createOrderedOrder(product(), 2); // ORDER 상태
 
-        order.completeDelivery();
+        order.ship();
 
-        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP);
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
     }
 
     @Test
     void BACKORDERED_주문은_출고할_수_없다() {
         Order order = createBackorder(product(), 5); // BACKORDERED
 
-        assertThatThrownBy(order::completeDelivery)
+        assertThatThrownBy(order::ship)
                 .isInstanceOf(IllegalStateException.class);
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
@@ -125,22 +125,33 @@ class OrderTest {
         Order order = createOrderedOrder(product(), 2);
         order.cancel();
 
-        assertThatThrownBy(order::completeDelivery)
+        assertThatThrownBy(order::ship)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("취소된 주문은 출고 처리할 수 없습니다.");
+                .hasMessage("취소된 주문은 출고할 수 없습니다.");
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
     }
 
     @Test
-    void 이미_출고완료된_주문은_다시_처리할_수_없다() {
+    void 이미_출고된_주문은_다시_출고할_수_없다() {
         Order order = createOrderedOrder(product(), 2);
-        order.completeDelivery(); // 1회차: COMP로 전이
+        order.ship();
 
-        assertThatThrownBy(order::completeDelivery)
+        assertThatThrownBy(order::ship)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("이미 출고 완료된 주문입니다.");
+                .hasMessage("출고 준비 상태가 아닙니다.");
 
-        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.COMP); // 상태 불변(이중 처리 차단)
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+    }
+
+    @Test
+    void 배송완료는_SHIPPED에서만_가능하다() {
+        Order order = createOrderedOrder(product(), 2);
+
+        assertThatThrownBy(order::deliver).isInstanceOf(IllegalStateException.class);
+        order.ship();
+        order.deliver();
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
     }
 }

@@ -35,9 +35,10 @@ OMS 저장소의 `wms/` 패키지에는 WMS 도메인이 아니라 REST 어댑�
 - `OrderStatus.BACKORDERED`: 예약 없이 접수된 입고 대기 주문
 - `OrderStatus.CANCEL`: 주문 취소
 - `DeliveryStatus.READY`: 출고 대기
-- `DeliveryStatus.COMP`: 출고 완료
+- `DeliveryStatus.SHIPPED`: 출고 완료
+- `DeliveryStatus.DELIVERED`: 배송 완료
 
-`COMP`는 배송사 배송완료가 아니라 WMS 실물 출고 완료를 의미한다.
+WMS 실물 출고는 `SHIPPED`까지만 전이하며, 배송 완료는 OMS가 `DELIVERED`로 전이한다.
 
 ## 주문 이행
 
@@ -78,8 +79,9 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 | GET | `/orders/{orderId}` | 본인 주문 상세 |
 | POST | `/orders/{orderId}/cancel` | 주문 취소 |
 | GET | `/admin/orders` | 배송관리와 주문상품·백오더 원인 조회 |
-| POST | `/admin/orders/complete-delivery` | 단건 출고 |
-| POST | `/admin/orders/complete-deliveries` | 선택 일괄 출고 |
+| POST | `/admin/orders/ship` | 단건 출고 |
+| POST | `/admin/orders/ships` | 선택 일괄 출고 |
+| POST | `/admin/orders/deliver` | 배송 완료 |
 | GET | `/admin/inventory` | WMS 재고와 백오더 수량 조회 |
 | GET/POST | `/admin/replenishment-requests` | 보충 요청 이력·제출 |
 

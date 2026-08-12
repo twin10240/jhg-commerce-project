@@ -10,7 +10,7 @@
 <div th:replace="~{fragments/layout :: nav('orders')}"></div>
 <main class="app-shell app-card">
   <h1 class="app-title">내 주문</h1>
-  <p class="app-subtitle">최근 주문과 입고·출고 상태를 확인하세요.</p>
+  <p class="app-subtitle">최근 주문과 입고·배송 상태를 확인하세요.</p>
 
   <div class="empty-state" th:if="${#lists.isEmpty(orders)}">
     <p>아직 주문이 없습니다.</p>
@@ -28,8 +28,8 @@
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <span class="status-badge"
-              th:classappend="${order.status.name() == 'CANCEL'} ? 'status-cancel' : (${order.status.name() == 'BACKORDERED'} ? 'status-backordered' : (${order.deliveryStatus.name() == 'COMP'} ? 'status-complete' : 'status-ready'))"
-              th:text="${order.status.name() == 'CANCEL'} ? '주문 취소' : (${order.status.name() == 'BACKORDERED'} ? '입고 대기' : (${order.deliveryStatus.name() == 'COMP'} ? '출고 완료' : '출고 준비'))">상태</span>
+              th:classappend="${order.status.name() == 'CANCEL'} ? 'status-cancel' : (${order.status.name() == 'BACKORDERED'} ? 'status-backordered' : (${order.deliveryStatus.name() == 'DELIVERED'} ? 'status-complete' : 'status-ready'))"
+              th:text="${order.status.name() == 'CANCEL'} ? '주문 취소' : (${order.status.name() == 'BACKORDERED'} ? '입고 대기' : (${order.deliveryStatus.name() == 'DELIVERED'} ? '배송 완료' : (${order.deliveryStatus.name() == 'SHIPPED'} ? '출고 완료' : '출고 준비'))) ">상태</span>
         <a class="app-btn secondary" th:href="@{|/orders/${order.id}|}">상세</a>
       </div>
     </article>

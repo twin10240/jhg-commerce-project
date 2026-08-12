@@ -108,12 +108,16 @@ public class OrderService {
     }
 
     @Transactional
-    public void completeDelivery(Long orderId) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+    public void shipOrder(Long orderId) {
+        Order order = findOrder(orderId);
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
-        order.completeDelivery();
+        order.ship();
         inventoryPort.shipAll(order.getId(), order.quantitiesByProductId());
+    }
+
+    @Transactional
+    public void deliverOrder(Long orderId) {
+        findOrder(orderId).deliver();
     }
 
     @Transactional
@@ -143,6 +147,11 @@ public class OrderService {
             throw new EntityNotFoundException("Order", orderId);
         }
         return order;
+    }
+
+    private Order findOrder(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
     }
 
     public record OrderLine(Long productId, int quantity) {}

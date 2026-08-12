@@ -26,11 +26,10 @@ public class OrderAdminController {
     }
 
     // HTML 폼 제약 때문에 path variable 대신 orderId 파라미터를 받는다 (발주 입고와 동일 패턴)
-    @PostMapping("/admin/orders/complete-delivery")
-    public String completeDelivery(@RequestParam Long orderId,
-                                   RedirectAttributes redirectAttributes) {
+    @PostMapping("/admin/orders/ship")
+    public String ship(@RequestParam Long orderId, RedirectAttributes redirectAttributes) {
         try {
-            orderService.completeDelivery(orderId);
+            orderService.shipOrder(orderId);
             redirectAttributes.addFlashAttribute("successMessage",
                     "출고 처리되었습니다. (주문 #" + orderId + ")");
         } catch (IllegalStateException | EntityNotFoundException e) {
@@ -39,9 +38,9 @@ public class OrderAdminController {
         return "redirect:/admin/orders";
     }
 
-    @PostMapping("/admin/orders/complete-deliveries")
-    public String completeDeliveries(@RequestParam(required = false) List<Long> orderIds,
-                                     RedirectAttributes redirectAttributes) {
+    @PostMapping("/admin/orders/ships")
+    public String ships(@RequestParam(required = false) List<Long> orderIds,
+                        RedirectAttributes redirectAttributes) {
         if (orderIds == null || orderIds.isEmpty()) {
             redirectAttributes.addFlashAttribute("errorMessage", "출고할 주문을 선택해주세요.");
             return "redirect:/admin/orders";
@@ -51,7 +50,7 @@ public class OrderAdminController {
         int failureCount = 0;
         for (Long orderId : orderIds.stream().distinct().toList()) {
             try {
-                orderService.completeDelivery(orderId);
+                orderService.shipOrder(orderId);
                 successCount++;
             } catch (IllegalStateException | EntityNotFoundException | RestClientException e) {
                 failureCount++;
@@ -61,6 +60,18 @@ public class OrderAdminController {
         String message = "출고 처리 결과: 성공 " + successCount + "건 / 실패 " + failureCount + "건.";
         redirectAttributes.addFlashAttribute(
                 failureCount == 0 ? "successMessage" : "errorMessage", message);
+        return "redirect:/admin/orders";
+    }
+
+    @PostMapping("/admin/orders/deliver")
+    public String deliver(@RequestParam Long orderId, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.deliverOrder(orderId);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "배송 완료되었습니다. (주문 #" + orderId + ")");
+        } catch (IllegalStateException | EntityNotFoundException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
         return "redirect:/admin/orders";
     }
 }

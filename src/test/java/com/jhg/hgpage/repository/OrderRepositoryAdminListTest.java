@@ -46,8 +46,8 @@ class OrderRepositoryAdminListTest {
 
     @Test
     void 미처리_우선으로_그룹화하고_진행중은_오래된순_종료건은_최신순으로_조회한다() {
-        Order completedOld = saveOrderOf("완료A");
-        completedOld.completeDelivery();
+        Order shippedOld = saveOrderOf("출고A");
+        shippedOld.ship();
         Order readyOld = saveOrderOf("배송대기A");
         Order canceledOld = saveOrderOf("취소A");
         canceledOld.cancel();
@@ -56,8 +56,8 @@ class OrderRepositoryAdminListTest {
         Order readyNew = saveOrderOf("배송대기B");
         Order backorderNew = saveOrderOf("입고대기B");
         backorderNew.markBackordered();
-        Order completedNew = saveOrderOf("완료B");
-        completedNew.completeDelivery();
+        Order shippedNew = saveOrderOf("출고B");
+        shippedNew.ship();
         Order canceledNew = saveOrderOf("취소B");
         canceledNew.cancel();
         em.flush();
@@ -68,7 +68,7 @@ class OrderRepositoryAdminListTest {
         assertThat(orders).extracting(Order::getId).containsExactly(
                 readyOld.getId(), readyNew.getId(),
                 backorderOld.getId(), backorderNew.getId(),
-                completedNew.getId(), completedOld.getId(),
+                shippedNew.getId(), shippedOld.getId(),
                 canceledNew.getId(), canceledOld.getId());
         assertThat(Hibernate.isInitialized(orders.get(0).getMember())).isTrue();
         assertThat(Hibernate.isInitialized(orders.get(0).getDelivery())).isTrue();

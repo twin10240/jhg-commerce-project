@@ -306,7 +306,7 @@ class OrderControllerMvcTest {
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
         order.markOrdered(); // ORDER 상태(예약 성공)
         if (shipped) {
-            order.completeDelivery();
+            order.ship();
         } else if (canceled) {
             order.cancel();
         }
@@ -332,7 +332,7 @@ class OrderControllerMvcTest {
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("출고 완료")))
-                .andExpect(content().string(not(containsString("배송 완료"))))
+                .andExpect(content().string(containsString("<dt>배송상태</dt><dd>출고 완료</dd>")))
                 .andExpect(content().string(containsString(">출고 완료</span>")));
     }
 
@@ -377,7 +377,7 @@ class OrderControllerMvcTest {
                 new com.jhg.hgpage.oms.dto.OrderDto(
                         11L,
                         com.jhg.hgpage.oms.domain.enums.OrderStatus.ORDER,
-                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.COMP,
+                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.SHIPPED,
                         10000,
                         java.time.LocalDateTime.of(2026, 7, 24, 12, 0))));
 
