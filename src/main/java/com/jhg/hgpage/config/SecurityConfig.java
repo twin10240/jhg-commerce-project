@@ -35,7 +35,7 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
 
-        http.securityMatcher("/api/replenishments")
+        http.securityMatcher("/api/replenishments", "/api/return-status-events")
                 .csrf(AbstractHttpConfigurer::disable)
                 .authenticationProvider(provider)
                 .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
