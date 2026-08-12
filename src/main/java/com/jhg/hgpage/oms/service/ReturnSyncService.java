@@ -112,7 +112,7 @@ public class ReturnSyncService {
     private boolean matchesAppliedResults(CustomerReturn customerReturn, Map<Long, ResultItem> results) {
         for (CustomerReturnItem local : customerReturn.getItems()) {
             ResultItem result = results.get(local.getOrderItem().getId());
-            if (local.getAcceptedQuantity() == null || local.getAcceptedQuantity() != result.acceptedQuantity()
+            if (local.getAcceptedQuantity() == null || !local.getAcceptedQuantity().equals(result.acceptedQuantity())
                     || local.getDisposition() != disposition(result.disposition())) {
                 return false;
             }

@@ -157,6 +157,23 @@ class ReturnSyncServiceTest {
     }
 
     @Test
+    void 승인수량이_128_이상이어도_같은_완료_결과는_멱등_no_op이다() {
+        Fixture fixture = pendingReturn(200, 200);
+        ReturnResult result = new ReturnResult(fixture.rmaId(), fixture.requestKey(), fixture.orderId(),
+                "COMPLETED", List.of(
+                item(fixture.firstOrderItemId(), fixture.firstProductId(), 200, 128, "RESTOCKED"),
+                item(fixture.secondOrderItemId(), fixture.secondProductId(), 1, 0, "REJECTED")));
+        returnSyncService.apply(result);
+        LocalDateTime updatedAt = saved(fixture.returnId()).getUpdatedAt();
+
+        returnSyncService.apply(result);
+
+        CustomerReturn saved = saved(fixture.returnId());
+        assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.COMPLETED);
+        assertThat(saved.getUpdatedAt()).isEqualTo(updatedAt);
+    }
+
+    @Test
     void 이전_진행상태는_회귀시키지_않는다() {
         Fixture fixture = pendingReturn();
         returnSyncService.apply(result(fixture, "RECEIVED"));
@@ -274,6 +291,10 @@ class ReturnSyncServiceTest {
     }
 
     private Fixture pendingReturn() {
+        return pendingReturn(3, 2);
+    }
+
+    private Fixture pendingReturn(int firstOrderQuantity, int firstRequestedQuantity) {
         return transactionTemplate.execute(status -> {
             Product firstProduct = product("첫 상품");
             Product secondProduct = product("둘째 상품");
@@ -282,7 +303,7 @@ class ReturnSyncServiceTest {
             em.persist(member);
             Delivery delivery = new Delivery();
             delivery.setAddress(new Address("서울", "관악구", "500"));
-            OrderItem firstItem = OrderItem.createOrderItem(firstProduct, firstProduct.getPrice(), 3);
+            OrderItem firstItem = OrderItem.createOrderItem(firstProduct, firstProduct.getPrice(), firstOrderQuantity);
             OrderItem secondItem = OrderItem.createOrderItem(secondProduct, secondProduct.getPrice(), 2);
             Order order = Order.createOrder(member, delivery, firstItem, secondItem);
             order.ship();
@@ -292,7 +313,7 @@ class ReturnSyncServiceTest {
             UUID requestKey = UUID.randomUUID();
             Long rmaId = 1000L + order.getId();
             CustomerReturn customerReturn = CustomerReturn.create(order, requestKey, "불량", List.of(
-                    new CustomerReturn.RequestItem(firstItem, 2),
+                    new CustomerReturn.RequestItem(firstItem, firstRequestedQuantity),
                     new CustomerReturn.RequestItem(secondItem, 1)));
             em.persist(customerReturn);
             em.flush();
