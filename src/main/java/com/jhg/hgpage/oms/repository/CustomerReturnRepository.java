@@ -1,0 +1,31 @@
+package com.jhg.hgpage.oms.repository;
+
+import com.jhg.hgpage.oms.domain.CustomerReturn;
+import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, Long> {
+
+    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
+    @Query("select distinct r from CustomerReturn r where r.id = :id")
+    Optional<CustomerReturn> findDetailedById(Long id);
+
+    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
+    @Query("select distinct r from CustomerReturn r where r.requestKey = :requestKey")
+    Optional<CustomerReturn> findDetailedByRequestKey(UUID requestKey);
+
+    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
+    @Query("select distinct r from CustomerReturn r where r.order.id = :orderId order by r.id desc")
+    List<CustomerReturn> findDetailedByOrderId(Long orderId);
+
+    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
+    @Query("select distinct r from CustomerReturn r where r.status in :statuses order by r.id")
+    List<CustomerReturn> findDetailedByStatusIn(Collection<CustomerReturnStatus> statuses);
+}
