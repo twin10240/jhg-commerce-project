@@ -19,6 +19,7 @@ import java.util.UUID;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -67,6 +68,74 @@ class ReturnStatusApiControllerMvcTest {
     }
 
     @Test
+    void CANCELLED_콜백의_acceptedQuantity가_누락되면_400이다() throws Exception {
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"disposition":null}]
+                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(returnSyncService);
+    }
+
+    @Test
+    void CANCELLED_콜백의_acceptedQuantity가_null이면_400이다() throws Exception {
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":null,"disposition":null}]
+                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(returnSyncService);
+    }
+
+    @Test
+    void null_항목_또는_빈_항목_목록은_400이다() throws Exception {
+        for (String items : List.of("[null]", "[]")) {
+            mockMvc.perform(callbackWithItems("CANCELLED", items))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(returnSyncService);
+    }
+
+    @Test
+    void 필수_중첩_ID와_수량이_null이거나_누락되고_범위를_벗어나면_400이다() throws Exception {
+        for (String items : List.of(
+                "[{\"orderItemId\":null,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":null,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":null,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":60,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":0,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":-1,\"requestedQuantity\":1,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":0,\"acceptedQuantity\":0,\"disposition\":null}]",
+                "[{\"orderItemId\":50,\"productId\":60,\"requestedQuantity\":1,\"acceptedQuantity\":-1,\"disposition\":null}]")) {
+            mockMvc.perform(callbackWithItems("CANCELLED", items))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(returnSyncService);
+    }
+
+    @Test
+    void 상태에_맞지_않는_항목_disposition은_400이다() throws Exception {
+        mockMvc.perform(callbackWithItems("CANCELLED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":0,"disposition":"REJECTED"}]
+                """))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(callbackWithItems("COMPLETED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":1,"disposition":" "}]
+                """))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(callbackWithItems("COMPLETED", """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":1,"disposition":null}]
+                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(returnSyncService);
+    }
+
+    @Test
     void 계약이_맞지_않는_콜백은_409이다() throws Exception {
         doThrow(new ReturnSyncService.ReturnContractMismatchException())
                 .when(returnSyncService).apply(result("COMPLETED", "RESTOCKED", 1));
@@ -88,12 +157,19 @@ class ReturnStatusApiControllerMvcTest {
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder callback(
             String status, String disposition, int acceptedQuantity) {
         String dispositionJson = disposition == null ? "null" : "\"" + disposition + "\"";
+        return callbackWithItems(status, """
+                [{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":%d,"disposition":%s}]
+                """.formatted(acceptedQuantity, dispositionJson));
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder callbackWithItems(
+            String status, String items) {
         return post("/api/return-status-events")
                 .with(httpBasic("wms", "wms"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                        {"rmaId":30,"requestKey":"%s","orderId":40,"status":"%s","items":[{"orderItemId":50,"productId":60,"requestedQuantity":1,"acceptedQuantity":%d,"disposition":%s}]}
-                        """.formatted(REQUEST_KEY, status, acceptedQuantity, dispositionJson));
+                        {"rmaId":30,"requestKey":"%s","orderId":40,"status":"%s","items":%s}
+                        """.formatted(REQUEST_KEY, status, items));
     }
 
     private ReturnResult result(String status, String disposition, int acceptedQuantity) {
