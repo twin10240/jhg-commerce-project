@@ -165,13 +165,16 @@
     </ul>
   </div>
 
+  <div th:if="${order.deliveryStatus.name() == 'DELIVERED'}" th:object="${returnForm}">
+    <div class="field-error" role="alert" th:if="${#fields.hasGlobalErrors()}"
+         th:each="error : ${#fields.globalErrors()}" th:text="${error}">반품 요청 오류</div>
+  </div>
+
   <div class="block" th:if="${order.deliveryStatus.name() == 'DELIVERED' and hasReturnableItems}">
     <h2>반품 요청</h2>
     <form class="return-form" th:action="@{|/orders/${order.id}/returns|}" th:object="${returnForm}" method="post"
           onsubmit="return confirm('선택한 상품의 반품을 요청하시겠습니까?');">
       <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
-      <div class="field-error" role="alert" th:if="${#fields.hasGlobalErrors()}"
-           th:each="error : ${#fields.globalErrors()}" th:text="${error}">반품 요청 오류</div>
       <div class="field-error" role="alert" th:errors="*{lines}">품목 오류</div>
       <table>
         <thead>

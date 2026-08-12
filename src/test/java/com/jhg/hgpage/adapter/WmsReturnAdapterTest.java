@@ -117,6 +117,16 @@ class WmsReturnAdapterTest {
     }
 
     @Test
+    void create_maps_429_to_transient_failure() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> adapter.create(request()))
+                .isInstanceOf(ReturnPort.TransientReturnFailure.class);
+        server.verify();
+    }
+
+    @Test
     void create_maps_transport_failure_to_transient_failure() {
         server.expect(requestTo("http://wms-test/api/returns"))
                 .andRespond(withException(new SocketTimeoutException("timeout")));
@@ -197,6 +207,28 @@ class WmsReturnAdapterTest {
         server.expect(requestTo("http://wms-test/api/returns"))
                 .andRespond(withSuccess(responseJson("""
                         [{"orderItemId":501,"productId":0,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_rejects_missing_accepted_quantity() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":501,"productId":1,"requestedQuantity":2,"disposition":null}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.create(request()));
+        server.verify();
+    }
+
+    @Test
+    void create_rejects_null_accepted_quantity() {
+        server.expect(requestTo("http://wms-test/api/returns"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":501,"productId":1,"requestedQuantity":2,"acceptedQuantity":null,"disposition":null}]
                         """), MediaType.APPLICATION_JSON));
 
         assertInvalidSuccessResponse(() -> adapter.create(request()));
@@ -299,6 +331,28 @@ class WmsReturnAdapterTest {
         server.expect(requestTo("http://wms-test/api/returns/30"))
                 .andRespond(withSuccess(responseJson("""
                         [{"orderItemId":501,"productId":0,"requestedQuantity":2,"acceptedQuantity":1,"disposition":"RESTOCKED"}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_rejects_missing_accepted_quantity() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":501,"productId":1,"requestedQuantity":2,"disposition":null}]
+                        """), MediaType.APPLICATION_JSON));
+
+        assertInvalidSuccessResponse(() -> adapter.find(30L));
+        server.verify();
+    }
+
+    @Test
+    void find_rejects_null_accepted_quantity() {
+        server.expect(requestTo("http://wms-test/api/returns/30"))
+                .andRespond(withSuccess(responseJson("""
+                        [{"orderItemId":501,"productId":1,"requestedQuantity":2,"acceptedQuantity":null,"disposition":null}]
                         """), MediaType.APPLICATION_JSON));
 
         assertInvalidSuccessResponse(() -> adapter.find(30L));

@@ -141,6 +141,9 @@ Phase 3에서 WMS를 물리적으로 분리한 뒤, 재고의 정본(source of t
 # 4. http://localhost:8080 접속
 ```
 
+기본 로컬 실행은 데이터를 보존하며, OMS V2 최초 기동 시 기존 배송 상태 `COMP`를 같은 의미의
+`SHIPPED`로 자동 변환합니다. `local` 프로파일은 데이터를 초기화해도 되는 경우에만 사용합니다.
+
 로컬 기본 서비스 자격증명은 양쪽 모두 `WMS_BASIC_USER=wms`,
 `WMS_BASIC_PASSWORD=wms`, `OMS_CALLBACK_USER=wms`, `OMS_CALLBACK_PASSWORD=wms`입니다.
 OMS는 JDK 17 이상, WMS는 JDK 21이 필요합니다. 테스트는 임베디드 H2를 사용합니다.

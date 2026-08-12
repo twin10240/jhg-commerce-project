@@ -393,6 +393,28 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 남은수량이_동시에_소진돼도_POST에서_보존한_전역오류를_렌더링한다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        CustomerReturn previous = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "전량 반품",
+                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 2)));
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of(previous));
+        com.jhg.hgpage.oms.web.form.CustomerReturnForm form = new com.jhg.hgpage.oms.web.form.CustomerReturnForm();
+        form.setReason("불량");
+        form.getLines().add(new com.jhg.hgpage.oms.web.form.CustomerReturnForm.Line(101L, 1));
+        org.springframework.validation.BeanPropertyBindingResult errors =
+                new org.springframework.validation.BeanPropertyBindingResult(form, "returnForm");
+        errors.reject("invalidReturn", "반품 가능 수량을 초과했습니다.");
+
+        mockMvc.perform(get("/orders/10")
+                        .with(user(principal()))
+                        .flashAttr("returnForm", form)
+                        .flashAttr("org.springframework.validation.BindingResult.returnForm", errors))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 가능 수량을 초과했습니다.")));
+    }
+
+    @Test
     void 출고된_주문_상세에는_출고완료로_표시한다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, true));
 

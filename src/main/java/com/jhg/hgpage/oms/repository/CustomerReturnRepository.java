@@ -20,8 +20,7 @@ public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, 
     Optional<CustomerReturn> findDetailedById(Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
-    @Query("select distinct r from CustomerReturn r where r.id = :id")
+    @Query("select r from CustomerReturn r where r.id = :id")
     Optional<CustomerReturn> findDetailedByIdForUpdate(Long id);
 
     @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
@@ -29,8 +28,7 @@ public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, 
     Optional<CustomerReturn> findDetailedByRequestKey(UUID requestKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
-    @Query("select distinct r from CustomerReturn r where r.requestKey = :requestKey")
+    @Query("select r from CustomerReturn r where r.requestKey = :requestKey")
     Optional<CustomerReturn> findDetailedByRequestKeyForUpdate(UUID requestKey);
 
     Optional<CustomerReturn> findByRmaId(Long rmaId);

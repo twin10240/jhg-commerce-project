@@ -16,7 +16,7 @@ public interface ReturnPort {
     record ReturnResult(Long rmaId, UUID requestKey, Long orderId, String status, List<ResultItem> items) {}
 
     record ResultItem(Long orderItemId, Long productId, int requestedQuantity,
-                      int acceptedQuantity, String disposition) {}
+                      Integer acceptedQuantity, String disposition) {}
 
     final class PermanentReturnRejection extends RuntimeException {
         private final String code;

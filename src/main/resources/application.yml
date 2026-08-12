@@ -15,6 +15,7 @@ spring:
     driver-class-name: org.h2.Driver
 
   jpa:
+    defer-datasource-initialization: true
     hibernate:
       # 기본: 데이터 보존(update). 스키마를 갈아엎고 다시 시드하려면 local 프로파일로 실행:
       #   .\gradlew.bat bootRun --args='--spring.profiles.active=local'
@@ -28,6 +29,12 @@ spring:
   # H2 환경(로컬/개발)에서는 Flyway 비활성 — H2 드라이버 모듈 없음 + ddl-auto로 스키마 관리
   flyway:
     enabled: false
+
+  # ddl-auto가 스키마를 갱신한 뒤 기존 로컬 데이터를 멱등 변환한다.
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:db/local-data-migration.sql
 
   logging:
     level:
@@ -88,6 +95,9 @@ spring:
     enabled: true
     locations: classpath:db/migration
     repair-on-migrate: true
+  sql:
+    init:
+      mode: never
 decorator:
   datasource:
     p6spy:

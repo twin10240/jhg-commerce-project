@@ -64,7 +64,8 @@ public class WmsReturnAdapter implements ReturnPort {
                 || result.requestKey() == null || result.orderId() == null || result.orderId() <= 0
                 || result.status() == null || result.status().isBlank() || result.items() == null || result.items().isEmpty()
                 || result.items().stream().anyMatch(item -> item == null || item.orderItemId() == null || item.orderItemId() <= 0
-                || item.productId() == null || item.productId() <= 0 || item.requestedQuantity() <= 0)) {
+                || item.productId() == null || item.productId() <= 0 || item.requestedQuantity() <= 0
+                || item.acceptedQuantity() == null)) {
             throw invalidResponse();
         }
         return result;
@@ -90,8 +91,6 @@ public class WmsReturnAdapter implements ReturnPort {
     }
 
     private RuntimeException failure(HttpStatusCode status) {
-        if (status.is5xxServerError())
-            return new TransientReturnFailure(new IllegalStateException("WMS server error"));
-        return new PermanentReturnRejection("HTTP_" + status.value());
+        return new TransientReturnFailure(new IllegalStateException("Unexpected WMS status: " + status.value()));
     }
 }

@@ -38,6 +38,7 @@ class ReturnMutationConcurrencyTest {
 
     @Autowired RaceWriter raceWriter;
     @Autowired ReturnSyncService returnSyncService;
+    @Autowired CustomerReturnService customerReturnService;
     @Autowired CustomerReturnRepository repository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
@@ -76,6 +77,74 @@ class ReturnMutationConcurrencyTest {
                 .isEqualTo(CustomerReturnStatus.COMPLETED);
     }
 
+    @Test
+    void 완료_콜백이_먼저_커밋되면_대기하던_수령_스윕이_완료를_덮어쓰지_않는다() throws Exception {
+        Fixture fixture = pendingReturn();
+        CountDownLatch completedApplied = new CountDownLatch(1);
+        CountDownLatch receivedStarted = new CountDownLatch(1);
+        CountDownLatch receivedFinished = new CountDownLatch(1);
+        CountDownLatch releaseCompleted = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> completed = executor.submit(() -> raceWriter.applyAndHold(
+                    fixture.completed(), completedApplied, releaseCompleted));
+            assertThat(completedApplied.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<?> received = executor.submit(() -> {
+                receivedStarted.countDown();
+                try {
+                    returnSyncService.apply(fixture.received());
+                } finally {
+                    receivedFinished.countDown();
+                }
+            });
+            assertThat(receivedStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(receivedFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseCompleted.countDown();
+            completed.get(5, TimeUnit.SECONDS);
+            received.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseCompleted.countDown();
+            executor.shutdownNow();
+        }
+
+        assertThat(repository.findDetailedById(fixture.returnId()).orElseThrow().getStatus())
+                .isEqualTo(CustomerReturnStatus.COMPLETED);
+    }
+
+    @Test
+    void 완료_콜백이_먼저_커밋되면_대기하던_영구실패가_완료를_덮어쓰지_않는다() throws Exception {
+        Fixture fixture = pendingReturn();
+        CountDownLatch completedApplied = new CountDownLatch(1);
+        CountDownLatch failureStarted = new CountDownLatch(1);
+        CountDownLatch failureFinished = new CountDownLatch(1);
+        CountDownLatch releaseCompleted = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> completed = executor.submit(() -> raceWriter.applyAndHold(
+                    fixture.completed(), completedApplied, releaseCompleted));
+            assertThat(completedApplied.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<?> failure = executor.submit(() -> {
+                failureStarted.countDown();
+                try {
+                    customerReturnService.markSubmissionFailed(fixture.returnId(), "BAD_REQUEST");
+                } finally {
+                    failureFinished.countDown();
+                }
+            });
+            assertThat(failureStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(failureFinished.await(200, TimeUnit.MILLISECONDS)).isFalse();
+            releaseCompleted.countDown();
+            completed.get(5, TimeUnit.SECONDS);
+            failure.get(5, TimeUnit.SECONDS);
+        } finally {
+            releaseCompleted.countDown();
+            executor.shutdownNow();
+        }
+
+        assertThat(repository.findDetailedById(fixture.returnId()).orElseThrow().getStatus())
+                .isEqualTo(CustomerReturnStatus.COMPLETED);
+    }
+
     private Fixture pendingReturn() {
         return transactionTemplate.execute(status -> {
             Product product = new Product();
@@ -99,8 +168,6 @@ class ReturnMutationConcurrencyTest {
             em.persist(customerReturn);
             em.flush();
             Long rmaId = 9000L + customerReturn.getId();
-            customerReturn.markRequested(rmaId);
-            em.flush();
             List<ResultItem> items = List.of(new ResultItem(item.getId(), product.getId(), 1, 0, null));
             return new Fixture(customerReturn.getId(), rmaId, new ReturnResult(rmaId, requestKey,
                     order.getId(), "RECEIVED", items), new ReturnResult(rmaId, requestKey,
