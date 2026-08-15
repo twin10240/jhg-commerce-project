@@ -137,6 +137,21 @@ class OrderCancellationServiceTest {
     }
 
     @Test
+    void 불명확한_할당검토는_즉시취소하지_않고_같은주문_재확인을_기다린다() {
+        Fixture fixture = paidState(OrderStatus.ALLOCATION_REVIEW);
+        ReflectionTestUtils.setField(fixture.order, "allocationFailureCode", "WMS_UNAVAILABLE");
+        stubPaidOrReviewLocks(fixture);
+
+        OrderCancellationService.CancellationResult result = service.request(10L, 1L);
+
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.REFUND_PENDING);
+        assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(fixture.order.getCancellationReleaseRequired()).isNull();
+        assertThat(fixture.order.getAllocationAttemptCount()).isEqualTo(1);
+        verifyNoInteractions(refundService);
+    }
+
+    @Test
     void ALLOCATION_PENDING_기제출작업은_예약결과가_결정할때까지_취소대기로_남긴다() {
         Fixture fixture = paidState(OrderStatus.ALLOCATION_PENDING);
         fixture.order.claimAllocation(LocalDateTime.now());

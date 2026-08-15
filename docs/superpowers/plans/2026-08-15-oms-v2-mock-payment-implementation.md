@@ -668,8 +668,10 @@ git commit -m "feat(oms): refund accepted return quantities"
 
 **Interfaces:**
 - Produces: customer read fields `paymentStatusLabel`, `paidAmount`, `pendingRefundAmount`, `refundedAmount`, `paymentRetryable`, and processing-safe `orderStatusLabel`.
-- Produces: `GET /admin/payments`, `POST /admin/refunds/{refundId}/retry`, and `POST /admin/orders/{orderId}/allocation/retry`.
-- Produces: admin counts for refund manual review and allocation manual review.
+- Consumes: `PaymentService.findCancellationReviewAttemptIds()` and `PaymentService.requeueCancellationReview(attemptId)` for unresolved payment cancellation reconciliation.
+- Consumes: `OrderAllocationService.findCancellationAllocationReviewOrderIds()` and `OrderAllocationService.requeueCancellationAllocation(orderId)` for unresolved allocation cancellation reconciliation.
+- Produces: `GET /admin/payments`, `POST /admin/refunds/{refundId}/retry`, `POST /admin/payment-attempts/{attemptId}/retry`, and `POST /admin/orders/{orderId}/allocation/retry`.
+- Produces: separate admin counts for refund manual review, allocation manual review, payment cancellation review, and allocation cancellation review.
 
 - [ ] **Step 1: Write failing customer rendering tests**
 
@@ -708,17 +710,17 @@ mockMvc.perform(post("/admin/refunds/7/retry").with(user(admin())).with(csrf()))
 verify(paymentAdminService).retryRefund(7L);
 ```
 
-Also verify missing CSRF is 403, only `MANUAL_REVIEW` refund retry is accepted, only `ALLOCATION_REVIEW` allocation retry is accepted, and actions requeue work without directly setting success. `PaymentAdminConcurrencyTest` races an admin retry with the scheduled worker and asserts the transactional claim permits one gateway/WMS call.
+Also verify every admin mutation rejects a `USER` and missing CSRF with 403. Only `MANUAL_REVIEW` refund retry and `ALLOCATION_REVIEW` allocation retry are accepted on their normal paths. Cancellation-payment retry accepts only IDs returned by `findCancellationReviewAttemptIds()`; cancellation-allocation retry accepts only IDs returned by `findCancellationAllocationReviewOrderIds()`. Repeated actions preserve the existing payment request key/order ID, create no replacement work, and never set success directly. `PaymentAdminConcurrencyTest` races each cancellation-review requeue with the scheduled worker and asserts the transactional claim permits one gateway/WMS call.
 
 - [ ] **Step 5: Implement admin read/actions and templates**
 
-`PaymentAdminService` returns filterable rows with order ID, return ID, amounts, request key, attempt count, failure reason, and next retry time. `retryRefund` and `retryAllocation` atomically move eligible work back to processable state and invoke their processor after commit. Add `결제·환불 관리` to the admin nav and summary counts at the top of that page.
+`PaymentAdminService` returns filterable rows with order ID, return ID, amounts, request key, attempt count, failure reason, and next retry time. It loads payment/allocation cancellation-review rows and counts through the Task 5 selectors above. `retryRefund` handles refund review; payment-cancellation retry calls `requeueCancellationReview(attemptId)` and invokes `PaymentApprovalProcessor` after commit; allocation retry calls the normal `ALLOCATION_REVIEW` path or `requeueCancellationAllocation(orderId)` as appropriate and invokes `AllocationProcessor` after commit. Requeue failure is a no-op so duplicate/stale admin requests remain idempotent. Add `결제·환불 관리` to the admin nav and all four summary counts at the top of that page.
 
 - [ ] **Step 6: Run customer/admin UI tests**
 
 Run: `./gradlew test --tests "com.jhg.hgpage.controller.order.OrderControllerMvcTest" --tests "com.jhg.hgpage.controller.admin.PaymentAdminControllerMvcTest" --tests "com.jhg.hgpage.controller.admin.OrderAdminControllerMvcTest" --tests "com.jhg.hgpage.service.PaymentAdminConcurrencyTest" --tests "com.jhg.hgpage.template.ResponsiveTemplateContractTest"`
 
-Expected: PASS at desktop/mobile template contracts with no action exposed to the wrong role.
+Expected: PASS at desktop/mobile template contracts with no action exposed to the wrong role; cancellation-review counts and actions are reachable only by `ADMIN`, preserve their original idempotency identities, and permit one external call under scheduler/admin races.
 
 - [ ] **Step 7: Commit payment operations UI**
 

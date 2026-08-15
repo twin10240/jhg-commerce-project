@@ -31,8 +31,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -233,6 +235,45 @@ class PaymentCancellationConcurrencyTest {
                 .contains(fixture.orderId);
         assertThat(orderAllocationService.requeueCancellationAllocation(fixture.orderId)).isTrue();
         when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenReturn(true);
+
+        allocationProcessor.process(fixture.orderId);
+        cancellationProcessor.process(fixture.orderId);
+
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+    }
+
+    @Test
+    void 다섯번의_불명확한_할당후_취소도_재큐해_예약해제와_환불로_수렴한다() {
+        Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
+        when(inventoryPort.reserveAll(eq(fixture.orderId), any()))
+                .thenThrow(new ResourceAccessException("unknown-1"))
+                .thenThrow(new ResourceAccessException("unknown-2"))
+                .thenThrow(new ResourceAccessException("unknown-3"))
+                .thenThrow(new ResourceAccessException("unknown-4"))
+                .thenThrow(new ResourceAccessException("unknown-5"))
+                .thenReturn(true);
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            allocationProcessor.process(fixture.orderId);
+            if (attempt < 5) {
+                transactionTemplate.executeWithoutResult(status -> ReflectionTestUtils.setField(
+                        orderRepository.findByIdForUpdate(fixture.orderId).orElseThrow(),
+                        "nextAllocationAttemptAt", LocalDateTime.now().minusSeconds(1)));
+            }
+        }
+        assertThat(orderRepository.findById(fixture.orderId).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.ALLOCATION_REVIEW);
+        assertThat(orderRepository.findById(fixture.orderId).orElseThrow().getAllocationFailureCode())
+                .isEqualTo("WMS_UNAVAILABLE");
+
+        assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                .isEqualTo(CancellationOutcome.REFUND_PENDING);
+        assertThat(orderRepository.findById(fixture.orderId).orElseThrow().getCancellationReleaseRequired())
+                .isNull();
+        assertThat(orderAllocationService.findCancellationAllocationReviewOrderIds())
+                .contains(fixture.orderId);
+        assertThat(orderAllocationService.requeueCancellationAllocation(fixture.orderId)).isTrue();
 
         allocationProcessor.process(fixture.orderId);
         cancellationProcessor.process(fixture.orderId);

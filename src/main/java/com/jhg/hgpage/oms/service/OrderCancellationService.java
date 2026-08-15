@@ -69,7 +69,17 @@ public class OrderCancellationService {
                     }
                 }
             }
-            case ALLOCATION_REVIEW, BACKORDERED -> {
+            case ALLOCATION_REVIEW -> {
+                if (isDefinitiveAllocationRejection(order)) {
+                    finishWithoutRelease(order);
+                    if (paid) {
+                        refundService.requestOrderCancellationRefund(orderId);
+                    }
+                } else {
+                    order.requestCancellation(null, LocalDateTime.now());
+                }
+            }
+            case BACKORDERED -> {
                 finishWithoutRelease(order);
                 if (paid) {
                     refundService.requestOrderCancellationRefund(orderId);
@@ -158,6 +168,11 @@ public class OrderCancellationService {
 
     private boolean isPaid(Payment payment) {
         return payment != null && payment.getPaidAmount() > 0;
+    }
+
+    private boolean isDefinitiveAllocationRejection(Order order) {
+        String failureCode = order.getAllocationFailureCode();
+        return failureCode != null && failureCode.matches("WMS_4\\d{2}");
     }
 
     private CancellationResult result(Order order, Payment payment) {
