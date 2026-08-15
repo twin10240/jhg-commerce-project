@@ -43,6 +43,18 @@ public class Order {
     @Version
     private Long version;
 
+    @Column(nullable = false)
+    private int allocationAttemptCount;
+
+    private LocalDateTime nextAllocationAttemptAt;
+    private String allocationFailureCode;
+    private LocalDateTime allocationProcessingAt;
+
+    // null means an in-flight approval/allocation result still determines whether WMS release is needed.
+    private Boolean cancellationReleaseRequired;
+    private LocalDateTime cancellationRequestedAt;
+    private LocalDateTime cancellationProcessingAt;
+
     public void setMember(Member member) {
         this.member = member;
         member.getOrders().add(this);
@@ -85,6 +97,81 @@ public class Order {
         this.status = OrderStatus.BACKORDERED;
     }
 
+    public void markPaymentPending() {
+        requireStatus(OrderStatus.ORDER);
+        status = OrderStatus.PAYMENT_PENDING;
+    }
+
+    public void markPaymentFailed() {
+        requireStatus(OrderStatus.PAYMENT_PENDING);
+        status = OrderStatus.PAYMENT_FAILED;
+    }
+
+    public void markPaymentReview() {
+        requireStatus(OrderStatus.PAYMENT_PENDING);
+        status = OrderStatus.PAYMENT_REVIEW;
+    }
+
+    public void markAllocationPending() {
+        requireStatus(OrderStatus.PAYMENT_PENDING);
+        status = OrderStatus.ALLOCATION_PENDING;
+        nextAllocationAttemptAt = LocalDateTime.now();
+        allocationFailureCode = null;
+    }
+
+    public void claimAllocation(LocalDateTime now) {
+        requireStatus(OrderStatus.ALLOCATION_PENDING);
+        status = OrderStatus.ALLOCATION_PROCESSING;
+        allocationAttemptCount++;
+        nextAllocationAttemptAt = null;
+        allocationProcessingAt = now;
+    }
+
+    public void retryAllocation(LocalDateTime nextAttemptAt, String failureCode) {
+        requireStatus(OrderStatus.ALLOCATION_PROCESSING);
+        status = OrderStatus.ALLOCATION_PENDING;
+        this.nextAllocationAttemptAt = nextAttemptAt;
+        this.allocationFailureCode = failureCode;
+        this.allocationProcessingAt = null;
+    }
+
+    public void markAllocationReview(String failureCode) {
+        if (status != OrderStatus.ALLOCATION_PENDING && status != OrderStatus.ALLOCATION_PROCESSING) {
+            throw new IllegalStateException("재고 할당 검토 상태로 변경할 수 없습니다.");
+        }
+        status = OrderStatus.ALLOCATION_REVIEW;
+        allocationFailureCode = failureCode;
+        nextAllocationAttemptAt = null;
+        allocationProcessingAt = null;
+    }
+
+    public void requestCancellation(Boolean releaseRequired, LocalDateTime requestedAt) {
+        if (delivery.getStatus() != DeliveryStatus.READY || status == OrderStatus.CANCEL) {
+            throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
+        }
+        status = OrderStatus.CANCEL_REQUESTED;
+        cancellationReleaseRequired = releaseRequired;
+        cancellationRequestedAt = requestedAt;
+        cancellationProcessingAt = null;
+    }
+
+    public void resolveCancellationRelease(boolean releaseRequired) {
+        requireStatus(OrderStatus.CANCEL_REQUESTED);
+        if (cancellationReleaseRequired != null) {
+            throw new IllegalStateException("취소 해제 여부가 이미 결정되었습니다.");
+        }
+        cancellationReleaseRequired = releaseRequired;
+    }
+
+    public void finishCancellation() {
+        requireStatus(OrderStatus.CANCEL_REQUESTED);
+        if (cancellationReleaseRequired == null) {
+            throw new IllegalStateException("취소 해제 여부가 결정되지 않았습니다.");
+        }
+        status = OrderStatus.CANCEL;
+        cancellationProcessingAt = null;
+    }
+
     /** 주문 라인을 상품 id→수량 맵으로 집계한다(같은 상품 중복 라인은 합산). 재고 연산(예약/해제/출고)의 입력. */
     public Map<Long, Integer> quantitiesByProductId() {
         return orderItems.stream()
@@ -112,8 +199,8 @@ public class Order {
         if (this.status == OrderStatus.CANCEL) {
             throw new IllegalStateException("취소된 주문은 출고할 수 없습니다.");
         }
-        if (this.status == OrderStatus.BACKORDERED) {
-            throw new IllegalStateException("입고 대기 주문은 출고할 수 없습니다.");
+        if (this.status != OrderStatus.ORDER) {
+            throw new IllegalStateException("재고 확보 주문만 출고할 수 있습니다.");
         }
         if (delivery.getStatus() != DeliveryStatus.READY) {
             throw new IllegalStateException("출고 준비 상태가 아닙니다.");
@@ -130,6 +217,12 @@ public class Order {
 
     public int getTotalPrice() {
         return orderItems.stream().mapToInt(OrderItem::getTotalPrice).sum();
+    }
+
+    private void requireStatus(OrderStatus expected) {
+        if (status != expected) {
+            throw new IllegalStateException("주문 상태를 변경할 수 없습니다.");
+        }
     }
 
 
