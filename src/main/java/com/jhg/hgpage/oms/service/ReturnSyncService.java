@@ -22,6 +22,7 @@ import java.util.Map;
 public class ReturnSyncService {
 
     private final CustomerReturnRepository customerReturnRepository;
+    private final RefundService refundService;
 
     @Transactional
     public void apply(ReturnResult result) {
@@ -67,6 +68,9 @@ public class ReturnSyncService {
             }
         } catch (IllegalArgumentException | IllegalStateException exception) {
             throw new ReturnContractMismatchException();
+        }
+        if (target == CustomerReturnStatus.COMPLETED) {
+            refundService.requestReturnRefund(customerReturn);
         }
         customerReturnRepository.flush();
     }

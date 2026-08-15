@@ -16,6 +16,8 @@ import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
+import com.jhg.hgpage.oms.service.RefundService;
+import com.jhg.hgpage.oms.service.RetrySchedule;
 import com.jhg.hgpage.oms.service.ReturnReconciliationSweeper;
 import com.jhg.hgpage.oms.service.ReturnSubmissionService;
 import com.jhg.hgpage.oms.service.ReturnSyncService;
@@ -44,7 +46,8 @@ import static org.mockito.Mockito.when;
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @Import({CustomerReturnService.class, ReturnSubmissionService.class,
-        ReturnSyncService.class, ReturnReconciliationSweeper.class})
+        ReturnSyncService.class, RefundService.class, RetrySchedule.class,
+        ReturnReconciliationSweeper.class})
 class ReturnReconciliationSweeperTest {
 
     @Autowired ReturnReconciliationSweeper sweeper;

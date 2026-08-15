@@ -10,9 +10,16 @@ import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.RefundRequest;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
+import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
 import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
+import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.oms.repository.RefundRequestRepository;
+import com.jhg.hgpage.oms.service.RefundService;
+import com.jhg.hgpage.oms.service.RetrySchedule;
 import com.jhg.hgpage.oms.service.ReturnSyncService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -37,11 +44,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import(ReturnSyncService.class)
+@Import({ReturnSyncService.class, RefundService.class, RetrySchedule.class})
 class ReturnSyncServiceTest {
 
     @Autowired ReturnSyncService returnSyncService;
     @Autowired CustomerReturnRepository customerReturnRepository;
+    @Autowired PaymentRepository paymentRepository;
+    @Autowired RefundRequestRepository refundRequestRepository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
 
@@ -75,6 +84,34 @@ class ReturnSyncServiceTest {
                 .containsExactly(1, 0);
         assertThat(saved.getItems()).extracting(CustomerReturnItem::getDisposition)
                 .containsExactly(ReturnDisposition.RESTOCKED, ReturnDisposition.REJECTED);
+    }
+
+    @Test
+    void 완료_반품은_RESTOCKED와_DISPOSED의_부분승인수량을_주문당시가격으로_환불한다() {
+        Fixture fixture = pendingReturn();
+        transactionTemplate.executeWithoutResult(status -> {
+            em.find(Product.class, fixture.firstProductId()).setPrice(99_000);
+            em.find(Product.class, fixture.secondProductId()).setPrice(88_000);
+        });
+        ReturnResult completed = completed(fixture, 1, "RESTOCKED", 1, "DISPOSED");
+
+        returnSyncService.apply(completed);
+
+        RefundRequest refund = returnRefund(fixture.returnId());
+        assertThat(refund.getAmount()).isEqualTo(30_000);
+        assertThat(refund.getSourceType()).isEqualTo(RefundSourceType.RETURN);
+        assertThat(payment(fixture.orderId()).getPendingRefundAmount()).isEqualTo(30_000);
+    }
+
+    @Test
+    void 완료_반품의_승인수량이_모두_0이면_환불요청을_만들지_않는다() {
+        Fixture fixture = pendingReturn();
+
+        returnSyncService.apply(completed(fixture, 0, "REJECTED", 0, "REJECTED"));
+
+        assertThat(refundRequestRepository.findBySourceTypeAndSourceId(
+                RefundSourceType.RETURN, fixture.returnId())).isEmpty();
+        assertThat(payment(fixture.orderId()).getPendingRefundAmount()).isZero();
     }
 
     @Test
@@ -154,6 +191,64 @@ class ReturnSyncServiceTest {
         CustomerReturn saved = saved(fixture.returnId());
         assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.COMPLETED);
         assertThat(saved.getUpdatedAt()).isEqualTo(updatedAt);
+        assertThat(returnRefund(fixture.returnId()).getAmount()).isEqualTo(10_000);
+        assertThat(payment(fixture.orderId()).getPendingRefundAmount()).isEqualTo(10_000);
+    }
+
+    @Test
+    void 완료_후_다른_검수결과는_거절하고_기존_환불만_유지한다() {
+        Fixture fixture = pendingReturn();
+        returnSyncService.apply(result(fixture, "COMPLETED"));
+
+        assertThatThrownBy(() -> returnSyncService.apply(completed(
+                fixture, 2, "RESTOCKED", 0, "REJECTED")))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        CustomerReturn saved = saved(fixture.returnId());
+        assertThat(saved.getItems()).extracting(CustomerReturnItem::getAcceptedQuantity)
+                .containsExactly(1, 0);
+        assertThat(returnRefund(fixture.returnId()).getAmount()).isEqualTo(10_000);
+        assertThat(payment(fixture.orderId()).getPendingRefundAmount()).isEqualTo(10_000);
+    }
+
+    @Test
+    void 같은_주문의_별도_반품은_승인수량만큼_누적_환불한다() {
+        Fixture first = pendingReturn();
+        returnSyncService.apply(result(first, "COMPLETED"));
+        SingleReturnFixture second = additionalReturn(first);
+
+        returnSyncService.apply(result(second, 1, "DISPOSED"));
+
+        assertThat(returnRefund(first.returnId()).getAmount()).isEqualTo(10_000);
+        assertThat(returnRefund(second.returnId()).getAmount()).isEqualTo(10_000);
+        assertThat(payment(first.orderId()).getPendingRefundAmount()).isEqualTo(20_000);
+    }
+
+    @Test
+    void 과환불이면_완료상태와_검수결과와_환불요청을_함께_롤백한다() {
+        Fixture fixture = pendingReturn();
+        transactionTemplate.executeWithoutResult(status -> {
+            Payment payment = paymentRepository.findByOrderIdForUpdate(fixture.orderId()).orElseThrow();
+            payment.reserveRefund(payment.getPaidAmount());
+            refundRequestRepository.save(RefundRequest.create(payment, UUID.randomUUID(),
+                    RefundSourceType.ORDER_CANCEL, fixture.orderId(), payment.getPaidAmount()));
+        });
+
+        assertThatThrownBy(() -> returnSyncService.apply(result(fixture, "COMPLETED")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("환불 가능 금액");
+
+        CustomerReturn saved = saved(fixture.returnId());
+        assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
+        assertThat(saved.getRmaId()).isNull();
+        assertThat(saved.getItems()).extracting(CustomerReturnItem::getAcceptedQuantity)
+                .containsOnlyNulls();
+        assertThat(refundRequestRepository.findBySourceTypeAndSourceId(
+                RefundSourceType.RETURN, fixture.returnId())).isEmpty();
+        assertThat(refundRequestRepository.findBySourceTypeAndSourceId(
+                RefundSourceType.ORDER_CANCEL, fixture.orderId())).isPresent();
+        Payment payment = payment(fixture.orderId());
+        assertThat(payment.getPendingRefundAmount()).isEqualTo(payment.getPaidAmount());
     }
 
     @Test
@@ -309,6 +404,9 @@ class ReturnSyncServiceTest {
             order.ship();
             order.deliver();
             em.persist(order);
+            Payment payment = Payment.create(order, order.getTotalPrice());
+            payment.markPaid(LocalDateTime.now());
+            em.persist(payment);
             em.flush();
             UUID requestKey = UUID.randomUUID();
             Long rmaId = 1000L + order.getId();
@@ -325,13 +423,35 @@ class ReturnSyncServiceTest {
     private Product product(String name) {
         Product product = new Product();
         product.setName(name);
-        product.setPrice(10000);
+        product.setPrice(name.equals("첫 상품") ? 10_000 : 20_000);
         em.persist(product);
         return product;
     }
 
+    private SingleReturnFixture additionalReturn(Fixture fixture) {
+        return transactionTemplate.execute(status -> {
+            Order order = em.find(Order.class, fixture.orderId());
+            OrderItem item = em.find(OrderItem.class, fixture.firstOrderItemId());
+            CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "추가 불량",
+                    List.of(new CustomerReturn.RequestItem(item, 1)));
+            em.persist(customerReturn);
+            em.flush();
+            return new SingleReturnFixture(customerReturn.getId(), customerReturn.getRequestKey(),
+                    2000L + customerReturn.getId(), order.getId(), item.getId(), item.getProduct().getId());
+        });
+    }
+
     private CustomerReturn saved(Long returnId) {
         return customerReturnRepository.findDetailedById(returnId).orElseThrow();
+    }
+
+    private Payment payment(Long orderId) {
+        return paymentRepository.findByOrderId(orderId).orElseThrow();
+    }
+
+    private RefundRequest returnRefund(Long returnId) {
+        return refundRequestRepository.findBySourceTypeAndSourceId(RefundSourceType.RETURN, returnId)
+                .orElseThrow();
     }
 
     private ReturnResult result(Fixture fixture, String status) {
@@ -346,7 +466,24 @@ class ReturnSyncServiceTest {
                         secondAccepted, secondDisposition)));
     }
 
+    private ReturnResult completed(Fixture fixture, int firstAccepted, String firstDisposition,
+                                   int secondAccepted, String secondDisposition) {
+        return new ReturnResult(fixture.rmaId(), fixture.requestKey(), fixture.orderId(), "COMPLETED", List.of(
+                item(fixture.firstOrderItemId(), fixture.firstProductId(), 2,
+                        firstAccepted, firstDisposition),
+                item(fixture.secondOrderItemId(), fixture.secondProductId(), 1,
+                        secondAccepted, secondDisposition)));
+    }
+
+    private ReturnResult result(SingleReturnFixture fixture, int accepted, String disposition) {
+        return new ReturnResult(fixture.rmaId(), fixture.requestKey(), fixture.orderId(), "COMPLETED", List.of(
+                item(fixture.orderItemId(), fixture.productId(), 1, accepted, disposition)));
+    }
+
     private record Fixture(Long returnId, UUID requestKey, Long rmaId, Long orderId,
                            Long firstOrderItemId, Long firstProductId,
                            Long secondOrderItemId, Long secondProductId) {}
+
+    private record SingleReturnFixture(Long returnId, UUID requestKey, Long rmaId, Long orderId,
+                                       Long orderItemId, Long productId) {}
 }
