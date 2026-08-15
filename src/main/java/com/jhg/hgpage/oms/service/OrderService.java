@@ -26,7 +26,7 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderRepositoryQuery orderRepositoryQuery;
-    private final BackorderAllocator backorderAllocator;
+    private final OrderCancellationService cancellationService;
     private final InventoryPort inventoryPort;
     private final InventoryQueryPort inventoryQueryPort;
 
@@ -68,23 +68,8 @@ public class OrderService {
         findOrder(orderId).deliver();
     }
 
-    @Transactional
     public void cancelOrder(Long orderId, Long memberId) {
-        Order order = findOwnedOrder(orderId, memberId);
-        // 예약은 ORDER 상태에만 존재한다. 취소로 예약이 풀리면 가용분이 늘어나므로,
-        // 그 상품을 기다리던 백오더를 재할당(승격)하도록 트리거한다.
-        // BACKORDERED 취소는 풀릴 예약이 없어 트리거할 필요가 없다.
-        boolean wasReserved = order.getStatus() == OrderStatus.ORDER;
-        order.cancel();
-        if (wasReserved) {
-            // 예약 해제(가용분 복구)를 WMS 포트에 위임한 뒤, 늘어난 가용분으로 백오더를 승격한다.
-            inventoryPort.releaseAll(order.getId(), order.quantitiesByProductId());
-            List<Long> productIds = order.getOrderItems().stream()
-                    .map(orderItem -> orderItem.getProduct().getId())
-                    .distinct()
-                    .toList();
-            backorderAllocator.allocate(productIds);
-        }
+        cancellationService.request(orderId, memberId);
     }
 
     // 본인 주문만 반환. 타인 주문은 존재 자체를 숨기기 위해 404(EntityNotFoundException)로 처리(IDOR 방지)

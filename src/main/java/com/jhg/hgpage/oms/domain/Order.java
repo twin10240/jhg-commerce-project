@@ -55,6 +55,9 @@ public class Order {
     private LocalDateTime cancellationRequestedAt;
     private LocalDateTime cancellationProcessingAt;
 
+    @Column(nullable = false)
+    private int cancellationAttemptCount;
+
     public void setMember(Member member) {
         this.member = member;
         member.getOrders().add(this);
@@ -166,6 +169,15 @@ public class Order {
             throw new IllegalStateException("취소 해제 여부가 이미 결정되었습니다.");
         }
         cancellationReleaseRequired = releaseRequired;
+    }
+
+    public void claimCancellation(LocalDateTime now) {
+        requireStatus(OrderStatus.CANCEL_REQUESTED);
+        if (cancellationReleaseRequired == null || cancellationProcessingAt != null) {
+            throw new IllegalStateException("취소 요청을 선점할 수 없습니다.");
+        }
+        cancellationAttemptCount++;
+        cancellationProcessingAt = now;
     }
 
     public void finishCancellation() {

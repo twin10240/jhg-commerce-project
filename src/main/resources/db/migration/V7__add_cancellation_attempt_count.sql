@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS cancellation_attempt_count INTEGER NOT NULL DEFAULT 0;

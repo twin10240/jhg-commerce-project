@@ -209,8 +209,10 @@ public class OrderController {
                               @PathVariable Long orderId,
                               RedirectAttributes redirectAttributes) {
         try {
-            orderService.cancelOrder(orderId, user.getId());
-            redirectAttributes.addFlashAttribute("successMessage", "주문이 취소되었습니다.");
+            boolean paid = paymentFacade.cancelOrder(orderId, user.getId());
+            redirectAttributes.addFlashAttribute("successMessage", paid
+                    ? "주문 취소가 접수되었습니다. 환불 상태를 확인해주세요."
+                    : "주문이 취소되었습니다.");
         } catch (IllegalStateException e) {
             // 출고완료/이미취소 등 취소 불가 사유를 상세 화면에 flash로 안내
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());

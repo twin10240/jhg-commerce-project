@@ -1,0 +1,110 @@
+package com.jhg.hgpage.service;
+
+import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.catalog.ProductRepository;
+import com.jhg.hgpage.contract.PaymentGateway;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Delivery;
+import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.RefundRequest;
+import com.jhg.hgpage.oms.domain.enums.RefundStatus;
+import com.jhg.hgpage.oms.repository.MemberRepository;
+import com.jhg.hgpage.oms.repository.OrderRepository;
+import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.oms.repository.RefundRequestRepository;
+import com.jhg.hgpage.oms.service.RefundProcessor;
+import com.jhg.hgpage.oms.service.RefundService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.time.LocalDateTime;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import static com.jhg.hgpage.contract.PaymentGateway.GatewayOutcome.SUCCESS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@SpringBootTest(properties = {
+        "refunds.sweep-delay=1h",
+        "spring.datasource.url=jdbc:h2:mem:refund-claim-test"
+})
+class RefundClaimConcurrencyTest {
+
+    @Autowired RefundService refundService;
+    @Autowired RefundProcessor processor;
+    @Autowired ProductRepository productRepository;
+    @Autowired MemberRepository memberRepository;
+    @Autowired OrderRepository orderRepository;
+    @Autowired PaymentRepository paymentRepository;
+    @Autowired RefundRequestRepository refundRequestRepository;
+    @Autowired TransactionTemplate transactionTemplate;
+    @MockitoBean PaymentGateway gateway;
+
+    @Test
+    void 두_처리기가_같은환불을_경합해도_게이트웨이는_한번만_호출한다() throws Exception {
+        Long refundId = transactionTemplate.execute(status -> paidRefund());
+        CountDownLatch gatewayStarted = new CountDownLatch(1);
+        CountDownLatch releaseGateway = new CountDownLatch(1);
+        when(gateway.refund(any())).thenAnswer(invocation -> {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            gatewayStarted.countDown();
+            assertThat(releaseGateway.await(10, TimeUnit.SECONDS)).isTrue();
+            return new PaymentGateway.RefundResult(SUCCESS, "MOCK-REFUND-1", null, null);
+        });
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<?> first = executor.submit(() -> processor.process(refundId));
+            assertThat(gatewayStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> second = executor.submit(() -> processor.process(refundId));
+            second.get(10, TimeUnit.SECONDS);
+            verify(gateway, times(1)).refund(any());
+            releaseGateway.countDown();
+            first.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseGateway.countDown();
+            executor.shutdownNow();
+        }
+
+        Payment payment = transactionTemplate.execute(status -> {
+            RefundRequest refund = refundRequestRepository.findById(refundId).orElseThrow();
+            assertThat(refund.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
+            return paymentRepository.findByOrderId(refund.getPayment().getOrder().getId()).orElseThrow();
+        });
+        assertThat(payment.getPendingRefundAmount()).isZero();
+        assertThat(payment.getRefundedAmount()).isEqualTo(10_000);
+        verify(gateway, times(1)).refund(any());
+    }
+
+    private Long paidRefund() {
+        Product product = new Product();
+        product.setName("환불 상품");
+        product.setPrice(10_000);
+        productRepository.save(product);
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        memberRepository.save(member);
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        Order order = Order.createOrder(member, delivery,
+                OrderItem.createOrderItem(product, product.getPrice(), 1));
+        orderRepository.save(order);
+        Payment payment = Payment.create(order, order.getTotalPrice());
+        payment.markPaid(LocalDateTime.now());
+        paymentRepository.save(payment);
+        return refundService.requestOrderCancellationRefund(order.getId()).orElseThrow();
+    }
+}

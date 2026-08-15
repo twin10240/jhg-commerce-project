@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -16,6 +18,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from Order o where o.id = :orderId")
     Optional<Order> findByIdForUpdate(@Param("orderId") Long orderId);
+
+    @Query("select o.id from Order o where o.status = com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED " +
+            "and o.cancellationReleaseRequired is not null and o.cancellationProcessingAt is null " +
+            "order by o.cancellationRequestedAt, o.id")
+    List<Long> findDueCancellationOrderIds();
+
+    @Query("select o.id from Order o where o.status = com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED " +
+            "and o.cancellationProcessingAt <= :staleBefore order by o.cancellationRequestedAt, o.id")
+    List<Long> findStaleCancellationOrderIds(@Param("staleBefore") LocalDateTime staleBefore);
 
     /**
      * [학습용 보존 — 실사용 아님] 주문 상세 단건 조회의 JPQL 버전.

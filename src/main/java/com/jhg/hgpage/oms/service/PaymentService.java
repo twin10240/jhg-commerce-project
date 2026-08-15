@@ -69,13 +69,13 @@ public class PaymentService {
 
     @Transactional
     public Long retryPayment(Long orderId, Long memberId) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Payment", orderId));
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
         if (!order.getMember().getId().equals(memberId)) {
             throw new EntityNotFoundException("Order", orderId);
         }
-        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
-                .orElseThrow(() -> new EntityNotFoundException("Payment", orderId));
         payment.retry();
         order.markPaymentPending();
         return paymentAttemptRepository.save(PaymentAttempt.create(payment, UUID.randomUUID())).getId();

@@ -1,9 +1,9 @@
 package com.jhg.hgpage.service;
 
-import com.jhg.hgpage.oms.service.BackorderAllocator;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.OrderCancellationService;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Delivery;
@@ -25,7 +25,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,8 +39,8 @@ class OrderServiceDetailTest {
     @Mock ProductRepository productRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
+    @Mock OrderCancellationService cancellationService;
     @Mock CartService cartService;
-    @Mock BackorderAllocator backorderAllocator;
     @Mock InventoryPort inventoryPort;
     @InjectMocks OrderService orderService;
 
@@ -133,24 +132,18 @@ class OrderServiceDetailTest {
     }
 
     @Test
-    void 본인_주문을_취소하면_CANCEL이_되고_예약_해제를_포트에_위임한다() {
-        Order order = orderOwnedBy(1L);
-        when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
-
+    void 기존_주문서비스_취소API도_복구가능한_취소서비스로_위임한다() {
         orderService.cancelOrder(10L, 1L);
 
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL);
-        verify(inventoryPort).releaseAll(10L, Map.of(7L, 2)); // 예약 해제는 WMS 포트에 위임
+        verify(cancellationService).request(10L, 1L);
     }
 
     @Test
     void 타인_주문_취소는_존재를_숨기고_거부한다() {
-        Order order = orderOwnedBy(2L);
-        when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
+        org.mockito.Mockito.doThrow(new EntityNotFoundException("Order", 10L))
+                .when(cancellationService).request(10L, 1L);
 
         assertThatThrownBy(() -> orderService.cancelOrder(10L, 1L))
                 .isInstanceOf(EntityNotFoundException.class);
-
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER); // 취소되지 않음
     }
 }

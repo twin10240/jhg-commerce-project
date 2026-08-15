@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentMigrationTest {
 
     @Test
-    void V1_V4_V6가_결제와_주문처리_스키마를_만든다() throws Exception {
+    void V1_V4_V6_V7이_결제와_주문처리_스키마를_만든다() throws Exception {
         DataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:payment-migration;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=true;DEFAULT_NULL_ORDERING=HIGH",
                 "sa", "");
@@ -30,7 +30,8 @@ class PaymentMigrationTest {
                 .migrate();
         new ResourceDatabasePopulator(
                 new ClassPathResource("db/migration/V4__orders_add_version.sql"),
-                new ClassPathResource("db/migration/V6__add_payments_and_order_processing.sql"))
+                new ClassPathResource("db/migration/V6__add_payments_and_order_processing.sql"),
+                new ClassPathResource("db/migration/V7__add_cancellation_attempt_count.sql"))
                 .execute(dataSource);
 
         DatabaseMetaData metadata = dataSource.getConnection().getMetaData();
@@ -38,7 +39,7 @@ class PaymentMigrationTest {
         assertThat(columnNames(metadata, "orders")).contains(
                 "allocation_attempt_count", "next_allocation_attempt_at", "allocation_failure_code",
                 "allocation_processing_at", "cancellation_release_required", "cancellation_requested_at",
-                "cancellation_processing_at");
+                "cancellation_processing_at", "cancellation_attempt_count");
         assertThat(uniqueIndexColumns(metadata, "payment")).contains("order_id");
         assertThat(uniqueIndexColumns(metadata, "payment_attempt")).contains("request_key");
         assertThat(uniqueIndexColumns(metadata, "refund_request")).contains("request_key", "source_type,source_id");

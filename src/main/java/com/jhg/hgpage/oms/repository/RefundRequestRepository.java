@@ -23,4 +23,8 @@ public interface RefundRequestRepository extends JpaRepository<RefundRequest, Lo
 
     List<RefundRequest> findTop50ByStatusInAndNextAttemptAtLessThanEqualOrderById(
             Collection<RefundStatus> statuses, LocalDateTime now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<RefundRequest> findTop50ByStatusAndUpdatedAtLessThanEqualOrderById(
+            RefundStatus status, LocalDateTime updatedAt);
 }

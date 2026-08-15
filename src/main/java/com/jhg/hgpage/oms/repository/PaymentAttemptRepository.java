@@ -18,6 +18,10 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
     Optional<PaymentAttempt> findByRequestKey(UUID requestKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<PaymentAttempt> findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(
+            Long orderId, Collection<PaymentAttemptStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from PaymentAttempt a join fetch a.payment p join fetch p.order where a.id = :id")
     Optional<PaymentAttempt> findByIdForUpdate(Long id);
 

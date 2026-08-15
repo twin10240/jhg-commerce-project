@@ -97,7 +97,7 @@ public class Payment {
     }
 
     public void reserveRefund(int amount) {
-        if (amount <= 0 || refundedAmount + pendingRefundAmount + amount > paidAmount) {
+        if (amount <= 0 || (long) refundedAmount + pendingRefundAmount + amount > paidAmount) {
             throw new IllegalStateException("환불 가능 금액을 초과했습니다.");
         }
         pendingRefundAmount += amount;
