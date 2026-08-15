@@ -36,12 +36,13 @@ public class OrderAllocationService {
         } else {
             claimCancelledAllocation(order, now);
         }
-        return Optional.of(new AllocationCommand(Map.copyOf(order.quantitiesByProductId())));
+        return Optional.of(new AllocationCommand(
+                order.getAllocationAttemptCount(), Map.copyOf(order.quantitiesByProductId())));
     }
 
     @Transactional
-    public void complete(Long orderId, boolean reserved) {
-        Order order = activeAllocation(orderId);
+    public void complete(Long orderId, int attemptNumber, boolean reserved) {
+        Order order = activeAllocation(orderId, attemptNumber);
         if (order == null) {
             return;
         }
@@ -56,8 +57,8 @@ public class OrderAllocationService {
     }
 
     @Transactional
-    public void retryOrReview(Long orderId, String failureCode) {
-        Order order = activeAllocation(orderId);
+    public void retryOrReview(Long orderId, int attemptNumber, String failureCode) {
+        Order order = activeAllocation(orderId, attemptNumber);
         if (order == null) {
             return;
         }
@@ -69,8 +70,8 @@ public class OrderAllocationService {
     }
 
     @Transactional
-    public void manualReview(Long orderId, String failureCode) {
-        Order order = activeAllocation(orderId);
+    public void manualReview(Long orderId, int attemptNumber, String failureCode) {
+        Order order = activeAllocation(orderId, attemptNumber);
         if (order != null) {
             review(order, failureCode);
         }
@@ -107,9 +108,10 @@ public class OrderAllocationService {
                 && order.getAllocationAttemptCount() > 0;
     }
 
-    private Order activeAllocation(Long orderId) {
+    private Order activeAllocation(Long orderId, int attemptNumber) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
-        if (order == null || order.getAllocationProcessingAt() == null) {
+        if (order == null || order.getAllocationProcessingAt() == null
+                || order.getAllocationAttemptCount() != attemptNumber) {
             return null;
         }
         if (order.getStatus() == OrderStatus.ALLOCATION_PROCESSING) {
@@ -151,6 +153,6 @@ public class OrderAllocationService {
         order.setAllocationProcessingAt(null);
     }
 
-    public record AllocationCommand(Map<Long, Integer> quantities) {
+    public record AllocationCommand(int attemptNumber, Map<Long, Integer> quantities) {
     }
 }

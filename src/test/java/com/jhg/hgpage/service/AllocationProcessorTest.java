@@ -30,7 +30,7 @@ class AllocationProcessorTest {
 
     AllocationProcessor processor;
     OrderAllocationService.AllocationCommand command =
-            new OrderAllocationService.AllocationCommand(Map.of(7L, 2));
+            new OrderAllocationService.AllocationCommand(3, Map.of(7L, 2));
 
     @BeforeEach
     void setUp() {
@@ -47,7 +47,7 @@ class AllocationProcessorTest {
         InOrder calls = inOrder(allocationService, inventoryPort);
         calls.verify(allocationService).claim(10L);
         calls.verify(inventoryPort).reserveAll(10L, command.quantities());
-        calls.verify(allocationService).complete(10L, true);
+        calls.verify(allocationService).complete(10L, command.attemptNumber(), true);
     }
 
     @Test
@@ -57,7 +57,7 @@ class AllocationProcessorTest {
 
         processor.process(10L);
 
-        verify(allocationService).complete(10L, false);
+        verify(allocationService).complete(10L, command.attemptNumber(), false);
     }
 
     @Test
@@ -72,9 +72,9 @@ class AllocationProcessorTest {
         processor.process(10L);
         processor.process(20L);
 
-        verify(allocationService).retryOrReview(10L, "WMS_UNAVAILABLE");
-        verify(allocationService).manualReview(20L, "WMS_400");
-        verify(allocationService, never()).complete(10L, false);
+        verify(allocationService).retryOrReview(10L, command.attemptNumber(), "WMS_UNAVAILABLE");
+        verify(allocationService).manualReview(20L, command.attemptNumber(), "WMS_400");
+        verify(allocationService, never()).complete(10L, command.attemptNumber(), false);
     }
 
     @Test

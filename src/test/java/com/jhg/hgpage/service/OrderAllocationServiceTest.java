@@ -46,7 +46,7 @@ class OrderAllocationServiceTest {
 
         Optional<OrderAllocationService.AllocationCommand> command = service.claim(100L);
 
-        assertThat(command).contains(new OrderAllocationService.AllocationCommand(Map.of(1L, 2)));
+        assertThat(command).contains(new OrderAllocationService.AllocationCommand(1, Map.of(1L, 2)));
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
         assertThat(order.getAllocationAttemptCount()).isEqualTo(1);
     }
@@ -57,8 +57,8 @@ class OrderAllocationServiceTest {
         Order shortage = processingOrder();
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(reserved), Optional.of(shortage));
 
-        service.complete(100L, true);
-        service.complete(100L, false);
+        service.complete(100L, 1, true);
+        service.complete(100L, 1, false);
 
         assertThat(reserved.getStatus()).isEqualTo(OrderStatus.ORDER);
         assertThat(shortage.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
@@ -70,7 +70,7 @@ class OrderAllocationServiceTest {
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));
         LocalDateTime before = LocalDateTime.now().plusSeconds(59);
 
-        service.retryOrReview(100L, "WMS_UNAVAILABLE");
+        service.retryOrReview(100L, 1, "WMS_UNAVAILABLE");
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PENDING);
         assertThat(order.getAllocationFailureCode()).isEqualTo("WMS_UNAVAILABLE");
@@ -83,8 +83,8 @@ class OrderAllocationServiceTest {
         Order exhausted = processingOrder(5);
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(permanent), Optional.of(exhausted));
 
-        service.manualReview(100L, "WMS_400");
-        service.retryOrReview(100L, "WMS_UNAVAILABLE");
+        service.manualReview(100L, 1, "WMS_400");
+        service.retryOrReview(100L, 5, "WMS_UNAVAILABLE");
 
         assertThat(permanent.getStatus()).isEqualTo(OrderStatus.ALLOCATION_REVIEW);
         assertThat(permanent.getAllocationFailureCode()).isEqualTo("WMS_400");
@@ -112,8 +112,8 @@ class OrderAllocationServiceTest {
         Order shortage = cancelledProcessingOrder();
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(reserved), Optional.of(shortage));
 
-        service.complete(100L, true);
-        service.complete(100L, false);
+        service.complete(100L, 1, true);
+        service.complete(100L, 1, false);
 
         assertThat(reserved.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(reserved.getCancellationReleaseRequired()).isTrue();
@@ -126,11 +126,12 @@ class OrderAllocationServiceTest {
         Order order = cancelledProcessingOrder();
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order), Optional.of(order));
 
-        service.retryOrReview(100L, "WMS_UNAVAILABLE");
+        service.retryOrReview(100L, 1, "WMS_UNAVAILABLE");
         ReflectionTestUtils.setField(order, "nextAllocationAttemptAt", LocalDateTime.now().minusSeconds(1));
         Optional<OrderAllocationService.AllocationCommand> retried = service.claim(100L);
 
         assertThat(retried).isPresent();
+        assertThat(retried.orElseThrow().attemptNumber()).isEqualTo(2);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(order.getCancellationReleaseRequired()).isNull();
         assertThat(order.getAllocationAttemptCount()).isEqualTo(2);
@@ -142,13 +143,38 @@ class OrderAllocationServiceTest {
         order.requestCancellation(null, LocalDateTime.now());
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));
 
-        service.retryOrReview(100L, "WMS_UNAVAILABLE");
+        service.retryOrReview(100L, 5, "WMS_UNAVAILABLE");
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(order.getCancellationReleaseRequired()).isNull();
         assertThat(order.getAllocationAttemptCount()).isEqualTo(5);
         assertThat(order.getAllocationFailureCode()).isEqualTo("WMS_UNAVAILABLE");
         assertThat(order.getNextAllocationAttemptAt()).isNull();
+        assertThat(order.getAllocationProcessingAt()).isNull();
+    }
+
+    @Test
+    void 오래된_작업A의_결과는_재선점한_작업B를_변경하지_못한다() {
+        Order order = pendingOrder();
+        when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));
+        LocalDateTime now = LocalDateTime.now();
+        when(orderRepositoryQuery.findStaleAllocationOrderIds(now.minusMinutes(5))).thenReturn(List.of(100L));
+
+        OrderAllocationService.AllocationCommand attemptA = service.claim(100L).orElseThrow();
+        ReflectionTestUtils.setField(order, "allocationProcessingAt", now.minusMinutes(10));
+        service.recoverStaleAllocations(now.minusMinutes(5), now.minusSeconds(1));
+        OrderAllocationService.AllocationCommand attemptB = service.claim(100L).orElseThrow();
+        LocalDateTime attemptBProcessingAt = order.getAllocationProcessingAt();
+
+        service.complete(100L, attemptA.attemptNumber(), true);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
+        assertThat(order.getAllocationAttemptCount()).isEqualTo(attemptB.attemptNumber());
+        assertThat(order.getAllocationProcessingAt()).isEqualTo(attemptBProcessingAt);
+
+        service.complete(100L, attemptB.attemptNumber(), true);
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ORDER);
         assertThat(order.getAllocationProcessingAt()).isNull();
     }
 

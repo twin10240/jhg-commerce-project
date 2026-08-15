@@ -17,11 +17,13 @@ public class AllocationProcessor {
         orderAllocationService.claim(orderId).ifPresent(command -> {
             try {
                 boolean reserved = inventoryPort.reserveAll(orderId, command.quantities());
-                orderAllocationService.complete(orderId, reserved);
+                orderAllocationService.complete(orderId, command.attemptNumber(), reserved);
             } catch (HttpClientErrorException exception) {
-                orderAllocationService.manualReview(orderId, "WMS_" + exception.getStatusCode().value());
+                orderAllocationService.manualReview(
+                        orderId, command.attemptNumber(), "WMS_" + exception.getStatusCode().value());
             } catch (RestClientException exception) {
-                orderAllocationService.retryOrReview(orderId, "WMS_UNAVAILABLE");
+                orderAllocationService.retryOrReview(
+                        orderId, command.attemptNumber(), "WMS_UNAVAILABLE");
             }
         });
     }

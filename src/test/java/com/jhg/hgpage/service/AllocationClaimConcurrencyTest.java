@@ -52,35 +52,36 @@ class AllocationClaimConcurrencyTest {
     @Test
     void 두_처리기가_같은주문을_경합해도_WMS는_한번만_호출한다() throws Exception {
         Long orderId = transactionTemplate.execute(status -> paidPendingOrder());
+        CountDownLatch wmsStarted = new CountDownLatch(1);
+        CountDownLatch releaseWms = new CountDownLatch(1);
         when(inventoryPort.reserveAll(eq(orderId), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
+            wmsStarted.countDown();
+            assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
             return true;
         });
-        CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<?> first = executor.submit(() -> processAfter(start, orderId));
-            Future<?> second = executor.submit(() -> processAfter(start, orderId));
-            start.countDown();
-            first.get(10, TimeUnit.SECONDS);
+            Future<?> first = executor.submit(() -> processor.process(orderId));
+            assertThat(wmsStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> second = executor.submit(() -> processor.process(orderId));
             second.get(10, TimeUnit.SECONDS);
+
+            Order active = orderRepository.findById(orderId).orElseThrow();
+            assertThat(active.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
+            assertThat(active.getAllocationAttemptCount()).isEqualTo(1);
+            verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
+
+            releaseWms.countDown();
+            first.get(10, TimeUnit.SECONDS);
         } finally {
+            releaseWms.countDown();
             executor.shutdownNow();
         }
 
         verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
         assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.ORDER);
-    }
-
-    private void processAfter(CountDownLatch start, Long orderId) {
-        try {
-            start.await();
-            processor.process(orderId);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(exception);
-        }
     }
 
     private Long paidPendingOrder() {
