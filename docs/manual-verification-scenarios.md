@@ -317,7 +317,7 @@ WMS Docker Compose는 WMS 수평 확장 데모이므로 전체 OMS-WMS 배포 �
 
 ## OMS V2 RMA — 현재 수동 검증 대상 (2026-08-12)
 
-상태: **부분 완료(V2-5~V2-9, 2026-08-14)**. 자동 계약 테스트와 별개로, 깨끗한 검증용 데이터에서 OMS(:8080)와
+상태: **완료(V2-1~V2-9, 2026-08-15)**. 자동 계약 테스트와 별개로, 깨끗한 검증용 데이터에서 OMS(:8080)와
 호환 WMS(:8081)를 함께 실행하고 아래 증거를 기록한다. 서비스 Basic 자격증명은 양쪽의
 `WMS_BASIC_USER/WMS_BASIC_PASSWORD`와 `OMS_CALLBACK_USER/OMS_CALLBACK_PASSWORD`가 일치해야 한다.
 복구 검증 시간을 줄일 때만 OMS의 `returns.sweep-delay=5s`를 사용하고 실제 값을 증거에 남긴다.
@@ -410,12 +410,26 @@ OMS가 `REQUESTED`로 수렴한다.
 
 | 시나리오 | 결과 | 근거(`returnId`/`requestKey`/`rmaId`, 상태·수량·HTTP·캡처) |
 |---|---|---|
-| V2-1 단일 품목 전량 `RESTOCKED` | ⬜ 대기 | |
-| V2-2 복수 품목 부분 승인 + `REJECTED` | ⬜ 대기 | |
-| V2-3 `DISPOSED`, OMS 재고 비소유 | ⬜ 대기 | |
-| V2-4 `REQUESTED` 취소 | ⬜ 대기 | |
+| V2-1 단일 품목 전량 `RESTOCKED` | ✅ 통과 | `returnId=2`, `requestKey=5ff7d0fa-0749-407c-9f63-1d240dde2a4d`, `rmaId=152`(주문 12/`orderItemId=12`); 요청 2 전량 `RESTOCKED` 승인 → OMS `반품 완료`·승인 2·재입고, WMS 상품5 `70→72`, `RMA #152` RETURN 원장 1건 |
+| V2-2 복수 품목 부분 승인 + `REJECTED` | ✅ 통과 | `returnId=3`, `rmaId=153`(주문 13/`orderItemId=13,14`); 상품6 요청 2→승인 1 `RESTOCKED`, 상품7 요청 1→승인 0 `REJECTED` → OMS가 품목별로 `1 재입고`/`0 거절` 표시, WMS 상품6 `91→92`·상품7 `104→104`, RETURN 원장 1건(승인분만) |
+| V2-3 `DISPOSED`, OMS 재고 비소유 | ✅ 통과 | `returnId=4`, `rmaId=154`(주문 14/`orderItemId=15`); 요청 2 전량 `DISPOSED` → OMS `반품 완료`·승인 2·폐기, WMS 상품8 `118→118` 불변, RETURN 원장 **0건**(OMS에 재고·원장 없음) |
+| V2-4 `REQUESTED` 취소 | ✅ 통과 | `returnId=5`, `rmaId=155`(주문 15/`orderItemId=16`); 입고 전 WMS에서 취소 → WMS `CANCELLED`·OMS `반품 취소`, 상품9 `134→134`, 원장 0건. `disposition=null` 계약은 유지하고 OMS 품목 처리 결과는 `취소`로 표시하도록 수정·회귀 테스트 완료 |
 | V2-5 같은 `requestKey` 멱등 재시도 | ✅ 통과 | `returnId=2`, `requestKey=4633ff73-ecec-45e4-88fd-b8f1bb7c28c2`, `rmaId=2`; 동일 JSON 재전송도 `rmaId=2`, WMS RMA 총 2건 유지 |
 | V2-6 WMS 중단 후 접수 스윕 | ✅ 통과 | `returnId=3`, `requestKey=31c4b2d7-6d75-4247-b23d-257beb58aca9`; 중단 중 `PENDING_SUBMISSION/rmaId=null`, 복구 후 `REQUESTED/rmaId=52` |
 | V2-7 OMS 중단 후 단건 조회 스윕 | ✅ 통과 | `returnId=4`, `requestKey=e97035b6-59e8-46d5-97c2-7d7a3b6f29d3`, `rmaId=53`; 콜백 실패 후 5초 스윕으로 `COMPLETED/RESTOCKED`, 상품 13 재고 `194→195`, `RMA#53` RETURN 원장 1건 |
 | V2-8 변조 콜백 `409` | ✅ 통과 | `returnId=2/rmaId=2`; `orderItemId`, `productId`, `requestedQuantity` 개별 변조 모두 `409`, `REQUESTED` 및 품목 결과 미변경 |
 | V2-9 잘못된 callback Basic `401` | ✅ 통과 | 유효 JSON + `bad:bad` 요청이 `401`; `Location` 없음, `REQUESTED` 및 품목 결과 미변경 |
+
+
+#### 계약 스모크 (2026-08-15, 실행 로그)
+
+| 확인 | 결과 |
+|---|---|
+| 없는 RMA 조회 | `GET /api/returns/999999` → WMS `404` (`RMA가 없습니다. rmaId=999999`). 직전까지 `400`이었고 WMS `e3673c0`에서 분리 |
+| OMS의 404 분류 | `WmsReturnAdapter:88`이 `404 → RemoteReturnNotFound`로 매핑(자동 테스트 `WmsReturnAdapterTest`·`ReturnReconciliationSweeperTest`에 존재). **런타임 재현은 미수행** — 스윕이 없는 `rmaId`를 조회하는 상황을 UI로 만들 수 없어 코드·테스트로만 확인 |
+| 잘못된 callback Basic | `bad:bad`로 `POST /api/return-status-events` → `401`, `Location` 헤더 없음. 대조군(`wms:wms`)은 `200` |
+| 동일 `requestKey` 재전송 | `rmaId=152`의 원 요청과 같은 내용 재전송 → `200`, 같은 `rmaId=152`, RMA 총 건수 불변 |
+
+**환경 주의**: OMS DB만 초기화하면 주문 ID가 1부터 다시 시작하는데 WMS에는 이전 `orderId 1~11` 예약이
+남아 있어, 접수가 옛 예약의 품목과 대조돼 `400`으로 거부된다(실제로 겪음). 두 시스템이 `orderId`를 공유
+키로 쓰므로 검증용 데이터는 **양쪽을 함께 초기화**해야 한다.

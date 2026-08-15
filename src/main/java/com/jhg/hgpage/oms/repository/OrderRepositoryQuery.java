@@ -27,8 +27,14 @@ public class OrderRepositoryQuery {
     public List<Order> findOrders(Long memberId) {
         // 컬렉션 fetch join + limit은 limit이 메모리에 적용되므로(HHH90003004),
         // 루트(order)만 limit으로 조회하고 orderItems는 batch fetch(default_batch_fetch_size)에 맡긴다(#9 ②).
+        var completed = new CaseBuilder()
+                .when(order.status.eq(OrderStatus.CANCEL)
+                        .or(delivery.status.eq(DeliveryStatus.DELIVERED))).then(1)
+                .otherwise(0);
         return jpaQueryFactory.selectFrom(order)
+                .join(order.delivery, delivery)
                 .where(order.member.id.eq(memberId))
+                .orderBy(completed.asc(), order.orderDate.desc(), order.id.desc())
                 .limit(100)
                 .fetch();
     }

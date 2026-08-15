@@ -15,6 +15,8 @@ import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.oms.service.ReturnSubmissionService;
 import com.jhg.hgpage.oms.web.controller.CustomerReturnController;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +68,7 @@ class CustomerReturnControllerMvcTest {
     void 양수인_품목만_요청하고_로컬_저장_후_WMS에_전송한다() throws Exception {
         when(customerReturnService.request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), anyList()))
                 .thenReturn(77L);
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(requestedReturn());
 
         mockMvc.perform(post("/orders/10/returns")
                         .with(user(userPrincipal()))
@@ -77,7 +80,7 @@ class CustomerReturnControllerMvcTest {
                         .param("lines[1].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("successMessage", "반품 요청이 저장되었습니다."));
+                .andExpect(flash().attribute("successMessage", "반품이 접수되었습니다."));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CustomerReturnService.ReturnLine>> lines = ArgumentCaptor.forClass(List.class);
@@ -87,6 +90,45 @@ class CustomerReturnControllerMvcTest {
         InOrder order = inOrder(customerReturnService, returnSubmissionService);
         order.verify(customerReturnService).request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), anyList());
         order.verify(returnSubmissionService).submit(77L);
+    }
+
+    @Test
+    void WMS_접수대기면_확인중_메시지를_표시한다() throws Exception {
+        when(customerReturnService.request(eq(10L), eq(1L), eq("단순 변심"), anyList()))
+                .thenReturn(77L);
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(pendingReturn());
+
+        mockMvc.perform(post("/orders/10/returns")
+                        .with(user(userPrincipal()))
+                        .with(csrf())
+                        .param("reason", "단순 변심")
+                        .param("lines[0].orderItemId", "101")
+                        .param("lines[0].quantity", "1"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attribute("successMessage",
+                        "반품 요청을 저장했습니다. WMS 접수를 확인 중입니다."));
+    }
+
+    @Test
+    void WMS_영구거절이면_접수성공이_아닌_재신청_안내를_표시한다() throws Exception {
+        CustomerReturn failed = pendingReturn();
+        failed.failSubmission("BAD_REQUEST");
+        when(customerReturnService.request(eq(10L), eq(1L), eq("단순 변심"), anyList()))
+                .thenReturn(77L);
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(failed);
+
+        mockMvc.perform(post("/orders/10/returns")
+                        .with(user(userPrincipal()))
+                        .with(csrf())
+                        .param("reason", "단순 변심")
+                        .param("lines[0].orderItemId", "101")
+                        .param("lines[0].quantity", "1"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attribute("errorMessage",
+                        "WMS에서 반품 접수를 거절했습니다. 반품 요청 정보가 올바르지 않거나 반품 가능 수량을 초과했습니다. 내용을 확인한 후 다시 신청해주세요."))
+                .andExpect(flash().attributeCount(1));
     }
 
     @Test
@@ -152,8 +194,69 @@ class CustomerReturnControllerMvcTest {
                 .andExpect(content().string(containsString("반품 완료")))
                 .andExpect(content().string(containsString("테스트상품")))
                 .andExpect(content().string(containsString("재입고")))
+                .andExpect(content().string(containsString("aria-label=\"반품 진행 상태\"")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step done\">반품 완료</div>")))
                 .andExpect(content().string(containsString("단순 변심")))
                 .andExpect(content().string(containsString("/orders/10")));
+    }
+
+    @Test
+    void 접수된_반품은_고객용_4단계와_현재단계를_표시한다() throws Exception {
+        CustomerReturn customerReturn = requestedReturn();
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<div class=\"timeline-step done\">접수 요청</div>")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step current\">반품 접수</div>")))
+                .andExpect(content().string(containsString(">창고 도착</div>")))
+                .andExpect(content().string(containsString(">반품 완료</div>")));
+    }
+
+    @Test
+    void 취소된_반품의_품목결과는_처리중이_아니라_취소로_표시한다() throws Exception {
+        CustomerReturn customerReturn = requestedReturn();
+        customerReturn.cancel();
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 취소")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">반품 접수</div>")))
+                .andExpect(content().string(containsString("<td>취소</td>")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("<td>처리 중</td>"))));
+    }
+
+    @Test
+    void 접수실패한_반품의_품목결과는_처리중이_아니라_접수실패로_표시한다() throws Exception {
+        CustomerReturn customerReturn = pendingReturn();
+        customerReturn.failSubmission("BAD_REQUEST");
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">접수 요청</div>")))
+                .andExpect(content().string(containsString("접수 실패 사유")))
+                .andExpect(content().string(containsString("반품 요청 정보가 올바르지 않거나 반품 가능 수량을 초과했습니다.")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("BAD_REQUEST"))))
+                .andExpect(content().string(containsString("<td>접수 실패</td>")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("<td>처리 중</td>"))));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "CONFLICT,이미 처리된 반품 요청과 충돌했습니다.",
+            "UNKNOWN,WMS에서 반품 요청을 처리할 수 없습니다."
+    })
+    void 접수실패_코드를_고객용_사유로_변환한다(String code, String expectedReason) throws Exception {
+        CustomerReturn customerReturn = pendingReturn();
+        customerReturn.failSubmission(code);
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(expectedReason)))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString(code))));
     }
 
     @Test
@@ -185,6 +288,19 @@ class CustomerReturnControllerMvcTest {
     }
 
     private CustomerReturn completedReturn() {
+        CustomerReturn customerReturn = requestedReturn();
+        customerReturn.complete(List.of(new CustomerReturn.ResultItem(101L, 2,
+                com.jhg.hgpage.oms.domain.enums.ReturnDisposition.RESTOCKED)));
+        return customerReturn;
+    }
+
+    private CustomerReturn requestedReturn() {
+        CustomerReturn customerReturn = pendingReturn();
+        customerReturn.markRequested(900L);
+        return customerReturn;
+    }
+
+    private CustomerReturn pendingReturn() {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         ReflectionTestUtils.setField(member, "id", 1L);
         Product product = new Product();
@@ -202,9 +318,6 @@ class CustomerReturnControllerMvcTest {
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
                 List.of(new CustomerReturn.RequestItem(orderItem, 2)));
         ReflectionTestUtils.setField(customerReturn, "id", 77L);
-        customerReturn.markRequested(900L);
-        customerReturn.complete(List.of(new CustomerReturn.ResultItem(101L, 2,
-                com.jhg.hgpage.oms.domain.enums.ReturnDisposition.RESTOCKED)));
         return customerReturn;
     }
 }

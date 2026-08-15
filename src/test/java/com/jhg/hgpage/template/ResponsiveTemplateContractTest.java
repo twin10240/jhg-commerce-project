@@ -45,6 +45,14 @@ class ResponsiveTemplateContractTest {
     }
 
     @Test
+    void orderTimelineKeepsFourCompactStepsOnOneRow() throws Exception {
+        String css = read("src/main/resources/static/css/app.css");
+
+        assertThat(css).contains(".timeline{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;width:100%");
+        assertThat(css).contains(".timeline-step{position:relative;text-align:center;padding-top:30px;color:var(--app-muted);font-size:13px;white-space:nowrap}");
+    }
+
+    @Test
     void administratorTablesUseLocalOverflow() throws Exception {
         String inventory = read("src/main/resources/templates/admin/inventory.html");
         String replenishment = read("src/main/resources/templates/admin/replenishment-requests.html");

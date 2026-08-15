@@ -29,7 +29,18 @@
       <dt>진행상태</dt><dd><span class="status" th:text="${customerReturn.statusLabel}">반품 접수</span></dd>
       <dt>요청일시</dt><dd th:text="${#temporals.format(customerReturn.requestedAt,'yyyy-MM-dd HH:mm')}">2026-08-12 10:00</dd>
       <dt>반품 사유</dt><dd th:text="${customerReturn.reason}">단순 변심</dd>
+      <dt th:if="${customerReturn.failureReasonLabel != null}">접수 실패 사유</dt>
+      <dd th:if="${customerReturn.failureReasonLabel != null}" th:text="${customerReturn.failureReasonLabel}">반품 요청을 처리할 수 없습니다.</dd>
     </dl>
+    <div class="timeline" aria-label="반품 진행 상태">
+      <div class="timeline-step"
+           th:classappend="${customerReturn.status.name() == 'SUBMISSION_FAILED' ? 'stopped' : (customerReturn.status.name() == 'PENDING_SUBMISSION' ? 'current' : 'done')}">접수 요청</div>
+      <div class="timeline-step"
+           th:classappend="${customerReturn.status.name() == 'CANCELLED' ? 'stopped' : (customerReturn.status.name() == 'REQUESTED' ? 'current' : ((customerReturn.status.name() == 'RECEIVED' or customerReturn.status.name() == 'COMPLETED') ? 'done' : ''))}">반품 접수</div>
+      <div class="timeline-step"
+           th:classappend="${customerReturn.status.name() == 'RECEIVED' ? 'current' : (customerReturn.status.name() == 'COMPLETED' ? 'done' : '')}">창고 도착</div>
+      <div class="timeline-step" th:classappend="${customerReturn.status.name() == 'COMPLETED' ? 'done' : ''}">반품 완료</div>
+    </div>
     <h2>반품 품목</h2>
     <div class="table-wrap">
       <table>
@@ -39,7 +50,7 @@
           <td th:text="${item.productName}">상품명</td>
           <td class="num" th:text="${item.requestedQuantity}">1</td>
           <td class="num" th:text="${item.acceptedQuantity == null ? '-' : item.acceptedQuantity}">-</td>
-          <td th:text="${item.dispositionLabel == null ? '처리 중' : item.dispositionLabel}">처리 중</td>
+          <td th:text="${item.resultLabel}">처리 중</td>
         </tr>
         </tbody>
       </table>

@@ -14,7 +14,9 @@ public class CustomerReturnDto {
 
     private final Long id;
     private final Long orderId;
+    private final CustomerReturnStatus status;
     private final String statusLabel;
+    private final String failureReasonLabel;
     private final String reason;
     private final LocalDateTime requestedAt;
     private final LocalDateTime updatedAt;
@@ -23,12 +25,15 @@ public class CustomerReturnDto {
     private CustomerReturnDto(CustomerReturn customerReturn) {
         id = customerReturn.getId();
         orderId = customerReturn.getOrder().getId();
-        statusLabel = statusLabel(customerReturn.getStatus());
+        status = customerReturn.getStatus();
+        statusLabel = statusLabel(status);
+        failureReasonLabel = failureReasonLabel(customerReturn.getFailureReason());
         reason = customerReturn.getReason();
         requestedAt = customerReturn.getRequestedAt();
         updatedAt = customerReturn.getUpdatedAt();
         items = customerReturn.getItems().stream()
-                .map(item -> Item.from(item, claimedQuantity(customerReturn.getStatus(), item)))
+                .map(item -> Item.from(customerReturn.getStatus(), item,
+                        claimedQuantity(customerReturn.getStatus(), item)))
                 .toList();
     }
 
@@ -55,10 +60,19 @@ public class CustomerReturnDto {
         };
     }
 
-    private static String dispositionLabel(ReturnDisposition disposition) {
-        if (disposition == null) {
-            return null;
-        }
+    private static String failureReasonLabel(String failureReason) {
+        if (failureReason == null) return null;
+        return switch (failureReason) {
+            case "BAD_REQUEST" -> "반품 요청 정보가 올바르지 않거나 반품 가능 수량을 초과했습니다.";
+            case "CONFLICT" -> "이미 처리된 반품 요청과 충돌했습니다.";
+            default -> "WMS에서 반품 요청을 처리할 수 없습니다.";
+        };
+    }
+
+    private static String resultLabel(CustomerReturnStatus status, ReturnDisposition disposition) {
+        if (status == CustomerReturnStatus.CANCELLED) return "취소";
+        if (status == CustomerReturnStatus.SUBMISSION_FAILED) return "접수 실패";
+        if (disposition == null) return "처리 중";
         return switch (disposition) {
             case RESTOCKED -> "재입고";
             case DISPOSED -> "폐기";
@@ -72,23 +86,23 @@ public class CustomerReturnDto {
         private final String productName;
         private final int requestedQuantity;
         private final Integer acceptedQuantity;
-        private final String dispositionLabel;
+        private final String resultLabel;
         private final int claimedQuantity;
 
         private Item(Long orderItemId, String productName, int requestedQuantity, Integer acceptedQuantity,
-                     String dispositionLabel, int claimedQuantity) {
+                     String resultLabel, int claimedQuantity) {
             this.orderItemId = orderItemId;
             this.productName = productName;
             this.requestedQuantity = requestedQuantity;
             this.acceptedQuantity = acceptedQuantity;
-            this.dispositionLabel = dispositionLabel;
+            this.resultLabel = resultLabel;
             this.claimedQuantity = claimedQuantity;
         }
 
-        private static Item from(CustomerReturnItem item, int claimedQuantity) {
+        private static Item from(CustomerReturnStatus status, CustomerReturnItem item, int claimedQuantity) {
             return new Item(item.getOrderItem().getId(), item.getOrderItem().getProduct().getName(),
                     item.getRequestedQuantity(), item.getAcceptedQuantity(),
-                    CustomerReturnDto.dispositionLabel(item.getDisposition()), claimedQuantity);
+                    CustomerReturnDto.resultLabel(status, item.getDisposition()), claimedQuantity);
         }
     }
 }
