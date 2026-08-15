@@ -32,7 +32,8 @@ public class RefundService {
 
     @Transactional
     public Optional<Long> requestOrderCancellationRefund(Long orderId) {
-        return request(orderId, RefundSourceType.ORDER_CANCEL, orderId, Payment::getPaidAmount);
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId).orElse(null);
+        return request(payment, RefundSourceType.ORDER_CANCEL, orderId, Payment::getPaidAmount);
     }
 
     @Transactional
@@ -40,10 +41,15 @@ public class RefundService {
         if (customerReturn.getStatus() != CustomerReturnStatus.COMPLETED) {
             throw new IllegalStateException("완료된 반품만 환불할 수 있습니다.");
         }
+        Payment payment = paymentRepository.findByOrderIdForUpdate(
+                customerReturn.getOrder().getId()).orElse(null);
+        if (payment == null) {
+            return Optional.empty();
+        }
         int amount = customerReturn.getItems().stream()
                 .mapToInt(item -> Math.multiplyExact(item.getOrderItem().getOrderPrice(), item.getAcceptedQuantity()))
                 .reduce(0, Math::addExact);
-        return request(customerReturn.getOrder().getId(), RefundSourceType.RETURN,
+        return request(payment, RefundSourceType.RETURN,
                 customerReturn.getId(), ignored -> amount);
     }
 
@@ -112,9 +118,8 @@ public class RefundService {
                 .toList();
     }
 
-    private Optional<Long> request(Long orderId, RefundSourceType sourceType, Long sourceId,
+    private Optional<Long> request(Payment payment, RefundSourceType sourceType, Long sourceId,
                                    ToIntFunction<Payment> amount) {
-        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId).orElse(null);
         if (payment == null) {
             return Optional.empty();
         }

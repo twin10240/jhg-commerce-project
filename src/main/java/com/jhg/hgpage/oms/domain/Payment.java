@@ -115,7 +115,8 @@ public class Payment {
     }
 
     public void cancelUnpaid() {
-        if (status != PaymentStatus.PENDING && status != PaymentStatus.PAYMENT_FAILED) {
+        if (status != PaymentStatus.PENDING && status != PaymentStatus.PAYMENT_FAILED
+                && status != PaymentStatus.PAYMENT_REVIEW) {
             throw new IllegalStateException("미결제 취소가 가능한 상태가 아닙니다.");
         }
         status = PaymentStatus.CANCELLED;

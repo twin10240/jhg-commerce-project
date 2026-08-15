@@ -13,6 +13,7 @@ import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.oms.domain.PaymentAttempt;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentAttemptStatus;
 import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
 import com.jhg.hgpage.oms.repository.MemberRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
@@ -23,6 +24,9 @@ import com.jhg.hgpage.oms.service.AllocationProcessor;
 import com.jhg.hgpage.oms.service.CancellationProcessor;
 import com.jhg.hgpage.oms.service.PaymentApprovalProcessor;
 import com.jhg.hgpage.oms.service.PaymentFacade;
+import com.jhg.hgpage.oms.service.PaymentService;
+import com.jhg.hgpage.oms.service.OrderAllocationService;
+import com.jhg.hgpage.oms.service.OrderCancellationService.CancellationOutcome;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +43,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static com.jhg.hgpage.contract.PaymentGateway.GatewayOutcome.SUCCESS;
+import static com.jhg.hgpage.contract.PaymentGateway.GatewayOutcome.UNKNOWN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -60,6 +65,8 @@ class PaymentCancellationConcurrencyTest {
     @Autowired AllocationProcessor allocationProcessor;
     @Autowired CancellationProcessor cancellationProcessor;
     @Autowired PaymentFacade paymentFacade;
+    @Autowired PaymentService paymentService;
+    @Autowired OrderAllocationService orderAllocationService;
     @Autowired ProductRepository productRepository;
     @Autowired MemberRepository memberRepository;
     @Autowired OrderRepository orderRepository;
@@ -102,6 +109,59 @@ class PaymentCancellationConcurrencyTest {
     }
 
     @Test
+    void 재시도대기중_취소는_같은결제키의_늦은성공후_환불로_수렴한다() {
+        Fixture fixture = transactionTemplate.execute(status -> pendingPayment());
+        UUID requestKey = transactionTemplate.execute(status -> {
+            PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(fixture.attemptId).orElseThrow();
+            attempt.claim(LocalDateTime.now());
+            attempt.retryAt(LocalDateTime.now().minusSeconds(1), "UNKNOWN", "unknown");
+            return attempt.getRequestKey();
+        });
+
+        assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                .isEqualTo(CancellationOutcome.PENDING);
+        when(paymentGateway.approve(any())).thenReturn(
+                new PaymentGateway.ApprovalResult(SUCCESS, "MOCK-PAY-RETRY", null, null));
+
+        approvalProcessor.process(fixture.attemptId);
+        cancellationProcessor.process(fixture.orderId);
+
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        assertThat(paymentAttemptRepository.findById(fixture.attemptId).orElseThrow().getRequestKey())
+                .isEqualTo(requestKey);
+    }
+
+    @Test
+    void 결제검토중_취소는_명시적_재큐후_같은키로_확정해_환불로_수렴한다() {
+        Fixture fixture = transactionTemplate.execute(status -> pendingPayment());
+        transactionTemplate.executeWithoutResult(status -> {
+            PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(fixture.attemptId).orElseThrow();
+            for (int count = 1; count < 5; count++) {
+                attempt.claim(LocalDateTime.now());
+                attempt.retryAt(LocalDateTime.now().minusSeconds(1), "UNKNOWN", "unknown");
+            }
+        });
+        when(paymentGateway.approve(any())).thenReturn(
+                new PaymentGateway.ApprovalResult(UNKNOWN, null, "UNKNOWN", "unknown"));
+        approvalProcessor.process(fixture.attemptId);
+
+        assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                .isEqualTo(CancellationOutcome.PENDING);
+        assertThat(paymentService.findCancellationReviewAttemptIds()).contains(fixture.attemptId);
+        assertThat(paymentService.requeueCancellationReview(fixture.attemptId)).isTrue();
+        UUID requestKey = paymentAttemptRepository.findById(fixture.attemptId).orElseThrow().getRequestKey();
+        when(paymentGateway.approve(any())).thenReturn(
+                new PaymentGateway.ApprovalResult(SUCCESS, "MOCK-PAY-MANUAL", null, null));
+
+        approvalProcessor.process(fixture.attemptId);
+        cancellationProcessor.process(fixture.orderId);
+
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        assertThat(paymentAttemptRepository.findById(fixture.attemptId).orElseThrow().getRequestKey())
+                .isEqualTo(requestKey);
+    }
+
+    @Test
     void 할당처리중_취소는_예약성공을_해제한뒤_한번의_전액환불로_수렴한다() throws Exception {
         Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
         CountDownLatch wmsStarted = new CountDownLatch(1);
@@ -136,17 +196,93 @@ class PaymentCancellationConcurrencyTest {
     }
 
     @Test
+    void 할당재시도대기중_취소는_같은주문예약을_확인하고_해제후_환불로_수렴한다() {
+        Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
+        transactionTemplate.executeWithoutResult(status -> {
+            Order order = orderRepository.findByIdForUpdate(fixture.orderId).orElseThrow();
+            order.claimAllocation(LocalDateTime.now());
+            order.retryAllocation(LocalDateTime.now().minusSeconds(1), "WMS_UNAVAILABLE");
+        });
+        when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenReturn(true);
+
+        assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                .isEqualTo(CancellationOutcome.REFUND_PENDING);
+        allocationProcessor.process(fixture.orderId);
+        cancellationProcessor.process(fixture.orderId);
+
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+    }
+
+    @Test
+    void 취소중_할당재시도_소진도_명시적_재큐후_예약해제와_환불로_수렴한다() {
+        Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
+        transactionTemplate.executeWithoutResult(status -> {
+            Order order = orderRepository.findByIdForUpdate(fixture.orderId).orElseThrow();
+            for (int count = 1; count < 5; count++) {
+                order.claimAllocation(LocalDateTime.now());
+                order.retryAllocation(LocalDateTime.now().minusSeconds(1), "WMS_UNAVAILABLE");
+            }
+            order.claimAllocation(LocalDateTime.now());
+        });
+        assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                .isEqualTo(CancellationOutcome.REFUND_PENDING);
+        orderAllocationService.retryOrReview(fixture.orderId, 5, "WMS_UNAVAILABLE");
+
+        assertThat(orderAllocationService.findCancellationAllocationReviewOrderIds())
+                .contains(fixture.orderId);
+        assertThat(orderAllocationService.requeueCancellationAllocation(fixture.orderId)).isTrue();
+        when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenReturn(true);
+
+        allocationProcessor.process(fixture.orderId);
+        cancellationProcessor.process(fixture.orderId);
+
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+    }
+
+    @Test
+    void 재결제와_취소가_경합해도_새시도를_놓치지않고_취소로_수렴한다() throws Exception {
+        Fixture fixture = transactionTemplate.execute(status -> failedPayment());
+        CountDownLatch gatewayStarted = new CountDownLatch(1);
+        CountDownLatch releaseGateway = new CountDownLatch(1);
+        when(paymentGateway.approve(any())).thenAnswer(invocation -> {
+            gatewayStarted.countDown();
+            assertThat(releaseGateway.await(10, TimeUnit.SECONDS)).isTrue();
+            return new PaymentGateway.ApprovalResult(SUCCESS, "MOCK-PAY-RETRY-RACE", null, null);
+        });
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<?> retry = executor.submit(() -> paymentFacade.retryPayment(fixture.orderId, fixture.memberId));
+            assertThat(gatewayStarted.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
+                    .isEqualTo(CancellationOutcome.PENDING);
+            releaseGateway.countDown();
+            retry.get(10, TimeUnit.SECONDS);
+        } finally {
+            releaseGateway.countDown();
+            executor.shutdownNow();
+        }
+
+        cancellationProcessor.process(fixture.orderId);
+        assertCancelledWithOneRefund(fixture.orderId, 10_000);
+        assertThat(paymentAttemptRepository.findAll().stream()
+                .filter(attempt -> attempt.getStatus() == PaymentAttemptStatus.PROCESSING)).isEmpty();
+    }
+
+    @Test
     void 동시에_중복취소해도_전액환불은_한번만_예약한다() throws Exception {
         Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<Boolean> first = executor.submit(() -> cancelAfter(start, fixture));
-            Future<Boolean> second = executor.submit(() -> cancelAfter(start, fixture));
+            Future<CancellationOutcome> first = executor.submit(() -> cancelAfter(start, fixture));
+            Future<CancellationOutcome> second = executor.submit(() -> cancelAfter(start, fixture));
             start.countDown();
-            assertThat(first.get(10, TimeUnit.SECONDS)).isTrue();
-            assertThat(second.get(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(first.get(10, TimeUnit.SECONDS)).isEqualTo(CancellationOutcome.REFUND_PENDING);
+            assertThat(second.get(10, TimeUnit.SECONDS)).isEqualTo(CancellationOutcome.REFUND_PENDING);
         } finally {
             executor.shutdownNow();
         }
@@ -214,6 +350,17 @@ class PaymentCancellationConcurrencyTest {
         return new Fixture(persisted.order.getId(), persisted.member.getId(), null);
     }
 
+    private Fixture failedPayment() {
+        Fixture fixture = pendingPayment();
+        PaymentAttempt attempt = paymentAttemptRepository.findById(fixture.attemptId).orElseThrow();
+        attempt.claim(LocalDateTime.now());
+        attempt.fail("DECLINED", "declined", LocalDateTime.now());
+        Payment payment = paymentRepository.findByOrderId(fixture.orderId).orElseThrow();
+        payment.markPaymentFailed();
+        orderRepository.findById(fixture.orderId).orElseThrow().markPaymentFailed();
+        return fixture;
+    }
+
     private Fixture paidOrder() {
         Persisted persisted = order();
         persisted.order.markPaymentPending();
@@ -224,7 +371,7 @@ class PaymentCancellationConcurrencyTest {
         return new Fixture(persisted.order.getId(), persisted.member.getId(), null);
     }
 
-    private boolean cancelAfter(CountDownLatch start, Fixture fixture) throws InterruptedException {
+    private CancellationOutcome cancelAfter(CountDownLatch start, Fixture fixture) throws InterruptedException {
         start.await();
         return paymentFacade.cancelOrder(fixture.orderId, fixture.memberId);
     }

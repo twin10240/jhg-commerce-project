@@ -110,6 +110,15 @@ public class PaymentAttempt {
         touch(Objects.requireNonNull(now));
     }
 
+    public void requeueReview(LocalDateTime now) {
+        if (status != PaymentAttemptStatus.MANUAL_REVIEW) {
+            throw new IllegalStateException("수동 검토 결제만 다시 처리할 수 있습니다.");
+        }
+        status = PaymentAttemptStatus.PENDING;
+        nextAttemptAt = Objects.requireNonNull(now);
+        touch(now);
+    }
+
     public void cancel(LocalDateTime now) {
         if (status != PaymentAttemptStatus.PENDING && status != PaymentAttemptStatus.PROCESSING
                 && status != PaymentAttemptStatus.MANUAL_REVIEW) {

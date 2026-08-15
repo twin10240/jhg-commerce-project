@@ -34,9 +34,6 @@ public class OrderCancellationService {
 
     @Transactional
     public CancellationResult request(Long orderId, Long memberId) {
-        PaymentAttempt activeAttempt = paymentAttemptRepository
-                .findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(orderId, ACTIVE_APPROVAL_STATUSES)
-                .orElse(null);
         Payment payment = paymentRepository.findByOrderIdForUpdate(orderId).orElse(null);
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
@@ -44,10 +41,14 @@ public class OrderCancellationService {
             throw new EntityNotFoundException("Order", orderId);
         }
 
-        boolean paid = isPaid(payment);
         if (order.getStatus() == OrderStatus.CANCEL || order.getStatus() == OrderStatus.CANCEL_REQUESTED) {
-            return new CancellationResult(paid);
+            return result(order, payment);
         }
+
+        PaymentAttempt activeAttempt = paymentAttemptRepository
+                .findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(orderId, ACTIVE_APPROVAL_STATUSES)
+                .orElse(null);
+        boolean paid = isPaid(payment);
 
         switch (order.getStatus()) {
             case PAYMENT_PENDING -> cancelPending(order, payment, activeAttempt);
@@ -58,7 +59,17 @@ public class OrderCancellationService {
                 finishWithoutRelease(order);
             }
             case PAYMENT_REVIEW -> order.requestCancellation(null, LocalDateTime.now());
-            case ALLOCATION_PENDING, ALLOCATION_REVIEW, BACKORDERED -> {
+            case ALLOCATION_PENDING -> {
+                if (order.getAllocationAttemptCount() > 0) {
+                    order.requestCancellation(null, LocalDateTime.now());
+                } else {
+                    finishWithoutRelease(order);
+                    if (paid) {
+                        refundService.requestOrderCancellationRefund(orderId);
+                    }
+                }
+            }
+            case ALLOCATION_REVIEW, BACKORDERED -> {
                 finishWithoutRelease(order);
                 if (paid) {
                     refundService.requestOrderCancellationRefund(orderId);
@@ -68,7 +79,7 @@ public class OrderCancellationService {
             case ORDER -> order.requestCancellation(true, LocalDateTime.now());
             default -> throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
         }
-        return new CancellationResult(paid);
+        return result(order, payment);
     }
 
     @Transactional
@@ -124,7 +135,8 @@ public class OrderCancellationService {
 
     private void cancelPending(Order order, Payment payment, PaymentAttempt activeAttempt) {
         if (payment == null || payment.getStatus() != PaymentStatus.PENDING
-                || activeAttempt == null || activeAttempt.getStatus() == PaymentAttemptStatus.PROCESSING) {
+                || activeAttempt == null || activeAttempt.getStatus() == PaymentAttemptStatus.PROCESSING
+                || activeAttempt.getAttemptCount() > 0) {
             order.requestCancellation(null, LocalDateTime.now());
             return;
         }
@@ -148,7 +160,22 @@ public class OrderCancellationService {
         return payment != null && payment.getPaidAmount() > 0;
     }
 
-    public record CancellationResult(boolean paid) {
+    private CancellationResult result(Order order, Payment payment) {
+        if (order.getStatus() != OrderStatus.CANCEL) {
+            return new CancellationResult(isPaid(payment)
+                    ? CancellationOutcome.REFUND_PENDING : CancellationOutcome.PENDING);
+        }
+        boolean refundOutstanding = isPaid(payment)
+                && payment.getRefundedAmount() < payment.getPaidAmount();
+        return new CancellationResult(refundOutstanding
+                ? CancellationOutcome.REFUND_PENDING : CancellationOutcome.COMPLETED);
+    }
+
+    public enum CancellationOutcome {
+        COMPLETED, PENDING, REFUND_PENDING
+    }
+
+    public record CancellationResult(CancellationOutcome outcome) {
     }
 
     public record CancellationClaim(int attemptNumber, boolean releaseRequired, Map<Long, Integer> quantities) {

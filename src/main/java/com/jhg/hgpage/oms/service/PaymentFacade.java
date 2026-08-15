@@ -25,7 +25,7 @@ public class PaymentFacade {
         approvalProcessor.process(paymentService.retryPayment(orderId, memberId));
     }
 
-    public boolean cancelOrder(Long orderId, Long memberId) {
-        return cancellationService.request(orderId, memberId).paid();
+    public OrderCancellationService.CancellationOutcome cancelOrder(Long orderId, Long memberId) {
+        return cancellationService.request(orderId, memberId).outcome();
     }
 }

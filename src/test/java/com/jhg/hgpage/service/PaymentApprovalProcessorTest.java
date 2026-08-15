@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -63,9 +64,34 @@ class PaymentApprovalProcessorTest {
     }
 
     private void stubApprovalLocks() {
+        when(paymentAttemptRepository.findOrderIdById(30L)).thenReturn(Optional.of(10L));
         when(paymentAttemptRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(fixture.attempt));
         when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
         when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
+    }
+
+    @Test
+    void 결제검토중_취소는_기존키를_재큐해_늦은결과로_수렴할수있다() {
+        stubApprovalLocks();
+        fixture.attempt.claim(LocalDateTime.now());
+        fixture.attempt.manualReview("UNKNOWN", "unknown", LocalDateTime.now());
+        fixture.payment.markPaymentReview();
+        fixture.order.markPaymentReview();
+        fixture.order.requestCancellation(null, LocalDateTime.now());
+        UUID requestKey = fixture.attempt.getRequestKey();
+        when(paymentAttemptRepository.findCancellationReviewAttemptIds()).thenReturn(List.of(30L));
+
+        assertThat(paymentService.findCancellationReviewAttemptIds()).containsExactly(30L);
+        assertThat(paymentService.requeueCancellationReview(30L)).isTrue();
+        assertThat(fixture.attempt.getStatus()).isEqualTo(PaymentAttemptStatus.PENDING);
+        assertThat(fixture.attempt.getRequestKey()).isEqualTo(requestKey);
+
+        when(gateway.approve(any())).thenReturn(new PaymentGateway.ApprovalResult(
+                SUCCESS, "MOCK-PAY-RECONCILED", null, null));
+        processor.process(30L);
+
+        assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(fixture.order.getCancellationReleaseRequired()).isFalse();
     }
 
     @Test
@@ -150,9 +176,11 @@ class PaymentApprovalProcessorTest {
         fixture.attempt.claim(now);
         ReflectionTestUtils.setField(fixture.attempt, "updatedAt", now.minusMinutes(10));
         UUID requestKey = fixture.attempt.getRequestKey();
-        when(paymentAttemptRepository.findTop50ByStatusAndUpdatedAtLessThanEqualOrderById(
-                PaymentAttemptStatus.PROCESSING, staleBefore))
-                .thenReturn(List.of(fixture.attempt));
+        when(paymentAttemptRepository.findIdsByStatusAndUpdatedAtLessThanEqualOrderById(
+                eq(PaymentAttemptStatus.PROCESSING), eq(staleBefore), any(Pageable.class)))
+                .thenReturn(List.of(30L));
+        when(paymentAttemptRepository.findOrderIdById(30L)).thenReturn(Optional.of(10L));
+        when(paymentAttemptRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(fixture.attempt));
         when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
         when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
 

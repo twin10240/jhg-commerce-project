@@ -92,6 +92,16 @@ class RefundServiceTest {
     }
 
     @Test
+    void 결제없는_기존반품은_금액오버플로보다_먼저_noop한다() {
+        CustomerReturn customerReturn = completedReturnWithoutPayment(Integer.MAX_VALUE, 2);
+        when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.empty());
+
+        assertThat(service.requestReturnRefund(customerReturn)).isEmpty();
+
+        verify(refundRequestRepository, never()).save(any());
+    }
+
+    @Test
     void 누적_환불예약이_결제액을_넘으면_거절한다() {
         fixture.payment.reserveRefund(1);
         stubPaymentLock();
@@ -272,6 +282,28 @@ class RefundServiceTest {
         ReflectionTestUtils.setField(payment, "id", 20L);
         payment.markPaid(LocalDateTime.now());
         return new Fixture(order, item, payment);
+    }
+
+    private CustomerReturn completedReturnWithoutPayment(int price, int quantity) {
+        Product product = new Product();
+        product.setId(7L);
+        product.setPrice(price);
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        OrderItem item = OrderItem.createOrderItem(product, price, quantity);
+        ReflectionTestUtils.setField(item, "id", 11L);
+        Order order = Order.createOrder(member, delivery, item);
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.markOrdered();
+        order.ship();
+        order.deliver();
+        CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "기존 반품",
+                List.of(new CustomerReturn.RequestItem(item, quantity)));
+        ReflectionTestUtils.setField(customerReturn, "id", 40L);
+        customerReturn.complete(List.of(new CustomerReturn.ResultItem(
+                item.getId(), quantity, ReturnDisposition.DISPOSED)));
+        return customerReturn;
     }
 
     private record Fixture(Order order, OrderItem item, Payment payment) {

@@ -24,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -136,6 +137,16 @@ class OrderServiceDetailTest {
         orderService.cancelOrder(10L, 1L);
 
         verify(cancellationService).request(10L, 1L);
+    }
+
+    @Test
+    void 기존_주문서비스_취소API는_쓰기트랜잭션을_선언한다() throws Exception {
+        Transactional transactional = OrderService.class
+                .getMethod("cancelOrder", Long.class, Long.class)
+                .getAnnotation(Transactional.class);
+
+        assertThat(transactional).isNotNull();
+        assertThat(transactional.readOnly()).isFalse();
     }
 
     @Test

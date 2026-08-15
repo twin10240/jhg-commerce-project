@@ -27,9 +27,11 @@ class OrderServiceCancelTest {
     @Test
     void 취소는_동기_WMS경로가_아닌_복구가능한_취소서비스에_위임한다() {
         when(cancellationService.request(10L, 1L))
-                .thenReturn(new OrderCancellationService.CancellationResult(true));
+                .thenReturn(new OrderCancellationService.CancellationResult(
+                        OrderCancellationService.CancellationOutcome.REFUND_PENDING));
 
-        assertThat(paymentFacade.cancelOrder(10L, 1L)).isTrue();
+        assertThat(paymentFacade.cancelOrder(10L, 1L))
+                .isEqualTo(OrderCancellationService.CancellationOutcome.REFUND_PENDING);
 
         verify(cancellationService).request(10L, 1L);
     }

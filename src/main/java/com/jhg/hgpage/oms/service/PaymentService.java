@@ -15,6 +15,7 @@ import com.jhg.hgpage.oms.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,13 +33,18 @@ public class PaymentService {
 
     @Transactional
     public Optional<ApprovalCommand> claimApproval(Long attemptId) {
+        LockedPayment locked = lockPaymentForAttempt(attemptId);
+        if (locked == null) {
+            return Optional.empty();
+        }
         PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(attemptId).orElse(null);
         if (attempt == null || attempt.getStatus() != PaymentAttemptStatus.PENDING
                 || attempt.getNextAttemptAt().isAfter(LocalDateTime.now())) {
             return Optional.empty();
         }
-        LockedPayment locked = lockPayment(attempt);
-        if (locked.payment.getStatus() != PaymentStatus.PENDING
+        boolean cancellationReview = locked.order.getStatus() == OrderStatus.CANCEL_REQUESTED
+                && locked.payment.getStatus() == PaymentStatus.PAYMENT_REVIEW;
+        if (locked.payment.getStatus() != PaymentStatus.PENDING && !cancellationReview
                 || (locked.order.getStatus() != OrderStatus.PAYMENT_PENDING
                 && locked.order.getStatus() != OrderStatus.CANCEL_REQUESTED)) {
             return Optional.empty();
@@ -50,11 +56,14 @@ public class PaymentService {
 
     @Transactional
     public void applyApprovalResult(Long attemptId, ApprovalResult result) {
+        LockedPayment locked = lockPaymentForAttempt(attemptId);
+        if (locked == null) {
+            return;
+        }
         PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(attemptId).orElse(null);
         if (attempt == null || attempt.getStatus() != PaymentAttemptStatus.PROCESSING) {
             return;
         }
-        LockedPayment locked = lockPayment(attempt);
         LocalDateTime now = LocalDateTime.now();
 
         switch (result.outcome()) {
@@ -83,9 +92,18 @@ public class PaymentService {
 
     @Transactional
     public void recoverStaleApprovals(LocalDateTime staleBefore, LocalDateTime now) {
-        for (PaymentAttempt attempt : paymentAttemptRepository
-                .findTop50ByStatusAndUpdatedAtLessThanEqualOrderById(PaymentAttemptStatus.PROCESSING, staleBefore)) {
-            LockedPayment locked = lockPayment(attempt);
+        for (Long attemptId : paymentAttemptRepository
+                .findIdsByStatusAndUpdatedAtLessThanEqualOrderById(
+                        PaymentAttemptStatus.PROCESSING, staleBefore, PageRequest.of(0, 50))) {
+            LockedPayment locked = lockPaymentForAttempt(attemptId);
+            if (locked == null) {
+                continue;
+            }
+            PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(attemptId).orElse(null);
+            if (attempt == null || attempt.getStatus() != PaymentAttemptStatus.PROCESSING
+                    || attempt.getUpdatedAt().isAfter(staleBefore)) {
+                continue;
+            }
             if (attempt.getAttemptCount() >= 5) {
                 review(attempt, locked.payment, locked.order, "STALE_PROCESSING", "Processing lease expired", now);
             } else {
@@ -102,10 +120,35 @@ public class PaymentService {
                 .toList();
     }
 
-    private LockedPayment lockPayment(PaymentAttempt attempt) {
-        Long orderId = attempt.getPayment().getOrder().getId();
+    @Transactional(readOnly = true)
+    public List<Long> findCancellationReviewAttemptIds() {
+        return paymentAttemptRepository.findCancellationReviewAttemptIds();
+    }
+
+    @Transactional
+    public boolean requeueCancellationReview(Long attemptId) {
+        LockedPayment locked = lockPaymentForAttempt(attemptId);
+        if (locked == null) {
+            return false;
+        }
+        PaymentAttempt attempt = paymentAttemptRepository.findByIdForUpdate(attemptId).orElse(null);
+        if (attempt == null || attempt.getStatus() != PaymentAttemptStatus.MANUAL_REVIEW
+                || locked.payment.getStatus() != PaymentStatus.PAYMENT_REVIEW
+                || locked.order.getStatus() != OrderStatus.CANCEL_REQUESTED
+                || locked.order.getCancellationReleaseRequired() != null) {
+            return false;
+        }
+        attempt.requeueReview(LocalDateTime.now());
+        return true;
+    }
+
+    private LockedPayment lockPaymentForAttempt(Long attemptId) {
+        Long orderId = paymentAttemptRepository.findOrderIdById(attemptId).orElse(null);
+        if (orderId == null) {
+            return null;
+        }
         Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
-                .orElseThrow(() -> new EntityNotFoundException("Payment", attempt.getPayment().getId()));
+                .orElseThrow(() -> new EntityNotFoundException("Payment", orderId));
         Order order = orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
         return new LockedPayment(payment, order);

@@ -12,6 +12,7 @@ import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.service.PaymentFacade;
+import com.jhg.hgpage.oms.service.OrderCancellationService.CancellationOutcome;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import org.junit.jupiter.api.Test;
@@ -511,7 +512,7 @@ class OrderControllerMvcTest {
 
     @Test
     void 주문을_취소하면_상세로_리다이렉트하고_성공_flash를_담는다() throws Exception {
-        when(paymentFacade.cancelOrder(10L, 1L)).thenReturn(true);
+        when(paymentFacade.cancelOrder(10L, 1L)).thenReturn(CancellationOutcome.REFUND_PENDING);
 
         mockMvc.perform(post("/orders/10/cancel")
                         .with(user(principal()))
@@ -521,6 +522,33 @@ class OrderControllerMvcTest {
                 .andExpect(flash().attribute("successMessage", "주문 취소가 접수되었습니다. 환불 상태를 확인해주세요."));
 
         verify(paymentFacade).cancelOrder(10L, 1L);
+    }
+
+    @Test
+    void 즉시완료된_취소만_완료_flash를_담는다() throws Exception {
+        when(paymentFacade.cancelOrder(10L, 1L)).thenReturn(CancellationOutcome.COMPLETED);
+
+        mockMvc.perform(post("/orders/10/cancel").with(user(principal())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("successMessage", "주문이 취소되었습니다."));
+    }
+
+    @Test
+    void 미결제_결과확인중_취소는_완료가_아닌_접수_flash를_담는다() throws Exception {
+        when(paymentFacade.cancelOrder(10L, 1L)).thenReturn(CancellationOutcome.PENDING);
+
+        mockMvc.perform(post("/orders/10/cancel").with(user(principal())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("successMessage", "주문 취소가 접수되었습니다. 처리 상태를 확인해주세요."));
+    }
+
+    @Test
+    void 기존ORDER의_WMS해제대기도_완료가_아닌_접수_flash를_담는다() throws Exception {
+        when(paymentFacade.cancelOrder(10L, 1L)).thenReturn(CancellationOutcome.PENDING);
+
+        mockMvc.perform(post("/orders/10/cancel").with(user(principal())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("successMessage", "주문 취소가 접수되었습니다. 처리 상태를 확인해주세요."));
     }
 
     @Test

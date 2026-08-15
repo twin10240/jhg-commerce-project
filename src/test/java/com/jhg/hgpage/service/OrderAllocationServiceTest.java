@@ -154,6 +154,21 @@ class OrderAllocationServiceTest {
     }
 
     @Test
+    void 취소중_수동검토_셀렉터와_재큐는_같은주문을_다시_처리가능하게_만든다() {
+        Order order = processingOrder(5);
+        order.requestCancellation(null, LocalDateTime.now());
+        when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));
+        service.retryOrReview(100L, 5, "WMS_UNAVAILABLE");
+        when(orderRepositoryQuery.findCancellationAllocationReviewOrderIds()).thenReturn(List.of(100L));
+
+        assertThat(service.findCancellationAllocationReviewOrderIds()).containsExactly(100L);
+        assertThat(service.requeueCancellationAllocation(100L)).isTrue();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(order.getCancellationReleaseRequired()).isNull();
+        assertThat(order.getNextAllocationAttemptAt()).isNotNull();
+    }
+
+    @Test
     void 오래된_작업A의_결과는_재선점한_작업B를_변경하지_못한다() {
         Order order = pendingOrder();
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));

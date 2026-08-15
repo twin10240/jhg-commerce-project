@@ -61,11 +61,29 @@ class OrderCancellationServiceTest {
 
         OrderCancellationService.CancellationResult result = service.request(10L, 1L);
 
-        assertThat(result.paid()).isFalse();
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.COMPLETED);
         assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(fixture.attempt.getStatus()).isEqualTo(PaymentAttemptStatus.CANCELLED);
         verifyNoInteractions(refundService);
+    }
+
+    @Test
+    void PAYMENT_PENDING_기제출시도는_같은키_결과가_결정할때까지_취소대기로_남긴다() {
+        Fixture fixture = pendingPayment();
+        fixture.attempt.claim(LocalDateTime.now());
+        fixture.attempt.retryAt(LocalDateTime.now().plusMinutes(1), "TIMEOUT", "timeout");
+        UUID requestKey = fixture.attempt.getRequestKey();
+        stubPendingLocks(fixture);
+
+        OrderCancellationService.CancellationResult result = service.request(10L, 1L);
+
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.PENDING);
+        assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(fixture.order.getCancellationReleaseRequired()).isNull();
+        assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(fixture.attempt.getStatus()).isEqualTo(PaymentAttemptStatus.PENDING);
+        assertThat(fixture.attempt.getRequestKey()).isEqualTo(requestKey);
     }
 
     @Test
@@ -96,7 +114,7 @@ class OrderCancellationServiceTest {
 
         OrderCancellationService.CancellationResult result = service.request(10L, 1L);
 
-        assertThat(result.paid()).isFalse();
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.COMPLETED);
         assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         verifyNoInteractions(refundService);
@@ -112,10 +130,26 @@ class OrderCancellationServiceTest {
             OrderCancellationService.CancellationResult result = service.request(10L, 1L);
             service.request(10L, 1L);
 
-            assertThat(result.paid()).isTrue();
+            assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.REFUND_PENDING);
             assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL);
         }
         verify(refundService, times(3)).requestOrderCancellationRefund(10L);
+    }
+
+    @Test
+    void ALLOCATION_PENDING_기제출작업은_예약결과가_결정할때까지_취소대기로_남긴다() {
+        Fixture fixture = paidState(OrderStatus.ALLOCATION_PENDING);
+        fixture.order.claimAllocation(LocalDateTime.now());
+        fixture.order.retryAllocation(LocalDateTime.now().plusMinutes(1), "WMS_UNAVAILABLE");
+        stubPaidOrReviewLocks(fixture);
+
+        OrderCancellationService.CancellationResult result = service.request(10L, 1L);
+
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.REFUND_PENDING);
+        assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(fixture.order.getCancellationReleaseRequired()).isNull();
+        assertThat(fixture.order.getAllocationAttemptCount()).isEqualTo(1);
+        verifyNoInteractions(refundService);
     }
 
     @Test
@@ -140,7 +174,7 @@ class OrderCancellationServiceTest {
 
         OrderCancellationService.CancellationResult result = service.request(10L, 1L);
 
-        assertThat(result.paid()).isTrue();
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.REFUND_PENDING);
         assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(fixture.order.getCancellationReleaseRequired()).isTrue();
         verify(refundService, never()).requestOrderCancellationRefund(10L);
@@ -160,7 +194,8 @@ class OrderCancellationServiceTest {
         when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.empty());
         when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
 
-        assertThat(service.request(10L, 1L).paid()).isFalse();
+        assertThat(service.request(10L, 1L).outcome())
+                .isEqualTo(OrderCancellationService.CancellationOutcome.PENDING);
         OrderCancellationService.CancellationClaim claim = service.claim(10L).orElseThrow();
         assertThat(service.complete(10L, claim.attemptNumber())).isTrue();
 

@@ -97,6 +97,24 @@ public class OrderAllocationService {
         return orderRepositoryQuery.findDueAllocationOrderIds(now);
     }
 
+    public List<Long> findCancellationAllocationReviewOrderIds() {
+        return orderRepositoryQuery.findCancellationAllocationReviewOrderIds();
+    }
+
+    @Transactional
+    public boolean requeueCancellationAllocation(Long orderId) {
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || order.getStatus() != OrderStatus.CANCEL_REQUESTED
+                || order.getCancellationReleaseRequired() != null
+                || order.getAllocationAttemptCount() == 0
+                || order.getNextAllocationAttemptAt() != null
+                || order.getAllocationProcessingAt() != null) {
+            return false;
+        }
+        order.setNextAllocationAttemptAt(LocalDateTime.now());
+        return true;
+    }
+
     private boolean isDue(Order order, LocalDateTime now) {
         if (order.getNextAllocationAttemptAt() == null
                 || order.getNextAllocationAttemptAt().isAfter(now)) {

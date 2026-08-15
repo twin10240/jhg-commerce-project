@@ -139,6 +139,18 @@ public class OrderRepositoryQuery {
                 .fetch();
     }
 
+    public List<Long> findCancellationAllocationReviewOrderIds() {
+        return jpaQueryFactory.select(order.id)
+                .from(order)
+                .where(order.status.eq(OrderStatus.CANCEL_REQUESTED),
+                        order.cancellationReleaseRequired.isNull(),
+                        order.allocationAttemptCount.gt(0),
+                        order.nextAllocationAttemptAt.isNull(),
+                        order.allocationProcessingAt.isNull())
+                .orderBy(order.cancellationRequestedAt.asc(), order.id.asc())
+                .fetch();
+    }
+
     /** 보상 스윕(S4)용 — BACKORDERED 주문이 기다리는 상품 id 목록(중복 제거). */
     public List<Long> findBackorderedProductIds() {
         return jpaQueryFactory.select(orderItem.product.id).distinct()

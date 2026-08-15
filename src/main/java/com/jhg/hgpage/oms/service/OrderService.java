@@ -68,6 +68,7 @@ public class OrderService {
         findOrder(orderId).deliver();
     }
 
+    @Transactional
     public void cancelOrder(Long orderId, Long memberId) {
         cancellationService.request(orderId, memberId);
     }
