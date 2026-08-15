@@ -17,7 +17,11 @@ class LocalDataMigrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:local-data-migration;DB_CLOSE_DELAY=-1", "sa", "");
         try (Connection connection = dataSource.getConnection()) {
-            connection.createStatement().execute("create table delivery (delivery_id bigint primary key, status varchar(20))");
+            connection.createStatement().execute("""
+                    create table delivery (
+                        delivery_id bigint primary key,
+                        status enum ('COMP', 'READY'))
+                    """);
             connection.createStatement().execute("insert into delivery values (1, 'COMP')");
         }
 

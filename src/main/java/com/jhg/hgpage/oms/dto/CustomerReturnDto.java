@@ -50,7 +50,7 @@ public class CustomerReturnDto {
             case SUBMISSION_FAILED -> "접수 실패";
             case REQUESTED -> "반품 접수";
             case RECEIVED -> "창고 입고";
-            case COMPLETED -> "검수 완료";
+            case COMPLETED -> "반품 완료";
             case CANCELLED -> "반품 취소";
         };
     }

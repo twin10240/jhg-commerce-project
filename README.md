@@ -14,7 +14,7 @@
 | 주문 정책 | 재고 확보 또는 `BACKORDERED` 접수, 입고 시 FIFO 자동 할당 |
 | 시스템 경계 | OMS는 주문·고객 반품 요청, WMS는 재고 정본·RMA 처리를 소유하고 REST로 통신 |
 | 장애 복구 | 타임아웃·멱등 요청·백오더/RMA 보상 스윕 |
-| 테스트 | 319개 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
+| 테스트 | 331개 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
 
 ## 프로젝트 비전 — 미니 OMS + 별도 WMS
 
@@ -27,12 +27,16 @@
 | Phase 2 | 모듈 경계 분리(`contract`·`catalog`·`oms`·`wms`, 서비스 인터페이스 통신) | ✅ 완료 (코어) |
 | Phase 3 | WMS 물리 분리(별도 앱 + REST 통신) | ✅ 완료 |
 | 포트폴리오 1차 | 고객·관리자 UX, 반응형 UI, OMS·WMS 통합 수동 검증 | ✅ 완료 (2026-08-04) |
-| OMS V2 | `READY → SHIPPED → DELIVERED`, 고객 반품·WMS RMA 연동 | OMS 구현 완료, 통합 수동 검증 대기 |
+| OMS V2 | `READY → SHIPPED → DELIVERED`, 고객 반품·WMS RMA 연동 | OMS 구현·자동 검증 완료, 통합 수동 검증 5/9 통과 |
 | Phase 4 | (선택) 이벤트/메시지 기반 전환 | ⬜ |
 
 > 📄 자세한 배경·시나리오·로드맵은 **[기획서](docs/기획서.md)** 를 참고하세요.
 
 ## OMS V2 — 배송 완료와 RMA (현재 상태)
+
+OMS 자동 테스트 331개가 통과했고, 통합 수동 시나리오는 9개 중 장애 복구·보안 계약 5개를
+완료했습니다. WMS 검수 동작이 필요한 정상·부분승인·폐기·취소 시나리오 4개는 WMS V2 안정화 후
+이어갑니다. 실행 절차와 증거는 [수동 검증 시나리오](docs/manual-verification-scenarios.md#oms-v2-rma--현재-수동-검증-대상-2026-08-12)에 기록합니다.
 
 배송은 `READY → SHIPPED → DELIVERED`로 구분합니다. 관리자는
 `POST /admin/orders/ship`으로 WMS 출고를 확정하고, 이후

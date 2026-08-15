@@ -124,6 +124,11 @@
       </dd>
       <dt>주문일시</dt><dd th:text="${#temporals.format(order.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</dd>
       <dt>배송상태</dt><dd th:text="${order.deliveryStatus.name() == 'DELIVERED'} ? '배송 완료' : (${order.deliveryStatus.name() == 'SHIPPED'} ? '출고 완료' : '출고 준비')">출고 준비</dd>
+      <dt th:if="${customerReturns != null and !#lists.isEmpty(customerReturns)}">반품상태</dt>
+      <dd th:if="${customerReturns != null and !#lists.isEmpty(customerReturns)}">
+        <span th:each="customerReturn, stat : ${customerReturns}"
+              th:text="${customerReturn.statusLabel + (stat.last ? '' : ', ')}">반품 완료</span>
+      </dd>
       <dt>배송지</dt><dd th:text="|${order.city} ${order.street} (${order.zipcode})|">서울 관악구 (500)</dd>
     </dl>
   </div>

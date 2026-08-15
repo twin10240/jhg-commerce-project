@@ -317,7 +317,7 @@ WMS Docker Compose는 WMS 수평 확장 데모이므로 전체 OMS-WMS 배포 �
 
 ## OMS V2 RMA — 현재 수동 검증 대상 (2026-08-12)
 
-상태: **수동 통합 검증 대기**. 자동 계약 테스트와 별개로, 깨끗한 검증용 데이터에서 OMS(:8080)와
+상태: **부분 완료(V2-5~V2-9, 2026-08-14)**. 자동 계약 테스트와 별개로, 깨끗한 검증용 데이터에서 OMS(:8080)와
 호환 WMS(:8081)를 함께 실행하고 아래 증거를 기록한다. 서비스 Basic 자격증명은 양쪽의
 `WMS_BASIC_USER/WMS_BASIC_PASSWORD`와 `OMS_CALLBACK_USER/OMS_CALLBACK_PASSWORD`가 일치해야 한다.
 복구 검증 시간을 줄일 때만 OMS의 `returns.sweep-delay=5s`를 사용하고 실제 값을 증거에 남긴다.
@@ -414,8 +414,8 @@ OMS가 `REQUESTED`로 수렴한다.
 | V2-2 복수 품목 부분 승인 + `REJECTED` | ⬜ 대기 | |
 | V2-3 `DISPOSED`, OMS 재고 비소유 | ⬜ 대기 | |
 | V2-4 `REQUESTED` 취소 | ⬜ 대기 | |
-| V2-5 같은 `requestKey` 멱등 재시도 | ⬜ 대기 | |
-| V2-6 WMS 중단 후 접수 스윕 | ⬜ 대기 | |
-| V2-7 OMS 중단 후 단건 조회 스윕 | ⬜ 대기 | |
-| V2-8 변조 콜백 `409` | ⬜ 대기 | |
-| V2-9 잘못된 callback Basic `401` | ⬜ 대기 | |
+| V2-5 같은 `requestKey` 멱등 재시도 | ✅ 통과 | `returnId=2`, `requestKey=4633ff73-ecec-45e4-88fd-b8f1bb7c28c2`, `rmaId=2`; 동일 JSON 재전송도 `rmaId=2`, WMS RMA 총 2건 유지 |
+| V2-6 WMS 중단 후 접수 스윕 | ✅ 통과 | `returnId=3`, `requestKey=31c4b2d7-6d75-4247-b23d-257beb58aca9`; 중단 중 `PENDING_SUBMISSION/rmaId=null`, 복구 후 `REQUESTED/rmaId=52` |
+| V2-7 OMS 중단 후 단건 조회 스윕 | ✅ 통과 | `returnId=4`, `requestKey=e97035b6-59e8-46d5-97c2-7d7a3b6f29d3`, `rmaId=53`; 콜백 실패 후 5초 스윕으로 `COMPLETED/RESTOCKED`, 상품 13 재고 `194→195`, `RMA#53` RETURN 원장 1건 |
+| V2-8 변조 콜백 `409` | ✅ 통과 | `returnId=2/rmaId=2`; `orderItemId`, `productId`, `requestedQuantity` 개별 변조 모두 `409`, `REQUESTED` 및 품목 결과 미변경 |
+| V2-9 잘못된 callback Basic `401` | ✅ 통과 | 유효 JSON + `bad:bad` 요청이 `401`; `Location` 없음, `REQUESTED` 및 품목 결과 미변경 |

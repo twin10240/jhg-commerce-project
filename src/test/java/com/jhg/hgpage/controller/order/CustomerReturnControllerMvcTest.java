@@ -149,7 +149,7 @@ class CustomerReturnControllerMvcTest {
         mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("returnview"))
-                .andExpect(content().string(containsString("검수 완료")))
+                .andExpect(content().string(containsString("반품 완료")))
                 .andExpect(content().string(containsString("테스트상품")))
                 .andExpect(content().string(containsString("재입고")))
                 .andExpect(content().string(containsString("단순 변심")))

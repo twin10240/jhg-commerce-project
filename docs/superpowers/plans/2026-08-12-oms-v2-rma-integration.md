@@ -2,6 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+## 실행 현황 (2026-08-15)
+
+- OMS 구현 및 자동 검증 완료: 전체 테스트 331개 통과
+- 통합 수동 검증 5/9 완료: V2-5~V2-9 통과
+- WMS V2 안정화 후 확인: V2-1 전체 재입고, V2-2 부분 승인·거절, V2-3 폐기, V2-4 접수 취소
+- 결제·환불 상태와 금액 계산은 계획대로 후속 단계 범위
+
+아래 체크리스트는 구현 당시의 TDD 실행 계획을 보존하며, 실제 완료 현황과 증거는 이 절과
+`docs/manual-verification-scenarios.md`를 기준으로 판단한다.
+
 **Goal:** 배송 완료 주문의 상품별 반품 신청을 OMS에 내구성 있게 저장하고, WMS RMA 접수·검수 결과를 콜백과 보상 조회로 동기화해 Thymeleaf 고객 화면에 표시한다.
 
 **Architecture:** OMS는 고객 요청을 `PENDING_SUBMISSION`으로 먼저 커밋한 뒤 멱등 `requestKey`로 WMS를 호출한다. WMS 호출 실패는 저장된 요청과 스케줄러로 재처리하고, 검수 결과는 인증된 콜백과 `GET /api/returns/{rmaId}` 조회가 같은 상태 적용 서비스로 수렴한다. 결제·환불은 별도 후속 작업이며 이번 구현에는 상태나 가짜 처리를 추가하지 않는다.

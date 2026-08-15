@@ -360,6 +360,24 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 반품완료_주문은_배송상태와_반품상태를_분리해_표시한다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        CustomerReturn completed = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "단순 변심",
+                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 1)));
+        completed.complete(List.of(new CustomerReturn.ResultItem(
+                fixture.orderItem().getId(), 1,
+                com.jhg.hgpage.oms.domain.enums.ReturnDisposition.RESTOCKED)));
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of(completed));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("<dt>배송상태</dt><dd>배송 완료</dd>")))
+                .andExpect(content().string(containsString("<dt>반품상태</dt>")))
+                .andExpect(content().string(containsString("반품 완료")));
+    }
+
+    @Test
     void 출고전과_배송중_주문에는_반품폼이_없다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, false));
         mockMvc.perform(get("/orders/10").with(user(principal())))
