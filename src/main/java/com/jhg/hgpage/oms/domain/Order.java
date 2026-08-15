@@ -98,7 +98,9 @@ public class Order {
     }
 
     public void markPaymentPending() {
-        requireStatus(OrderStatus.ORDER);
+        if (status != OrderStatus.ORDER && status != OrderStatus.PAYMENT_FAILED) {
+            throw new IllegalStateException("주문 상태를 변경할 수 없습니다.");
+        }
         status = OrderStatus.PAYMENT_PENDING;
     }
 
@@ -148,6 +150,9 @@ public class Order {
     public void requestCancellation(Boolean releaseRequired, LocalDateTime requestedAt) {
         if (delivery.getStatus() != DeliveryStatus.READY || status == OrderStatus.CANCEL) {
             throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
+        }
+        if (status == OrderStatus.CANCEL_REQUESTED) {
+            return;
         }
         status = OrderStatus.CANCEL_REQUESTED;
         cancellationReleaseRequired = releaseRequired;

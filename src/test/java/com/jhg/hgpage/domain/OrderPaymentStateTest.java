@@ -40,6 +40,22 @@ class OrderPaymentStateTest {
         assertThat(order.getCancellationReleaseRequired()).isTrue();
     }
 
+    @Test
+    void 취소요청_재시도는_미결정_해제여부를_덮어쓰지_않는다() {
+        Order order = order();
+        order.markPaymentPending();
+        order.markAllocationPending();
+        order.claimAllocation(LocalDateTime.now());
+        LocalDateTime requestedAt = LocalDateTime.now();
+
+        order.requestCancellation(null, requestedAt);
+        order.requestCancellation(false, requestedAt.plusMinutes(1));
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
+        assertThat(order.getCancellationReleaseRequired()).isNull();
+        assertThat(order.getCancellationRequestedAt()).isEqualTo(requestedAt);
+    }
+
     private Order order() {
         Product product = new Product();
         product.setPrice(10_000);

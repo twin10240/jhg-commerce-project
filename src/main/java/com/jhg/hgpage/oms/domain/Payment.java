@@ -88,6 +88,14 @@ public class Payment {
         changeFromPending(PaymentStatus.PAYMENT_REVIEW);
     }
 
+    public void retry() {
+        if (status != PaymentStatus.PAYMENT_FAILED) {
+            throw new IllegalStateException("재결제 가능한 상태가 아닙니다.");
+        }
+        status = PaymentStatus.PENDING;
+        touch(LocalDateTime.now());
+    }
+
     public void reserveRefund(int amount) {
         if (amount <= 0 || refundedAmount + pendingRefundAmount + amount > paidAmount) {
             throw new IllegalStateException("환불 가능 금액을 초과했습니다.");

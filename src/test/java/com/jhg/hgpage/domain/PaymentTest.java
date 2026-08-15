@@ -7,10 +7,12 @@ import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.PaymentAttempt;
 import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +42,30 @@ class PaymentTest {
         payment.completeRefund(30_000);
 
         assertThat(payment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+    }
+
+    @Test
+    void 결제실패_주문은_새_시도로_다시_결제해_할당대기로_전환한다() {
+        Order order = order();
+        Payment payment = Payment.create(order, 30_000);
+        order.markPaymentPending();
+        PaymentAttempt failedAttempt = PaymentAttempt.create(payment, UUID.randomUUID());
+        failedAttempt.claim(LocalDateTime.now());
+        failedAttempt.fail("DECLINED", "declined", LocalDateTime.now());
+        payment.markPaymentFailed();
+        order.markPaymentFailed();
+
+        PaymentAttempt retryAttempt = PaymentAttempt.create(payment, UUID.randomUUID());
+        assertThat(retryAttempt.getRequestKey()).isNotEqualTo(failedAttempt.getRequestKey());
+        payment.retry();
+        order.markPaymentPending();
+        retryAttempt.claim(LocalDateTime.now());
+        retryAttempt.succeed("MOCK-PAY-RETRY", LocalDateTime.now());
+        payment.markPaid(LocalDateTime.now());
+        order.markAllocationPending();
+
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(order.getStatus()).isEqualTo(com.jhg.hgpage.oms.domain.enums.OrderStatus.ALLOCATION_PENDING);
     }
 
     private Payment paidPayment(int amount) {
