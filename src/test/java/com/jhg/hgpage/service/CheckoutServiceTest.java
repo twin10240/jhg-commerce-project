@@ -32,6 +32,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -61,7 +62,11 @@ class CheckoutServiceTest {
         Product product = new Product();
         product.setId(7L);
         product.setPrice(10_000);
-        when(productRepository.findAllById(any())).thenReturn(List.of(product));
+        stubSuccessfulPersistence(List.of(product));
+    }
+
+    private void stubSuccessfulPersistence(List<Product> products) {
+        when(productRepository.findAllById(any())).thenReturn(products);
         when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
             Order order = invocation.getArgument(0);
             ReflectionTestUtils.setField(order, "id", 10L);
@@ -107,6 +112,37 @@ class CheckoutServiceTest {
                 List.of(new OrderService.OrderLine(7L, 2)), true);
 
         verify(cartService).removeCartItems(1L, List.of(7L));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void 여러_상품은_findAllById_한번으로_일괄_조회한다() {
+        Product first = new Product();
+        first.setId(7L);
+        first.setPrice(10_000);
+        Product second = new Product();
+        second.setId(8L);
+        second.setPrice(20_000);
+        stubSuccessfulPersistence(List.of(first, second));
+
+        checkoutService.createPending(1L, new Address("서울", "관악구", "500"), List.of(
+                new OrderService.OrderLine(7L, 1),
+                new OrderService.OrderLine(8L, 2)), false);
+
+        ArgumentCaptor<Iterable<Long>> ids = ArgumentCaptor.forClass(Iterable.class);
+        verify(productRepository).findAllById(ids.capture());
+        assertThat(ids.getValue()).containsExactly(7L, 8L);
+        verify(productRepository, never()).findById(any());
+    }
+
+    @Test
+    void 바로구매는_장바구니를_변경하지_않는다() {
+        stubSuccessfulPersistence();
+
+        checkoutService.createPending(1L, new Address("서울", "관악구", "500"),
+                List.of(new OrderService.OrderLine(7L, 2)), false);
+
+        verifyNoInteractions(cartService);
     }
 
     @Test
