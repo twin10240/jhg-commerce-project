@@ -10,6 +10,7 @@ import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentFacade;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.oms.dto.CustomerReturnDto;
 import com.jhg.hgpage.oms.dto.OrderDetailDto;
@@ -43,6 +44,7 @@ public class OrderController {
     private final OrderService orderService;
     private final InventoryQueryPort inventoryQueryPort;
     private final CustomerReturnService customerReturnService;
+    private final PaymentFacade paymentFacade;
 
     @PostMapping("/orders/checkout-form")
     public String createCheckOutFrom(@AuthenticationPrincipal UserPrincipal user, @ModelAttribute OrderRequest req, Model model) {
@@ -125,9 +127,7 @@ public class OrderController {
                 .map(product -> new OrderService.OrderLine(product.getId(), product.getQuantity()))
                 .toList();
 
-        Long orderId = form.isFromCart()
-                ? orderService.orderFromCart(user.getId(), deliveryAddress, lines)
-                : orderService.order(user.getId(), deliveryAddress, lines);
+        Long orderId = paymentFacade.checkout(user.getId(), deliveryAddress, lines, form.isFromCart());
 
         return "redirect:/orders/" + orderId + "?created=true";
     }
@@ -214,6 +214,19 @@ public class OrderController {
         } catch (IllegalStateException e) {
             // 출고완료/이미취소 등 취소 불가 사유를 상세 화면에 flash로 안내
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/orders/" + orderId;
+    }
+
+    @PostMapping("/orders/{orderId}/payment/retry")
+    public String retryPayment(@AuthenticationPrincipal UserPrincipal user,
+                               @PathVariable Long orderId,
+                               RedirectAttributes redirectAttributes) {
+        try {
+            paymentFacade.retryPayment(orderId, user.getId());
+            redirectAttributes.addFlashAttribute("successMessage", "결제를 다시 시도했습니다.");
+        } catch (IllegalStateException exception) {
+            redirectAttributes.addFlashAttribute("errorMessage", exception.getMessage());
         }
         return "redirect:/orders/" + orderId;
     }

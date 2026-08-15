@@ -6,6 +6,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentFacade;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.web.controller.OrderController;
@@ -19,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -39,6 +41,7 @@ class OrderAccessControlMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean PaymentFacade paymentFacade;
     @MockBean CustomerReturnService customerReturnService;
     @MockBean InventoryQueryPort inventoryQueryPort;
 
@@ -56,6 +59,16 @@ class OrderAccessControlMvcTest {
                 .andExpect(status().isForbidden());
 
         // 인가 필터에서 막혀 컨트롤러/서비스까지 도달하지 않음
-        verify(orderService, never()).order(anyLong(), any(), anyList());
+        verify(paymentFacade, never()).checkout(anyLong(), any(), anyList(), anyBoolean());
+    }
+
+    @Test
+    void admin은_결제재시도도_403으로_차단된다() throws Exception {
+        mockMvc.perform(post("/orders/10/payment/retry")
+                        .with(user(adminPrincipal()))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verify(paymentFacade, never()).retryPayment(anyLong(), anyLong());
     }
 }

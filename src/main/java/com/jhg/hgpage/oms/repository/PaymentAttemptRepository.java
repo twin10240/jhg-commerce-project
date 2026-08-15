@@ -23,4 +23,8 @@ public interface PaymentAttemptRepository extends JpaRepository<PaymentAttempt, 
 
     List<PaymentAttempt> findTop50ByStatusInAndNextAttemptAtLessThanEqualOrderById(
             Collection<PaymentAttemptStatus> statuses, LocalDateTime now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<PaymentAttempt> findTop50ByStatusAndUpdatedAtLessThanEqualOrderById(
+            PaymentAttemptStatus status, LocalDateTime updatedAt);
 }

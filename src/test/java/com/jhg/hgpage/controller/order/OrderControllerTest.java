@@ -8,6 +8,7 @@ import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentFacade;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.ConstraintViolation;
@@ -40,6 +41,7 @@ class OrderControllerTest {
     @Mock MemberService memberService;
     @Mock ProductRepository productRepository;
     @Mock OrderService orderService;
+    @Mock PaymentFacade paymentFacade;
     @Mock InventoryQueryPort inventoryQueryPort;
     @Mock CustomerReturnService customerReturnService;
 
@@ -52,7 +54,7 @@ class OrderControllerTest {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
         orderController = new OrderController(memberService, productRepository, orderService, inventoryQueryPort,
-                customerReturnService);
+                customerReturnService, paymentFacade);
     }
 
     @AfterEach
@@ -72,7 +74,7 @@ class OrderControllerTest {
 
         assertThat(viewName).isEqualTo("orderdetail");
         assertThat(bindingResult.hasFieldErrors("product")).isTrue();
-        verifyNoInteractions(orderService);
+        verifyNoInteractions(paymentFacade);
     }
 
     @Test
@@ -83,8 +85,8 @@ class OrderControllerTest {
         form.getDelivery().setZipcode("500");
         form.getProduct().add(new CheckOutForm.ProductDto(1L, "상품1", 10000, 2));
         BindingResult bindingResult = validate(form);
-        when(orderService.order(eq(1L), org.mockito.ArgumentMatchers.any(Address.class),
-                org.mockito.ArgumentMatchers.anyList())).thenReturn(10L);
+        when(paymentFacade.checkout(eq(1L), org.mockito.ArgumentMatchers.any(Address.class),
+                org.mockito.ArgumentMatchers.anyList(), eq(false))).thenReturn(10L);
 
         String viewName = orderController.checkout(userPrincipal(), form, bindingResult);
 
@@ -93,7 +95,7 @@ class OrderControllerTest {
 
         ArgumentCaptor<Address> addressCaptor = ArgumentCaptor.forClass(Address.class);
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor = ArgumentCaptor.forClass(List.class);
-        verify(orderService).order(eq(1L), addressCaptor.capture(), linesCaptor.capture());
+        verify(paymentFacade).checkout(eq(1L), addressCaptor.capture(), linesCaptor.capture(), eq(false));
 
         assertThat(addressCaptor.getValue().getCity()).isEqualTo("서울");
         assertThat(addressCaptor.getValue().getStreet()).isEqualTo("관악구");

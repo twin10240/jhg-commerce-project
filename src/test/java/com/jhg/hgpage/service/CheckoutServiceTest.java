@@ -1,0 +1,123 @@
+package com.jhg.hgpage.service;
+
+import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.catalog.ProductRepository;
+import com.jhg.hgpage.contract.InventoryPort;
+import com.jhg.hgpage.exception.EntityNotFoundException;
+import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.PaymentAttempt;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentAttemptStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
+import com.jhg.hgpage.oms.repository.OrderRepository;
+import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
+import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.oms.service.CartService;
+import com.jhg.hgpage.oms.service.CheckoutService;
+import com.jhg.hgpage.oms.service.MemberService;
+import com.jhg.hgpage.oms.service.OrderService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class CheckoutServiceTest {
+
+    @Mock MemberService memberService;
+    @Mock ProductRepository productRepository;
+    @Mock OrderRepository orderRepository;
+    @Mock PaymentRepository paymentRepository;
+    @Mock PaymentAttemptRepository paymentAttemptRepository;
+    @Mock CartService cartService;
+    @Mock InventoryPort inventoryPort;
+
+    CheckoutService checkoutService;
+
+    @BeforeEach
+    void setUp() {
+        checkoutService = new CheckoutService(memberService, productRepository, orderRepository,
+                paymentRepository, paymentAttemptRepository, cartService);
+        when(memberService.findMember(1L)).thenReturn(
+                Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
+    }
+
+    private void stubSuccessfulPersistence() {
+        Product product = new Product();
+        product.setId(7L);
+        product.setPrice(10_000);
+        when(productRepository.findAllById(any())).thenReturn(List.of(product));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+            Order order = invocation.getArgument(0);
+            ReflectionTestUtils.setField(order, "id", 10L);
+            return order;
+        });
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> {
+            Payment payment = invocation.getArgument(0);
+            ReflectionTestUtils.setField(payment, "id", 20L);
+            return payment;
+        });
+        when(paymentAttemptRepository.save(any(PaymentAttempt.class))).thenAnswer(invocation -> {
+            PaymentAttempt attempt = invocation.getArgument(0);
+            ReflectionTestUtils.setField(attempt, "id", 30L);
+            return attempt;
+        });
+    }
+
+    @Test
+    void 주문과_결제시도를_저장하지만_승인전에는_WMS를_호출하지_않는다() {
+        stubSuccessfulPersistence();
+        CheckoutService.CheckoutResult result = checkoutService.createPending(1L,
+                new Address("서울", "관악구", "500"), List.of(new OrderService.OrderLine(7L, 2)), false);
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
+        ArgumentCaptor<PaymentAttempt> attemptCaptor = ArgumentCaptor.forClass(PaymentAttempt.class);
+        verify(orderRepository).save(orderCaptor.capture());
+        verify(paymentRepository).save(paymentCaptor.capture());
+        verify(paymentAttemptRepository).save(attemptCaptor.capture());
+
+        assertThat(result).isEqualTo(new CheckoutService.CheckoutResult(10L, 30L));
+        assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.PAYMENT_PENDING);
+        assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
+        assertThat(paymentCaptor.getValue().getOrderAmount()).isEqualTo(20_000);
+        assertThat(attemptCaptor.getValue().getStatus()).isEqualTo(PaymentAttemptStatus.PENDING);
+        verifyNoInteractions(inventoryPort);
+    }
+
+    @Test
+    void 장바구니_주문은_같은_트랜잭션에서_선택상품을_정리한다() {
+        stubSuccessfulPersistence();
+        checkoutService.createPending(1L, new Address("서울", "관악구", "500"),
+                List.of(new OrderService.OrderLine(7L, 2)), true);
+
+        verify(cartService).removeCartItems(1L, List.of(7L));
+    }
+
+    @Test
+    void 없는_상품이면_주문과_장바구니를_변경하지_않는다() {
+        when(productRepository.findAllById(any())).thenReturn(List.of());
+
+        assertThatThrownBy(() -> checkoutService.createPending(1L,
+                new Address("서울", "관악구", "500"), List.of(new OrderService.OrderLine(99L, 1)), true))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("99");
+
+        verifyNoInteractions(cartService);
+    }
+}

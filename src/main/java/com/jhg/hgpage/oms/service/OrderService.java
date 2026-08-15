@@ -3,7 +3,6 @@ package com.jhg.hgpage.oms.service;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.domain.*;
-import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.dto.AdminOrderDto;
 import com.jhg.hgpage.oms.dto.OrderDetailDto;
 import com.jhg.hgpage.oms.dto.OrderDto;
@@ -11,7 +10,6 @@ import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
-import com.jhg.hgpage.catalog.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,63 +24,14 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class OrderService {
 
-    private final MemberService memberService;
-    private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final OrderRepositoryQuery orderRepositoryQuery;
-    private final CartService cartService;
     private final BackorderAllocator backorderAllocator;
     private final InventoryPort inventoryPort;
     private final InventoryQueryPort inventoryQueryPort;
-    private final OrderAllocationService orderAllocationService;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
-    }
-
-    @Transactional
-    public Long order(Long memberId, Address address, List<OrderLine> lines) {
-        Member member = memberService.findMember(memberId);
-
-        Delivery delivery = new Delivery();
-        delivery.setAddress(address);
-
-        // 라인별 findById(N+1) 대신 한 번의 findAllById로 일괄 조회한다(#9 ①)
-        List<Long> productIds = lines.stream().map(OrderLine::productId).toList();
-        Map<Long, Product> products = productRepository.findAllById(productIds).stream()
-                .collect(Collectors.toMap(Product::getId, Function.identity()));
-
-        OrderItem[] orderItems = lines.stream()
-                .map(line -> {
-                    Product product = products.get(line.productId());
-                    if (product == null) {
-                        throw new EntityNotFoundException("Product", line.productId());
-                    }
-                    return OrderItem.createOrderItem(product, product.getPrice(), line.quantity());
-                })
-                .toArray(OrderItem[]::new);
-
-        Order order = Order.createOrder(member, delivery, orderItems);
-        // 예약 멱등키(orderId)를 확보하려면 먼저 저장해 id를 받는다.
-        orderRepository.save(order);
-        // 가용분이 있으면 예약(ORDER), 부족하면 거부하지 않고 백오더(BACKORDERED)로 접수 — WMS 포트에 위임
-        orderAllocationService.allocate(order);
-
-        return order.getId();
-    }
-
-    // 장바구니발 주문: 주문 생성과 장바구니 정리를 한 트랜잭션으로 묶는다.
-    // 주문이 실패(재고 부족 등)하면 장바구니는 건드리지 않는다.
-    @Transactional
-    public Long orderFromCart(Long memberId, Address address, List<OrderLine> lines) {
-        Long orderId = order(memberId, address, lines);
-
-        List<Long> orderedProductIds = lines.stream()
-                .map(OrderLine::productId)
-                .toList();
-        cartService.removeCartItems(memberId, orderedProductIds);
-
-        return orderId;
     }
 
     public OrderDetailDto findOrderDetail(Long orderId, Long memberId) {

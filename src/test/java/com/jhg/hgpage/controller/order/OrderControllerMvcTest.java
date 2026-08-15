@@ -11,6 +11,7 @@ import com.jhg.hgpage.exception.NotEnoughStockException;
 import com.jhg.hgpage.catalog.ProductRepository;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentFacade;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -64,6 +66,7 @@ class OrderControllerMvcTest {
     @MockBean MemberService memberService;
     @MockBean ProductRepository productRepository;
     @MockBean OrderService orderService;
+    @MockBean PaymentFacade paymentFacade;
     @MockBean CustomerReturnService customerReturnService;
     @MockBean InventoryQueryPort inventoryQueryPort;
 
@@ -83,7 +86,7 @@ class OrderControllerMvcTest {
                 .andExpect(view().name("orderdetail"))
                 .andExpect(model().attributeHasFieldErrors("checkout", "product"));
 
-        verify(orderService, never()).order(anyLong(), any(Address.class), anyList());
+        verifyNoInteractions(paymentFacade);
     }
 
     @Test
@@ -100,12 +103,12 @@ class OrderControllerMvcTest {
                 .andExpect(view().name("orderdetail"))
                 .andExpect(model().attributeHasFieldErrors("checkout", "product[0].quantity"));
 
-        verify(orderService, never()).order(anyLong(), any(Address.class), anyList());
+        verifyNoInteractions(paymentFacade);
     }
 
     @Test
     void 정상주문이면_생성된_주문상세로_리다이렉트한다() throws Exception {
-        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+        when(paymentFacade.checkout(eq(1L), any(Address.class), anyList(), eq(false))).thenReturn(10L);
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -118,12 +121,12 @@ class OrderControllerMvcTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10?created=true"));
 
-        verify(orderService).order(eq(1L), any(Address.class), anyList());
+        verify(paymentFacade).checkout(eq(1L), any(Address.class), anyList(), eq(false));
     }
 
     @Test
     void 선택된_상품만_주문된다() throws Exception {
-        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+        when(paymentFacade.checkout(eq(1L), any(Address.class), anyList(), eq(false))).thenReturn(10L);
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -143,7 +146,7 @@ class OrderControllerMvcTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
                 ArgumentCaptor.forClass((Class) List.class);
-        verify(orderService).order(eq(1L), any(Address.class), linesCaptor.capture());
+        verify(paymentFacade).checkout(eq(1L), any(Address.class), linesCaptor.capture(), eq(false));
 
         List<OrderService.OrderLine> lines = linesCaptor.getValue();
         assertThat(lines).hasSize(1);
@@ -169,13 +172,13 @@ class OrderControllerMvcTest {
                 .andExpect(view().name("orderdetail"))
                 .andExpect(model().attributeHasFieldErrors("checkout", "product"));
 
-        verify(orderService, never()).order(anyLong(), any(Address.class), anyList());
+        verifyNoInteractions(paymentFacade);
     }
 
     @Test
     void 재고가_부족하면_main으로_리다이렉트하고_에러메시지를_flash에_담는다() throws Exception {
         doThrow(new NotEnoughStockException("need more stock"))
-                .when(orderService).order(anyLong(), any(Address.class), anyList());
+                .when(paymentFacade).checkout(anyLong(), any(Address.class), anyList(), eq(false));
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -193,7 +196,7 @@ class OrderControllerMvcTest {
     @Test
     void 재고_수정이_충돌하면_main으로_리다이렉트하고_에러메시지를_flash에_담는다() throws Exception {
         doThrow(new ObjectOptimisticLockingFailureException(Object.class, 1L))
-                .when(orderService).order(anyLong(), any(Address.class), anyList());
+                .when(paymentFacade).checkout(anyLong(), any(Address.class), anyList(), eq(false));
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -209,8 +212,8 @@ class OrderControllerMvcTest {
     }
 
     @Test
-    void 장바구니발_주문이면_orderFromCart로_체크된_상품만_주문한다() throws Exception {
-        when(orderService.orderFromCart(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+    void 장바구니발_주문이면_선택상품과_fromCart를_전달한다() throws Exception {
+        when(paymentFacade.checkout(eq(1L), any(Address.class), anyList(), eq(true))).thenReturn(10L);
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -231,8 +234,7 @@ class OrderControllerMvcTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
                 ArgumentCaptor.forClass((Class) List.class);
-        verify(orderService).orderFromCart(eq(1L), any(Address.class), linesCaptor.capture());
-        verify(orderService, never()).order(anyLong(), any(Address.class), anyList());
+        verify(paymentFacade).checkout(eq(1L), any(Address.class), linesCaptor.capture(), eq(true));
 
         List<OrderService.OrderLine> lines = linesCaptor.getValue();
         assertThat(lines).hasSize(1);
@@ -241,7 +243,7 @@ class OrderControllerMvcTest {
 
     @Test
     void 바로구매_주문이면_장바구니_정리없이_주문한다() throws Exception {
-        when(orderService.order(eq(1L), any(Address.class), anyList())).thenReturn(10L);
+        when(paymentFacade.checkout(eq(1L), any(Address.class), anyList(), eq(false))).thenReturn(10L);
 
         mockMvc.perform(post("/orders/checkout")
                         .with(user(principal()))
@@ -254,8 +256,7 @@ class OrderControllerMvcTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10?created=true"));
 
-        verify(orderService).order(eq(1L), any(Address.class), anyList());
-        verify(orderService, never()).orderFromCart(anyLong(), any(Address.class), anyList());
+        verify(paymentFacade).checkout(eq(1L), any(Address.class), anyList(), eq(false));
     }
 
     @Test
@@ -296,7 +297,9 @@ class OrderControllerMvcTest {
                         .param("qty", "1"))
                 .andExpect(status().isOk())
                 .andExpect(view().name("orderdetail"))
-                .andExpect(model().attribute("checkout", hasProperty("fromCart", is(false))));
+                .andExpect(model().attribute("checkout", hasProperty("fromCart", is(false))))
+                .andExpect(content().string(containsString("모의 카드 결제")))
+                .andExpect(content().string(containsString("결제하고 주문하기")));
     }
 
     /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
@@ -517,6 +520,49 @@ class OrderControllerMvcTest {
                 .andExpect(flash().attributeExists("successMessage"));
 
         verify(orderService).cancelOrder(10L, 1L);
+    }
+
+    @Test
+    void 결제재시도는_소유자정보를_위임하고_한국어_flash를_담는다() throws Exception {
+        mockMvc.perform(post("/orders/10/payment/retry")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attribute("successMessage", "결제를 다시 시도했습니다."));
+
+        verify(paymentFacade).retryPayment(10L, 1L);
+    }
+
+    @Test
+    void 결제재시도는_CSRF가_필요하다() throws Exception {
+        mockMvc.perform(post("/orders/10/payment/retry").with(user(principal())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 타인주문_결제재시도는_404를_유지한다() throws Exception {
+        doThrow(new EntityNotFoundException("Order", 10L))
+                .when(paymentFacade).retryPayment(10L, 1L);
+
+        mockMvc.perform(post("/orders/10/payment/retry")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().isNotFound())
+                .andExpect(view().name("error"));
+    }
+
+    @Test
+    void 재결제불가_주문은_한국어_에러_flash로_돌아간다() throws Exception {
+        doThrow(new IllegalStateException("재결제 가능한 상태가 아닙니다."))
+                .when(paymentFacade).retryPayment(10L, 1L);
+
+        mockMvc.perform(post("/orders/10/payment/retry")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(flash().attribute("errorMessage", "재결제 가능한 상태가 아닙니다."));
     }
 
     @Test
