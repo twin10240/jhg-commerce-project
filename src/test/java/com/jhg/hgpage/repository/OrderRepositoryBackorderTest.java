@@ -7,13 +7,16 @@ import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -125,5 +128,55 @@ class OrderRepositoryBackorderTest {
         List<Long> result = orderRepositoryQuery.findBackorderedProductIds();
 
         assertThat(result).containsExactlyInAnyOrder(scarce.getId(), other.getId());
+    }
+
+    @Test
+    void 유료이고_출고전인_백오더만_주문일과_id_FIFO로_반환한다() {
+        Product product = newProduct("부족상품");
+        Order unpaid = saveBackorder(OrderItem.createOrderItem(product, 10000, 1));
+        Order newer = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 12, 0));
+        Order shipped = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 10, 0));
+        shipped.getDelivery().setStatus(DeliveryStatus.SHIPPED);
+        Order older = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 11, 0));
+        em.flush();
+        em.clear();
+
+        List<Order> result = orderRepositoryQuery.findPaidBackordersContaining(List.of(product.getId()));
+
+        assertThat(result).extracting(Order::getId).containsExactly(older.getId(), newer.getId());
+        assertThat(result).extracting(Order::getId).doesNotContain(unpaid.getId(), shipped.getId());
+    }
+
+    @Test
+    void 도래한_할당은_주문일과_id_FIFO로_조회한다() {
+        Product product = newProduct("할당상품");
+        LocalDateTime now = LocalDateTime.of(2026, 8, 15, 13, 0);
+        Order firstId = saveAllocationPending(product, LocalDateTime.of(2026, 8, 15, 12, 0), now);
+        Order oldest = saveAllocationPending(product, LocalDateTime.of(2026, 8, 15, 11, 0), now);
+        Order lastId = saveAllocationPending(product, LocalDateTime.of(2026, 8, 15, 12, 0), now);
+        em.flush();
+        em.clear();
+
+        assertThat(orderRepositoryQuery.findDueAllocationOrderIds(now))
+                .containsExactly(oldest.getId(), firstId.getId(), lastId.getId());
+    }
+
+    private Order savePaidBackorder(Product product, LocalDateTime orderDate) {
+        Order order = saveBackorder(OrderItem.createOrderItem(product, 10000, 1));
+        order.setOrderDate(orderDate);
+        Payment payment = Payment.create(order, order.getTotalPrice());
+        payment.markPaid(orderDate);
+        em.persist(payment);
+        return order;
+    }
+
+    private Order saveAllocationPending(Product product, LocalDateTime orderDate, LocalDateTime dueAt) {
+        Order order = newOrder(OrderItem.createOrderItem(product, 10000, 1));
+        order.setOrderDate(orderDate);
+        order.markPaymentPending();
+        order.markAllocationPending();
+        order.setNextAllocationAttemptAt(dueAt);
+        em.persist(order);
+        return order;
     }
 }

@@ -9,6 +9,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -79,15 +82,33 @@ class WmsInventoryAdapterTest {
     }
 
     @Test
-    void reserve_재시도까지_실패하면_false로_강등한다() {
+    void reserve_통신재시도까지_실패하면_예외를_유지한다() {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withException(new ConnectException("refused")));
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withException(new ConnectException("refused")));
 
-        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+                .isInstanceOf(ResourceAccessException.class);
+        server.verify();
+    }
 
-        assertThat(result).isFalse();
+    @Test
+    void reserve_명시적_false만_재고부족으로_반환한다() {
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withSuccess("false", MediaType.APPLICATION_JSON));
+
+        assertThat(adapter.reserveAll(1L, Map.of(1L, 3))).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void reserve_빈_성공응답은_재고부족으로_해석하지_않는다() {
+        server.expect(requestTo("http://wms-test/api/inventory/reserve"))
+              .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+                .isInstanceOf(RestClientException.class);
         server.verify();
     }
 
@@ -106,15 +127,14 @@ class WmsInventoryAdapterTest {
     }
 
     @Test
-    void reserve_WMS가_500을_반복하면_false로_강등한다() {
+    void reserve_WMS가_500을_반복하면_예외를_유지한다() {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withServerError());
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withServerError());
 
-        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
-
-        assertThat(result).isFalse();
+        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+                .isInstanceOf(HttpServerErrorException.class);
         server.verify();
     }
 

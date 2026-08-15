@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
 
@@ -45,9 +46,7 @@ public class WmsInventoryAdapter implements InventoryPort {
             try {
                 return doReserve(orderId, qtyByProductId);
             } catch (ResourceAccessException | HttpServerErrorException second) {
-                // ponytail: 재시도도 실패 → false → BACKORDERED 접수("예약 못 해본 백오더"). 회수는 보상 스윕(#22).
-                log.warn("WMS 예약 재시도 실패 — BACKORDERED로 접수: orderId={}", orderId);
-                return false;
+                throw second;
             }
         }
     }
@@ -59,7 +58,10 @@ public class WmsInventoryAdapter implements InventoryPort {
                 .body(new WriteRequest(orderId, qtyByProductId))
                 .retrieve()
                 .body(Boolean.class);
-        return Boolean.TRUE.equals(result);
+        if (result == null) {
+            throw new RestClientException("WMS 예약 응답이 비어 있습니다.");
+        }
+        return result;
     }
 
     @Override

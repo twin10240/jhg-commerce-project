@@ -3,11 +3,14 @@ package com.jhg.hgpage.oms.repository;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +19,7 @@ import static com.jhg.hgpage.oms.domain.QDelivery.delivery;
 import static com.jhg.hgpage.oms.domain.QMember.member;
 import static com.jhg.hgpage.oms.domain.QOrder.order;
 import static com.jhg.hgpage.oms.domain.QOrderItem.orderItem;
+import static com.jhg.hgpage.oms.domain.QPayment.payment;
 import static com.jhg.hgpage.catalog.QProduct.product;
 
 @Repository
@@ -72,7 +76,6 @@ public class OrderRepositoryQuery {
                 .join(order.orderItems, orderItem)
                 .where(order.status.eq(OrderStatus.BACKORDERED),
                         orderItem.product.id.in(productIds))
-                .orderBy(order.id.asc())
                 .fetch();
         if (orderIds.isEmpty()) {
             return List.of();
@@ -83,7 +86,56 @@ public class OrderRepositoryQuery {
                 .join(order.orderItems, orderItem).fetchJoin()
                 .join(orderItem.product, product).fetchJoin()
                 .where(order.id.in(orderIds))
-                .orderBy(order.id.asc())
+                .orderBy(order.orderDate.asc(), order.id.asc())
+                .fetch();
+    }
+
+    public List<Order> findPaidBackordersContaining(Collection<Long> productIds) {
+        List<Long> orderIds = jpaQueryFactory.select(order.id).distinct()
+                .from(order)
+                .join(order.orderItems, orderItem)
+                .where(order.status.eq(OrderStatus.BACKORDERED),
+                        order.delivery.status.eq(DeliveryStatus.READY),
+                        orderItem.product.id.in(productIds),
+                        JPAExpressions.selectOne()
+                                .from(payment)
+                                .where(payment.order.eq(order), payment.status.eq(PaymentStatus.PAID))
+                                .exists())
+                .fetch();
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+
+        return jpaQueryFactory.select(order).distinct()
+                .from(order)
+                .where(order.id.in(orderIds))
+                .orderBy(order.orderDate.asc(), order.id.asc())
+                .fetch();
+    }
+
+    public List<Long> findDueAllocationOrderIds(LocalDateTime now) {
+        return jpaQueryFactory.select(order.id)
+                .from(order)
+                .where(order.status.eq(OrderStatus.ALLOCATION_PENDING)
+                                .or(order.status.eq(OrderStatus.CANCEL_REQUESTED)
+                                        .and(order.cancellationReleaseRequired.isNull())
+                                        .and(order.allocationAttemptCount.gt(0))),
+                        order.nextAllocationAttemptAt.loe(now))
+                .orderBy(order.orderDate.asc(), order.id.asc())
+                .limit(50)
+                .fetch();
+    }
+
+    public List<Long> findStaleAllocationOrderIds(LocalDateTime staleBefore) {
+        return jpaQueryFactory.select(order.id)
+                .from(order)
+                .where(order.status.eq(OrderStatus.ALLOCATION_PROCESSING)
+                                .or(order.status.eq(OrderStatus.CANCEL_REQUESTED)
+                                        .and(order.cancellationReleaseRequired.isNull())
+                                        .and(order.allocationAttemptCount.gt(0))),
+                        order.allocationProcessingAt.loe(staleBefore))
+                .orderBy(order.orderDate.asc(), order.id.asc())
+                .limit(50)
                 .fetch();
     }
 

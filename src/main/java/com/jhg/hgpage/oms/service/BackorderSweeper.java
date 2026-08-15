@@ -9,9 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * 보상 스윕(S4) — 콜백 유실(OMS 다운·통지 타임아웃)과 "예약 못 해본 백오더"(WMS 다운 중 접수)를
- * 주기적으로 회수한다. 승격 정책은 BackorderAllocator를 그대로 재사용 — 트리거만 둘(콜백/스케줄).
- * 스윕과 콜백이 같은 주문을 동시 승격 시도해도 WMS 예약 원장 orderId 멱등으로 같은 결과에 수렴한다.
+ * 보상 스윕(S4) — 콜백 유실 시 유료 백오더를 비동기 할당 대기에 다시 넣는다.
  */
 @Slf4j
 @Component
@@ -29,9 +27,9 @@ public class BackorderSweeper {
         if (productIds.isEmpty()) {
             return; // 백오더 없음 — WMS 호출 0
         }
-        int promoted = backorderAllocator.allocate(productIds);
-        if (promoted > 0) {
-            log.info("보상 스윕: 백오더 {}건 승격", promoted);
+        int enqueued = backorderAllocator.allocate(productIds);
+        if (enqueued > 0) {
+            log.info("보상 스윕: 백오더 {}건 재할당 대기", enqueued);
         }
     }
 }
