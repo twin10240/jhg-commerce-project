@@ -30,6 +30,8 @@ public class initDb {
     @Component
     @Transactional
     static class initService {
+        private static final int BACKORDER_QUANTITY = 16; // WMS 로컬 초기 가용수량 15보다 커야 한다.
+
         private final EntityManager em;
         // 관리자 비밀번호는 코드에 박지 않는다. 운영(Railway)은 ADMIN_PASSWORD env로 주입, 로컬은 기본값 1111.
         private final String adminPassword;
@@ -105,7 +107,7 @@ public class initDb {
         }
 
         private void paidBackorder(Member member, Product product) {
-            completeAllocation(paidOrder(member, product, 1), false);
+            completeAllocation(paidOrder(member, product, BACKORDER_QUANTITY), false);
         }
 
         private void failedPayment(Member member, Product product) {

@@ -78,7 +78,16 @@ class InitDbTest {
                 .extracting(Payment::getOrderAmount, Payment::getPaidAmount,
                         Payment::getPendingRefundAmount, Payment::getRefundedAmount)
                 .containsExactly(10_000, 10_000, 0, 0);
-        assertThat(payment(OrderStatus.BACKORDERED, PaymentStatus.PAID).getPaidAmount()).isEqualTo(10_000);
+        Payment backordered = payment(OrderStatus.BACKORDERED, PaymentStatus.PAID);
+        assertThat(backordered)
+                .extracting(Payment::getOrderAmount, Payment::getPaidAmount,
+                        Payment::getPendingRefundAmount, Payment::getRefundedAmount)
+                .containsExactly(160_000, 160_000, 0, 0);
+        assertThat(backordered.getOrder().getOrderItems()).singleElement()
+                .satisfies(item -> {
+                    assertThat(item.getCount()).isEqualTo(16);
+                    assertThat(item.getOrderPrice()).isEqualTo(10_000);
+                });
         assertThat(payment(OrderStatus.PAYMENT_FAILED, PaymentStatus.PAYMENT_FAILED))
                 .extracting(Payment::getOrderAmount, Payment::getPaidAmount)
                 .containsExactly(10_000, 0);
