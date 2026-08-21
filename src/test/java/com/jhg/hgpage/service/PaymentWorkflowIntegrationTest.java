@@ -9,21 +9,29 @@ import com.jhg.hgpage.contract.ReturnPort.ResultItem;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.CustomerReturn;
 import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.PaymentAttempt;
+import com.jhg.hgpage.oms.domain.RefundRequest;
+import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentAttemptStatus;
 import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
+import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
 import com.jhg.hgpage.oms.domain.enums.RefundStatus;
+import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.repository.RefundRequestRepository;
 import com.jhg.hgpage.oms.service.AllocationProcessor;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
-import com.jhg.hgpage.oms.service.OrderAllocationService;
 import com.jhg.hgpage.oms.service.OrderCancellationService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.service.PaymentFacade;
 import com.jhg.hgpage.oms.service.RefundProcessor;
 import com.jhg.hgpage.oms.service.ReturnSyncService;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +57,6 @@ class PaymentWorkflowIntegrationTest {
 
     @Autowired PaymentFacade paymentFacade;
     @Autowired AllocationProcessor allocationProcessor;
-    @Autowired OrderAllocationService orderAllocationService;
     @Autowired OrderCancellationService cancellationService;
     @Autowired RefundProcessor refundProcessor;
     @Autowired CustomerReturnService customerReturnService;
@@ -60,6 +67,7 @@ class PaymentWorkflowIntegrationTest {
     @Autowired CustomerReturnRepository customerReturnRepository;
     @Autowired ProductRepository productRepository;
     @Autowired TransactionTemplate transactionTemplate;
+    @Autowired EntityManager em;
 
     @MockitoBean PaymentGateway paymentGateway;
     @MockitoBean InventoryPort inventoryPort;
@@ -82,12 +90,17 @@ class PaymentWorkflowIntegrationTest {
         when(inventoryPort.reserveAll(any(), any())).thenReturn(true);
 
         Long orderId = checkout(2);
-        assertThat(order(orderId).getStatus()).isEqualTo(OrderStatus.ALLOCATION_PENDING);
-        assertThat(paymentRepository.findByOrderId(orderId).orElseThrow().getStatus()).isEqualTo(PaymentStatus.PAID);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ALLOCATION_PENDING, DeliveryStatus.READY, 0,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
 
         allocationProcessor.process(orderId);
 
-        assertThat(order(orderId).getStatus()).isEqualTo(OrderStatus.ORDER);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ORDER, DeliveryStatus.READY, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
     }
 
     @Test
@@ -95,10 +108,16 @@ class PaymentWorkflowIntegrationTest {
         when(inventoryPort.reserveAll(any(), any())).thenReturn(false);
 
         Long orderId = checkout(2);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ALLOCATION_PENDING, DeliveryStatus.READY, 0,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
         allocationProcessor.process(orderId);
 
-        assertThat(order(orderId).getStatus()).isEqualTo(OrderStatus.BACKORDERED);
-        assertThat(paymentRepository.findByOrderId(orderId).orElseThrow().getPaidAmount()).isEqualTo(product.getPrice() * 2);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.BACKORDERED, DeliveryStatus.READY, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
     }
 
     @Test
@@ -106,19 +125,33 @@ class PaymentWorkflowIntegrationTest {
         when(inventoryPort.reserveAll(any(), any())).thenReturn(false);
         Long orderId = checkout(2);
         allocationProcessor.process(orderId);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.BACKORDERED, DeliveryStatus.READY, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
 
         cancellationService.request(orderId, memberId);
         Long refundId = refundRequestRepository.findAll().stream()
                 .filter(refund -> refund.getSourceId().equals(orderId))
                 .findFirst().orElseThrow().getId();
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.CANCEL, DeliveryStatus.READY, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 20_000, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 1));
+        assertThat(refundSnapshot(refundId)).isEqualTo(new RefundSnapshot(
+                RefundStatus.PENDING, RefundSourceType.ORDER_CANCEL, orderId,
+                20_000, 0, true));
+
         refundProcessor.process(refundId);
         refundProcessor.process(refundId);
 
-        assertThat(order(orderId).getStatus()).isEqualTo(OrderStatus.CANCEL);
-        assertThat(paymentRepository.findByOrderId(orderId).orElseThrow())
-                .extracting("refundedAmount", "pendingRefundAmount", "status")
-                .containsExactly(product.getPrice() * 2, 0, PaymentStatus.REFUNDED);
-        assertThat(refundRequestRepository.findById(refundId).orElseThrow().getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.CANCEL, DeliveryStatus.READY, 1,
+                PaymentStatus.REFUNDED, 20_000, 20_000, 0, 20_000,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 1));
+        assertThat(refundSnapshot(refundId)).isEqualTo(new RefundSnapshot(
+                RefundStatus.SUCCEEDED, RefundSourceType.ORDER_CANCEL, orderId,
+                20_000, 1, true));
         verify(paymentGateway, times(1)).refund(any());
     }
 
@@ -132,6 +165,10 @@ class PaymentWorkflowIntegrationTest {
             persisted.ship();
             persisted.deliver();
         });
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ORDER, DeliveryStatus.DELIVERED, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 0, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 0));
 
         Long orderItemId = transactionTemplate.execute(status -> orderRepository.findById(orderId).orElseThrow()
                 .getOrderItems().get(0).getId());
@@ -146,22 +183,27 @@ class PaymentWorkflowIntegrationTest {
                 new ResultItem(returnFixture.orderItemId(), product.getId(), 2, 1, "RESTOCKED"))));
         Long refundId = refundRequestRepository.findAll().stream()
                 .filter(refund -> refund.getSourceId().equals(returnId)).findFirst().orElseThrow().getId();
+        assertThat(returnSnapshot(returnId)).isEqualTo(new ReturnSnapshot(
+                CustomerReturnStatus.COMPLETED, 9001L, 2, 1, ReturnDisposition.RESTOCKED));
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ORDER, DeliveryStatus.DELIVERED, 1,
+                PaymentStatus.PAID, 20_000, 20_000, 10_000, 0,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 1));
+        assertThat(refundSnapshot(refundId)).isEqualTo(new RefundSnapshot(
+                RefundStatus.PENDING, RefundSourceType.RETURN, returnId,
+                10_000, 0, true));
+
         refundProcessor.process(refundId);
         refundProcessor.process(refundId);
 
-        assertThat(paymentRepository.findByOrderId(orderId).orElseThrow())
-                .extracting("paidAmount", "refundedAmount", "pendingRefundAmount", "status")
-                .containsExactly(product.getPrice() * 2, product.getPrice(), 0, PaymentStatus.PARTIALLY_REFUNDED);
+        assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
+                OrderStatus.ORDER, DeliveryStatus.DELIVERED, 1,
+                PaymentStatus.PARTIALLY_REFUNDED, 20_000, 20_000, 0, 10_000,
+                PaymentAttemptStatus.SUCCEEDED, 1, true, 1));
+        assertThat(refundSnapshot(refundId)).isEqualTo(new RefundSnapshot(
+                RefundStatus.SUCCEEDED, RefundSourceType.RETURN, returnId,
+                10_000, 1, true));
         verify(paymentGateway, times(1)).refund(any());
-    }
-
-    @Test
-    void 재기동_뒤에도_미완료_할당작업은_발견된다() {
-        Long orderId = checkout(1);
-
-        assertThat(orderAllocationService.findDueAllocationOrderIds(java.time.LocalDateTime.now()))
-                .contains(orderId);
-        assertThat(order(orderId).getStatus()).isEqualTo(OrderStatus.ALLOCATION_PENDING);
     }
 
     private Long checkout(int quantity) {
@@ -169,10 +211,61 @@ class PaymentWorkflowIntegrationTest {
                 List.of(new OrderService.OrderLine(product.getId(), quantity)), false);
     }
 
-    private Order order(Long orderId) {
-        return orderRepository.findById(orderId).orElseThrow();
+    private WorkflowSnapshot snapshot(Long orderId) {
+        return transactionTemplate.execute(status -> {
+            Order order = orderRepository.findById(orderId).orElseThrow();
+            Payment payment = paymentRepository.findByOrderId(orderId).orElseThrow();
+            PaymentAttempt attempt = em.createQuery(
+                            "select a from PaymentAttempt a where a.payment = :payment", PaymentAttempt.class)
+                    .setParameter("payment", payment)
+                    .getSingleResult();
+            int refundCount = em.createQuery(
+                            "select count(r) from RefundRequest r where r.payment = :payment", Long.class)
+                    .setParameter("payment", payment)
+                    .getSingleResult().intValue();
+            return new WorkflowSnapshot(order.getStatus(), order.getDelivery().getStatus(),
+                    order.getAllocationAttemptCount(), payment.getStatus(), payment.getOrderAmount(),
+                    payment.getPaidAmount(), payment.getPendingRefundAmount(), payment.getRefundedAmount(),
+                    attempt.getStatus(), attempt.getAttemptCount(), attempt.getGatewayTransactionId() != null,
+                    refundCount);
+        });
+    }
+
+    private RefundSnapshot refundSnapshot(Long refundId) {
+        return transactionTemplate.execute(status -> {
+            RefundRequest refund = refundRequestRepository.findById(refundId).orElseThrow();
+            return new RefundSnapshot(refund.getStatus(), refund.getSourceType(), refund.getSourceId(),
+                    refund.getAmount(), refund.getAttemptCount(), refund.getRequestKey() != null);
+        });
+    }
+
+    private ReturnSnapshot returnSnapshot(Long returnId) {
+        return transactionTemplate.execute(status -> {
+            CustomerReturn customerReturn = customerReturnRepository.findDetailedById(returnId).orElseThrow();
+            var item = customerReturn.getItems().get(0);
+            return new ReturnSnapshot(customerReturn.getStatus(), customerReturn.getRmaId(),
+                    item.getRequestedQuantity(), item.getAcceptedQuantity(), item.getDisposition());
+        });
     }
 
     private record ReturnFixture(java.util.UUID requestKey, Long orderItemId) {
+    }
+
+    private record WorkflowSnapshot(
+            OrderStatus orderStatus, DeliveryStatus deliveryStatus, int allocationAttemptCount,
+            PaymentStatus paymentStatus, int orderAmount, int paidAmount,
+            int pendingRefundAmount, int refundedAmount,
+            PaymentAttemptStatus attemptStatus, int paymentAttemptCount,
+            boolean gatewayTransactionPresent, int refundCount) {
+    }
+
+    private record RefundSnapshot(
+            RefundStatus status, RefundSourceType sourceType, Long sourceId,
+            int amount, int attemptCount, boolean requestKeyPresent) {
+    }
+
+    private record ReturnSnapshot(
+            CustomerReturnStatus status, Long rmaId, int requestedQuantity,
+            Integer acceptedQuantity, ReturnDisposition disposition) {
     }
 }

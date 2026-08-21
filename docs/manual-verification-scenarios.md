@@ -439,6 +439,24 @@ OMS가 `REQUESTED`로 수렴한다.
 이 12개 시나리오는 OMS와 WMS의 개발 DB를 함께 초기화한 뒤에만 실행한다. 실행 전 각 주문 ID, 결제 ID,
 승인/환불 `requestKey`, WMS 예약 또는 RMA ID를 기록한다. 아래는 절차 기준이며 아직 실행 결과가 아니다.
 
+모의 게이트웨이는 공개 제어 API 없이 OMS 프로세스 시작 시 환경변수로 결과를 선택한다. 허용값은 승인
+`SUCCESS`·`DECLINED`·`RETRYABLE_FAILURE`·`PERMANENT_FAILURE`·`UNKNOWN`, 환불도 같은 값이며 기본은
+둘 다 `SUCCESS`다. 이 설정은 로컬 검증 전용 `payment-faults` 프로파일에서만 환경변수를 읽는다.
+zsh/bash에서 새 DB로 실패 시나리오를 시작할 때는 DB 리셋용 `local`도 함께 활성화한다.
+
+```bash
+MOCK_PAYMENT_APPROVAL_OUTCOME=DECLINED ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'
+MOCK_PAYMENT_REFUND_OUTCOME=RETRYABLE_FAILURE ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'
+MOCK_PAYMENT_REFUND_OUTCOME=PERMANENT_FAILURE ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'
+```
+
+결과를 바꾸려면 OMS를 `Ctrl-C`로 종료하고 아래 명령으로 재시작한다. 이때 `local`을 다시 지정하면
+`ddl-auto=create`가 검증 중인 DB를 지우므로 기본 프로파일을 사용한다. 명시적인 성공 복귀 명령은 다음과 같다.
+
+```bash
+MOCK_PAYMENT_APPROVAL_OUTCOME=SUCCESS MOCK_PAYMENT_REFUND_OUTCOME=SUCCESS ./gradlew bootRun --args='--spring.profiles.active=payment-faults'
+```
+
 ### 1. 정상 결제 후 `ORDER`
 
 - 준비: 가용 재고가 있는 상품을 선택한다.
@@ -459,8 +477,10 @@ OMS가 `REQUESTED`로 수렴한다.
 
 ### 3. 결제 거절, WMS 미호출, 고객 재결제
 
-- 준비: 모의 게이트웨이가 명시적 거절을 반환하도록 설정한다.
-- 동작: 주문을 결제하고 WMS 호출 기록을 확인한 뒤, 게이트웨이를 성공으로 바꿔 고객이 다시 결제한다.
+- 준비: `MOCK_PAYMENT_APPROVAL_OUTCOME=DECLINED ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'`로
+  OMS를 시작한다.
+- 동작: 주문을 결제하고 WMS 호출 기록을 확인한다. OMS를 종료한 뒤 성공 복귀 명령으로 재시작하고 고객이
+  다시 결제한다.
 - 기대 OMS: 처음 `PAYMENT_FAILED`, 재결제 뒤 `ALLOCATION_PENDING`을 거쳐 `ORDER` 또는 `BACKORDERED`.
 - 기대 WMS: 첫 시도에는 예약 없음, 재결제 성공 뒤에만 한 번 할당된다.
 - 결제/환불: 거절 금액은 승인 `0`원, 성공 재결제만 주문 총액을 승인하며 환불은 `0`원이다.
@@ -513,8 +533,10 @@ OMS가 `REQUESTED`로 수렴한다.
 
 ### 9. 환불 일시 실패 후 자동 복구
 
-- 준비: 취소 또는 반품으로 pending 환불 요청을 만든 뒤 모의 환불 게이트웨이를 일시 실패로 설정한다.
-- 동작: 첫 환불 작업을 실행하고 다음 재시도 시각 뒤 게이트웨이를 성공으로 바꿔 스윕한다.
+- 준비: `MOCK_PAYMENT_REFUND_OUTCOME=RETRYABLE_FAILURE ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'`로
+  OMS를 시작하고 취소 또는 반품으로 pending 환불 요청을 만든다.
+- 동작: 첫 환불 스윕 뒤 `RETRYING`을 확인한다. OMS를 종료하고 성공 복귀 명령으로 재시작한 뒤 다음 재시도
+  시각과 환불 스윕 한 주기 이상 기다린다.
 - 기대 OMS: 요청은 `RETRYING`을 거쳐 `SUCCEEDED`; 결제 pending 금액은 최종 `0`원이다.
 - 기대 WMS: 취소라면 예약 해제는 한 번이며, 반품이라면 이미 확정된 RMA 재고 결과가 바뀌지 않는다.
 - 결제/환불: 같은 환불 키와 같은 금액으로 재시도해 최종 한 번만 환불 완료한다.
@@ -522,8 +544,10 @@ OMS가 `REQUESTED`로 수렴한다.
 
 ### 10. 환불 영구 실패 후 관리자 재시도
 
-- 준비: pending 환불 요청에 영구 실패를 반환하도록 모의 게이트웨이를 설정한다.
-- 동작: 환불 작업 후 관리자 결제 화면에서 수동 확인 대상을 열고, 성공 응답으로 바꾼 뒤 재시도한다.
+- 준비: `MOCK_PAYMENT_REFUND_OUTCOME=PERMANENT_FAILURE ./gradlew bootRun --args='--spring.profiles.active=local,payment-faults'`로
+  OMS를 시작하고 pending 환불 요청을 만든다.
+- 동작: 환불 스윕 뒤 관리자 결제 화면에서 `MANUAL_REVIEW`를 확인한다. OMS를 종료하고 성공 복귀 명령으로
+  재시작한 뒤 관리자 화면에서 해당 환불을 재시도한다.
 - 기대 OMS: 처음 `MANUAL_REVIEW`, 재시도 뒤 `SUCCEEDED`; 결제 금액 불변식은 계속 유지된다.
 - 기대 WMS: 예약 해제 또는 반품 RMA 상태를 재실행하지 않는다.
 - 결제/환불: pending 환불액은 검토 중에도 보존되고, 성공 뒤 해당 금액만 누적 환불액으로 이동한다.

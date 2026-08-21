@@ -2,6 +2,7 @@ package com.jhg.hgpage;
 
 import com.jhg.hgpage.oms.domain.*;
 import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
+import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -22,13 +24,7 @@ public class initDb {
 
     @PostConstruct
     public void init() {
-        // ddl-auto: update에서는 재시작해도 데이터가 남으므로, 비어 있는 DB에만 시드한다
-        if (initService.alreadySeeded()) {
-            return;
-        }
-        initService.initAccount();
-        initService.initProduct();
-        initService.initPaymentScenarios();
+        initService.initIfEmpty();
     }
 
     @Component
@@ -44,12 +40,27 @@ public class initDb {
             this.adminPassword = adminPassword;
         }
 
-        public boolean alreadySeeded() {
-            Long count = em.createQuery("select count(a) from Account a", Long.class).getSingleResult();
-            return count > 0;
+        public void initIfEmpty() {
+            if (hasBusinessData()) {
+                return;
+            }
+            initAccount();
+            initProduct();
+            initPaymentScenarios();
         }
 
-        public void initAccount() {
+        private boolean hasBusinessData() {
+            return count(Account.class) + count(Member.class) + count(Product.class) + count(Order.class)
+                    + count(Payment.class) + count(PaymentAttempt.class) + count(RefundRequest.class)
+                    + count(CustomerReturn.class) > 0;
+        }
+
+        private long count(Class<?> entityType) {
+            return em.createQuery("select count(e) from " + entityType.getSimpleName() + " e", Long.class)
+                    .getSingleResult();
+        }
+
+        private void initAccount() {
             Member admin = Member.createAdmin("관리자", "010-1111-2222", new Address("서울", "관악구", "500"));
             em.persist(admin);
 
@@ -63,7 +74,7 @@ public class initDb {
             em.persist(account);
         }
 
-        public void initProduct() {
+        private void initProduct() {
             for (int i = 0; i < 20; i++) {
                 Product product = new Product();
                 product.setName("상품" + (i + 1));
@@ -72,7 +83,7 @@ public class initDb {
             }
         }
 
-        public void initPaymentScenarios() {
+        private void initPaymentScenarios() {
             Member member = em.createQuery("select m from Member m where m.name = :name", Member.class)
                     .setParameter("name", "조형근")
                     .getSingleResult();
@@ -80,84 +91,113 @@ public class initDb {
                     .setMaxResults(1)
                     .getSingleResult();
 
-            failedPayment(member, product);
-            reviewPayment(member, product);
-            paidOrder(member, product);
-            allocationReview(member, product);
+            paidOrderState(member, product);
             paidBackorder(member, product);
-            cancelledRefundReview(member, product);
-            cancellationReleaseReview(member, product);
+            failedPayment(member, product);
+            partialRefund(member, product);
+            fullRefund(member, product);
+            refundReview(member, product);
+            allocationReview(member, product);
         }
 
-        private void failedPayment(Member member, Product product) {
-            Order order = pendingOrder(member, product);
-            Payment payment = payment(order);
-            payment.markPaymentFailed();
-            order.markPaymentFailed();
-        }
-
-        private void reviewPayment(Member member, Product product) {
-            Order order = pendingOrder(member, product);
-            Payment payment = payment(order);
-            payment.markPaymentReview();
-            order.markPaymentReview();
-        }
-
-        private void allocationReview(Member member, Product product) {
-            Order order = paidOrder(member, product);
-            order.claimAllocation(LocalDateTime.now());
-            order.markAllocationReview("DEMO_WMS_UNAVAILABLE");
+        private void paidOrderState(Member member, Product product) {
+            paidOrder(member, product, 1).order().markOrdered();
         }
 
         private void paidBackorder(Member member, Product product) {
-            Order order = paidOrder(member, product);
-            order.markBackordered();
+            paidOrder(member, product, 1).order().markBackordered();
         }
 
-        private void cancelledRefundReview(Member member, Product product) {
-            Order order = paidOrder(member, product);
+        private void failedPayment(Member member, Product product) {
+            PaymentFixture fixture = pendingPayment(member, product, 1);
+            LocalDateTime now = LocalDateTime.now();
+            fixture.attempt().claim(now);
+            fixture.attempt().fail("SEED_DECLINED", "Reset demo declined payment", now);
+            Payment payment = fixture.payment();
+            payment.markPaymentFailed();
+            fixture.order().markPaymentFailed();
+        }
+
+        private void partialRefund(Member member, Product product) {
+            PaymentFixture fixture = paidOrder(member, product, 2);
+            fixture.order().markOrdered();
+            fixture.order().ship();
+            fixture.order().deliver();
+
+            CustomerReturn customerReturn = CustomerReturn.create(fixture.order(), UUID.randomUUID(),
+                    "Reset demo partial return", List.of(
+                            new CustomerReturn.RequestItem(fixture.order().getOrderItems().get(0), 2)));
+            em.persist(customerReturn);
+            customerReturn.markRequested(100_000L + customerReturn.getId());
+            customerReturn.complete(List.of(new CustomerReturn.ResultItem(
+                    fixture.order().getOrderItems().get(0).getId(), 1, ReturnDisposition.RESTOCKED)));
+            completeRefund(fixture.payment(), RefundSourceType.RETURN, customerReturn.getId(), 10_000);
+        }
+
+        private void fullRefund(Member member, Product product) {
+            PaymentFixture fixture = paidOrder(member, product, 2);
+            cancelWithoutRelease(fixture.order());
+            completeRefund(fixture.payment(), RefundSourceType.ORDER_CANCEL,
+                    fixture.order().getId(), 20_000);
+        }
+
+        private void refundReview(Member member, Product product) {
+            PaymentFixture fixture = paidOrder(member, product, 2);
+            cancelWithoutRelease(fixture.order());
+            fixture.payment().reserveRefund(20_000);
+            RefundRequest request = RefundRequest.create(fixture.payment(), UUID.randomUUID(),
+                    RefundSourceType.ORDER_CANCEL, fixture.order().getId(), 20_000);
+            em.persist(request);
+            request.claim(LocalDateTime.now());
+            request.manualReview("SEED_GATEWAY_ERROR", "Reset demo refund review", LocalDateTime.now());
+        }
+
+        private void allocationReview(Member member, Product product) {
+            Order order = paidOrder(member, product, 1).order();
+            order.claimAllocation(LocalDateTime.now());
+            order.markAllocationReview("SEED_WMS_UNAVAILABLE");
+        }
+
+        private void cancelWithoutRelease(Order order) {
             order.markBackordered();
             order.requestCancellation(false, LocalDateTime.now());
             order.finishCancellation();
-            Payment payment = em.createQuery("select p from Payment p where p.order = :order", Payment.class)
-                    .setParameter("order", order).getSingleResult();
-            payment.reserveRefund(payment.getPaidAmount());
+        }
+
+        private void completeRefund(Payment payment, RefundSourceType sourceType, Long sourceId, int amount) {
+            payment.reserveRefund(amount);
             RefundRequest request = RefundRequest.create(payment, UUID.randomUUID(),
-                    RefundSourceType.ORDER_CANCEL, order.getId(), payment.getPaidAmount());
+                    sourceType, sourceId, amount);
             em.persist(request);
             request.claim(LocalDateTime.now());
-            request.manualReview("DEMO_GATEWAY_ERROR", "Reset demo refund review", LocalDateTime.now());
+            request.succeed(LocalDateTime.now());
+            payment.completeRefund(amount);
         }
 
-        private void cancellationReleaseReview(Member member, Product product) {
-            Order order = paidOrder(member, product);
-            order.markOrdered();
-            order.requestCancellation(true, LocalDateTime.now());
-            order.claimCancellation(LocalDateTime.now());
-            order.reviewCancellation("DEMO_WMS_UNAVAILABLE");
-        }
-
-        private Order pendingOrder(Member member, Product product) {
+        private PaymentFixture pendingPayment(Member member, Product product, int count) {
             Delivery delivery = new Delivery();
             delivery.setAddress(new Address("서울", "관악구", "500"));
             Order order = Order.createOrder(member, delivery,
-                    OrderItem.createOrderItem(product, product.getPrice(), 1));
+                    OrderItem.createOrderItem(product, product.getPrice(), count));
             order.markPaymentPending();
             em.persist(order);
-            return order;
-        }
-
-        private Payment payment(Order order) {
             Payment payment = Payment.create(order, order.getTotalPrice());
             em.persist(payment);
-            return payment;
+            PaymentAttempt attempt = PaymentAttempt.create(payment, UUID.randomUUID());
+            em.persist(attempt);
+            return new PaymentFixture(order, payment, attempt);
         }
 
-        private Order paidOrder(Member member, Product product) {
-            Order order = pendingOrder(member, product);
-            payment(order).markPaid(LocalDateTime.now());
-            order.markAllocationPending();
-            return order;
+        private PaymentFixture paidOrder(Member member, Product product, int count) {
+            PaymentFixture fixture = pendingPayment(member, product, count);
+            LocalDateTime now = LocalDateTime.now();
+            fixture.attempt().claim(now);
+            fixture.attempt().succeed("SEED-PAY-" + fixture.attempt().getRequestKey(), now);
+            fixture.payment().markPaid(now);
+            fixture.order().markAllocationPending();
+            return fixture;
         }
+
+        private record PaymentFixture(Order order, Payment payment, PaymentAttempt attempt) {}
     }
 }

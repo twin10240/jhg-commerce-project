@@ -52,7 +52,7 @@ PENDING_SUBMISSION → REQUESTED → RECEIVED → COMPLETED
 - OMS는 배송 완료 주문의 품목·수량별 신청을 먼저 `PENDING_SUBMISSION`으로 커밋하고 UUID `requestKey`를 소유한다.
 - WMS는 RMA와 `rmaId`, 입고·검수·취소, `RESTOCKED`·`DISPOSED`·`REJECTED` 처분을 소유한다.
 - OMS는 승인 수량과 처분을 고객에게 보여주지만 반품 재고 수량이나 `RETURN` 원장을 소유하지 않는다.
-- 토스페이먼츠 결제와 환불 상태·금액 처리는 다음 단계이며 현재 모델에는 포함하지 않는다.
+- 모의 카드 결제와 환불 작업은 OMS가 소유하며, 실제 PG 연동은 V3 범위다.
 
 ## 주문 이행
 
