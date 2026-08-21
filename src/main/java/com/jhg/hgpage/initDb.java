@@ -1,6 +1,7 @@
 package com.jhg.hgpage;
 
 import com.jhg.hgpage.oms.domain.*;
+import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.domain.enums.Role;
 import jakarta.annotation.PostConstruct;
@@ -10,6 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -24,6 +28,7 @@ public class initDb {
         }
         initService.initAccount();
         initService.initProduct();
+        initService.initPaymentScenarios();
     }
 
     @Component
@@ -65,6 +70,94 @@ public class initDb {
                 product.setPrice(10000 + (i * 1000));
                 em.persist(product);
             }
+        }
+
+        public void initPaymentScenarios() {
+            Member member = em.createQuery("select m from Member m where m.name = :name", Member.class)
+                    .setParameter("name", "조형근")
+                    .getSingleResult();
+            Product product = em.createQuery("select p from Product p order by p.id", Product.class)
+                    .setMaxResults(1)
+                    .getSingleResult();
+
+            failedPayment(member, product);
+            reviewPayment(member, product);
+            paidOrder(member, product);
+            allocationReview(member, product);
+            paidBackorder(member, product);
+            cancelledRefundReview(member, product);
+            cancellationReleaseReview(member, product);
+        }
+
+        private void failedPayment(Member member, Product product) {
+            Order order = pendingOrder(member, product);
+            Payment payment = payment(order);
+            payment.markPaymentFailed();
+            order.markPaymentFailed();
+        }
+
+        private void reviewPayment(Member member, Product product) {
+            Order order = pendingOrder(member, product);
+            Payment payment = payment(order);
+            payment.markPaymentReview();
+            order.markPaymentReview();
+        }
+
+        private void allocationReview(Member member, Product product) {
+            Order order = paidOrder(member, product);
+            order.claimAllocation(LocalDateTime.now());
+            order.markAllocationReview("DEMO_WMS_UNAVAILABLE");
+        }
+
+        private void paidBackorder(Member member, Product product) {
+            Order order = paidOrder(member, product);
+            order.markBackordered();
+        }
+
+        private void cancelledRefundReview(Member member, Product product) {
+            Order order = paidOrder(member, product);
+            order.markBackordered();
+            order.requestCancellation(false, LocalDateTime.now());
+            order.finishCancellation();
+            Payment payment = em.createQuery("select p from Payment p where p.order = :order", Payment.class)
+                    .setParameter("order", order).getSingleResult();
+            payment.reserveRefund(payment.getPaidAmount());
+            RefundRequest request = RefundRequest.create(payment, UUID.randomUUID(),
+                    RefundSourceType.ORDER_CANCEL, order.getId(), payment.getPaidAmount());
+            em.persist(request);
+            request.claim(LocalDateTime.now());
+            request.manualReview("DEMO_GATEWAY_ERROR", "Reset demo refund review", LocalDateTime.now());
+        }
+
+        private void cancellationReleaseReview(Member member, Product product) {
+            Order order = paidOrder(member, product);
+            order.markOrdered();
+            order.requestCancellation(true, LocalDateTime.now());
+            order.claimCancellation(LocalDateTime.now());
+            order.reviewCancellation("DEMO_WMS_UNAVAILABLE");
+        }
+
+        private Order pendingOrder(Member member, Product product) {
+            Delivery delivery = new Delivery();
+            delivery.setAddress(new Address("서울", "관악구", "500"));
+            Order order = Order.createOrder(member, delivery,
+                    OrderItem.createOrderItem(product, product.getPrice(), 1));
+            order.markPaymentPending();
+            em.persist(order);
+            return order;
+        }
+
+        private Payment payment(Order order) {
+            Payment payment = Payment.create(order, order.getTotalPrice());
+            em.persist(payment);
+            return payment;
+        }
+
+        private Order paidOrder(Member member, Product product) {
+            Order order = pendingOrder(member, product);
+            payment(order).markPaid(LocalDateTime.now());
+            order.markAllocationPending();
+            return order;
         }
     }
 }

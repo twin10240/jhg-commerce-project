@@ -61,6 +61,19 @@ oms:
     user: ${OMS_CALLBACK_USER:wms}
     password: ${OMS_CALLBACK_PASSWORD:wms}
 
+payments:
+  sweep-delay: ${PAYMENT_SWEEP_DELAY:5s}
+  processing-timeout: ${PAYMENT_PROCESSING_TIMEOUT:5m}
+allocation:
+  sweep-delay: ${ALLOCATION_SWEEP_DELAY:5s}
+  processing-timeout: ${ALLOCATION_PROCESSING_TIMEOUT:5m}
+refunds:
+  sweep-delay: ${REFUND_SWEEP_DELAY:5s}
+  processing-timeout: ${REFUND_PROCESSING_TIMEOUT:5m}
+cancellations:
+  sweep-delay: ${CANCELLATION_SWEEP_DELAY:5s}
+  processing-timeout: ${CANCELLATION_PROCESSING_TIMEOUT:5m}
+
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
 spring:

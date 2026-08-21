@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(properties = {
         "payments.sweep-delay=1h",
-        "allocations.sweep-delay=1h",
+        "allocation.sweep-delay=1h",
         "cancellations.sweep-delay=1h",
         "refunds.sweep-delay=1h",
         "returns.sweep-delay=1h",

@@ -1,6 +1,9 @@
 package com.jhg.hgpage;
 
 import com.jhg.hgpage.oms.domain.Account;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.repository.OrderRepository;
+import com.jhg.hgpage.oms.repository.RefundRequestRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class InitDbTest {
 
     @Autowired EntityManager em;
+    @Autowired OrderRepository orderRepository;
+    @Autowired RefundRequestRepository refundRequestRepository;
 
     @Test
     void 이미_시드된_DB에는_다시_시드하지_않는다() {
@@ -31,6 +36,12 @@ class InitDbTest {
         Long products = em.createQuery("select count(p) from Product p", Long.class).getSingleResult();
         assertThat(accounts).isEqualTo(2L);
         assertThat(products).isEqualTo(20L);
+        assertThat(orderRepository.findAll()).extracting(order -> order.getStatus())
+                .containsExactlyInAnyOrder(
+                        OrderStatus.PAYMENT_FAILED, OrderStatus.PAYMENT_REVIEW,
+                        OrderStatus.ALLOCATION_PENDING, OrderStatus.ALLOCATION_REVIEW,
+                        OrderStatus.BACKORDERED, OrderStatus.CANCEL, OrderStatus.CANCEL_REQUESTED);
+        assertThat(refundRequestRepository.count()).isEqualTo(1L);
     }
 
     @Test

@@ -36,7 +36,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
-        "allocations.sweep-delay=1h",
+        "allocation.sweep-delay=1h",
         "spring.datasource.url=jdbc:h2:mem:allocation-claim-test"
 })
 class AllocationClaimConcurrencyTest {

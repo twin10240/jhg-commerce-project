@@ -35,3 +35,16 @@ oms:
   callback:
     user: wms
     password: wms
+
+payments:
+  sweep-delay: 5s
+  processing-timeout: 5m
+allocation:
+  sweep-delay: 5s
+  processing-timeout: 5m
+refunds:
+  sweep-delay: 5s
+  processing-timeout: 5m
+cancellations:
+  sweep-delay: 5s
+  processing-timeout: 5m

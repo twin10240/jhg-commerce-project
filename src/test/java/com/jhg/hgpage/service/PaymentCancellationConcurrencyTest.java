@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
         "payments.sweep-delay=1h",
-        "allocations.sweep-delay=1h",
+        "allocation.sweep-delay=1h",
         "cancellations.sweep-delay=1h",
         "refunds.sweep-delay=1h",
         "spring.datasource.url=jdbc:h2:mem:payment-cancellation-test"

@@ -2,18 +2,19 @@
 
 [![CI](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml/badge.svg)](https://github.com/twin10240/jhg-commerce-project/actions/workflows/ci.yml)
 
-**재고가 없어도 주문을 접수하고, 배송 완료 뒤 반품까지 WMS와 복구 가능하게 연동하는 OMS V2입니다.**
+**모의 카드 결제 후 재고를 할당하고, 배송 완료 반품까지 복구 가능하게 연동하는 OMS V2입니다.**
 
-재고 부족을 구매 실패가 아닌 `BACKORDERED` 주문으로 접수하고, WMS 예약으로 오버셀을 방지합니다.
-입고되면 대기 주문을 FIFO로 자동 할당하며, WMS 장애 중에도 주문 접수와 사후 복구가 가능합니다.
+주문은 모의 결제를 먼저 승인한 뒤 비동기로 WMS 재고를 할당합니다. 재고 부족은 결제 실패가 아니라
+`BACKORDERED`로 보존되며, 입고 뒤 FIFO로 다시 할당합니다. 취소와 반품 환불은 DB 작업으로 저장해
+게이트웨이 장애 뒤에도 같은 멱등키로 복구합니다.
 주문·백오더 정책과 고객 화면은 OMS가, 재고·예약·발주·입고는 별도
 [JHG-WMS](https://github.com/twin10240/jhg-wms-project)가 소유합니다.
 
 | | |
 |---|---|
-| 주문 정책 | 재고 확보 또는 `BACKORDERED` 접수, 입고 시 FIFO 자동 할당 |
+| 주문 정책 | 모의 카드 승인 후 재고 확보 또는 `BACKORDERED`, 입고 시 FIFO 자동 할당 |
 | 시스템 경계 | OMS는 주문·고객 반품 요청, WMS는 재고 정본·RMA 처리를 소유하고 REST로 통신 |
-| 장애 복구 | 타임아웃·멱등 요청·백오더/RMA 보상 스윕 |
+| 장애 복구 | 결제·할당·취소·환불의 타임아웃·멱등 작업과 백오더/RMA 보상 스윕 |
 | 테스트 | 340개 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
 
 ## 프로젝트 비전 — 미니 OMS + 별도 WMS
@@ -46,6 +47,18 @@ Flyway V5가 `SHIPPED`로 이전합니다.
 OMS는 배송 완료 주문의 고객 반품 신청, 품목별 신청 가능 수량, 멱등 `requestKey`, WMS 결과 동기화와
 고객 조회를 소유합니다. WMS는 RMA 접수·입고·검수·취소, `RESTOCKED` 재고 반영과
 `DISPOSED`·`REJECTED` 판정을 소유합니다. 따라서 OMS에는 반품 재고 수량이나 재고 원장을 두지 않습니다.
+
+### OMS V2 — 모의 결제와 환불 복구
+
+체크아웃은 카드 정보 저장 없이 모의 결제 승인만 수행하고, 승인된 주문만 WMS에 할당합니다. 결제 실패는
+주문을 보존해 고객 재결제를 허용하며, WMS 부족은 유료 `BACKORDERED`로 남습니다. 주문 취소는 전액,
+WMS가 승인한 반품 수량은 부분 환불합니다.
+
+환불은 외부 호출 전에 `RefundRequest`와 예약 금액을 저장합니다. 일시 실패는 같은 멱등키로 재시도하고,
+자동 복구가 끝나지 않거나 영구 실패면 관리자 결제 화면의 수동 확인 대상으로 남습니다. 관리자는 재시도만
+요청할 수 있고 근거 없이 완료 처리할 수 없습니다.
+
+V3에서는 실제 PG 승인·취소와 거래 조회, 웹훅 서명 검증, 쿠폰·포인트 및 부분 환불 배분을 추가합니다.
 
 OMS → WMS의 `POST /api/returns`와 `GET /api/returns/{rmaId}`는 기존 WMS Basic 인증을 사용합니다.
 WMS → OMS의 `POST /api/return-status-events`는 `oms.callback.user/password`로 인증하며, 계약 불일치는
@@ -175,6 +188,10 @@ Railway 배포 설정은 보존돼 있지만 **현재 서비스는 중단 상태
   WMS_BASE_URL=http://<wms>.railway.internal:8081
   WMS_BASIC_USER / WMS_BASIC_PASSWORD
   OMS_CALLBACK_USER / OMS_CALLBACK_PASSWORD
+  PAYMENT_SWEEP_DELAY / PAYMENT_PROCESSING_TIMEOUT
+  ALLOCATION_SWEEP_DELAY / ALLOCATION_PROCESSING_TIMEOUT
+  REFUND_SWEEP_DELAY / REFUND_PROCESSING_TIMEOUT
+  CANCELLATION_SWEEP_DELAY / CANCELLATION_PROCESSING_TIMEOUT
   ```
 - **포트**: `server.port=${PORT:8080}` 로 Railway가 주입하는 포트에 바인딩.
 - **스키마**: Flyway로 버전 관리(`prod` 프로파일). 첫 기동 시 `V1__init_schema.sql`이 적용돼 스키마를 생성하고 `initDb`가 빈 DB를 시드. `ddl-auto: validate`로 엔티티-스키마 불일치를 기동 시 감지.
