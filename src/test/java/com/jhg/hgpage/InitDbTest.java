@@ -84,6 +84,22 @@ class InitDbTest {
                 .containsExactly(10_000, 0);
         assertThat(payment(OrderStatus.ALLOCATION_REVIEW, PaymentStatus.PAID).getPaidAmount()).isEqualTo(10_000);
 
+        assertThat(orderRepository.findAll())
+                .filteredOn(order -> order.getStatus() != OrderStatus.PAYMENT_FAILED)
+                .allSatisfy(order -> assertThat(order.getAllocationAttemptCount()).isEqualTo(1));
+        assertThat(orderRepository.findAll())
+                .filteredOn(order -> order.getStatus() != OrderStatus.PAYMENT_FAILED)
+                .allSatisfy(order -> {
+                    assertThat(order.getNextAllocationAttemptAt()).isNull();
+                    assertThat(order.getAllocationProcessingAt()).isNull();
+                });
+        assertThat(orderRepository.findAll())
+                .filteredOn(order -> order.getStatus() != OrderStatus.PAYMENT_FAILED
+                        && order.getStatus() != OrderStatus.ALLOCATION_REVIEW)
+                .allSatisfy(order -> assertThat(order.getAllocationFailureCode()).isNull());
+        assertThat(payment(OrderStatus.ALLOCATION_REVIEW, PaymentStatus.PAID).getOrder()
+                .getAllocationFailureCode()).isEqualTo("SEED_WMS_UNAVAILABLE");
+
         assertThat(refunds).hasSize(3);
         RefundRequest partial = refund(RefundSourceType.RETURN, RefundStatus.SUCCEEDED);
         RefundRequest full = refund(RefundSourceType.ORDER_CANCEL, RefundStatus.SUCCEEDED);

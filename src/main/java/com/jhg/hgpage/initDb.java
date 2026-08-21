@@ -101,11 +101,11 @@ public class initDb {
         }
 
         private void paidOrderState(Member member, Product product) {
-            paidOrder(member, product, 1).order().markOrdered();
+            completeAllocation(paidOrder(member, product, 1), true);
         }
 
         private void paidBackorder(Member member, Product product) {
-            paidOrder(member, product, 1).order().markBackordered();
+            completeAllocation(paidOrder(member, product, 1), false);
         }
 
         private void failedPayment(Member member, Product product) {
@@ -120,7 +120,7 @@ public class initDb {
 
         private void partialRefund(Member member, Product product) {
             PaymentFixture fixture = paidOrder(member, product, 2);
-            fixture.order().markOrdered();
+            completeAllocation(fixture, true);
             fixture.order().ship();
             fixture.order().deliver();
 
@@ -136,6 +136,7 @@ public class initDb {
 
         private void fullRefund(Member member, Product product) {
             PaymentFixture fixture = paidOrder(member, product, 2);
+            completeAllocation(fixture, false);
             cancelWithoutRelease(fixture.order());
             completeRefund(fixture.payment(), RefundSourceType.ORDER_CANCEL,
                     fixture.order().getId(), 20_000);
@@ -143,6 +144,7 @@ public class initDb {
 
         private void refundReview(Member member, Product product) {
             PaymentFixture fixture = paidOrder(member, product, 2);
+            completeAllocation(fixture, false);
             cancelWithoutRelease(fixture.order());
             fixture.payment().reserveRefund(20_000);
             RefundRequest request = RefundRequest.create(fixture.payment(), UUID.randomUUID(),
@@ -159,7 +161,6 @@ public class initDb {
         }
 
         private void cancelWithoutRelease(Order order) {
-            order.markBackordered();
             order.requestCancellation(false, LocalDateTime.now());
             order.finishCancellation();
         }
@@ -196,6 +197,11 @@ public class initDb {
             fixture.payment().markPaid(now);
             fixture.order().markAllocationPending();
             return fixture;
+        }
+
+        private void completeAllocation(PaymentFixture fixture, boolean reserved) {
+            fixture.order().claimAllocation(LocalDateTime.now());
+            fixture.order().completeAllocation(reserved);
         }
 
         private record PaymentFixture(Order order, Payment payment, PaymentAttempt attempt) {}

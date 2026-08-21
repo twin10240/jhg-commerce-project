@@ -134,6 +134,14 @@ public class Order {
         allocationProcessingAt = now;
     }
 
+    public void completeAllocation(boolean reserved) {
+        requireStatus(OrderStatus.ALLOCATION_PROCESSING);
+        status = reserved ? OrderStatus.ORDER : OrderStatus.BACKORDERED;
+        nextAllocationAttemptAt = null;
+        allocationFailureCode = null;
+        allocationProcessingAt = null;
+    }
+
     public void retryAllocation(LocalDateTime nextAttemptAt, String failureCode) {
         requireStatus(OrderStatus.ALLOCATION_PROCESSING);
         status = OrderStatus.ALLOCATION_PENDING;

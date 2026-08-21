@@ -1,11 +1,11 @@
 package com.jhg.hgpage.payment.adapter;
 
 import com.jhg.hgpage.contract.PaymentGateway;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("!payment-faults")
 public class MockPaymentGateway implements PaymentGateway {
 
     private final GatewayOutcome approvalOutcome;
@@ -15,10 +15,7 @@ public class MockPaymentGateway implements PaymentGateway {
         this(GatewayOutcome.SUCCESS, GatewayOutcome.SUCCESS);
     }
 
-    @Autowired
-    public MockPaymentGateway(
-            @Value("${mock-payment.approval-outcome:SUCCESS}") GatewayOutcome approvalOutcome,
-            @Value("${mock-payment.refund-outcome:SUCCESS}") GatewayOutcome refundOutcome) {
+    protected MockPaymentGateway(GatewayOutcome approvalOutcome, GatewayOutcome refundOutcome) {
         this.approvalOutcome = approvalOutcome;
         this.refundOutcome = refundOutcome;
     }

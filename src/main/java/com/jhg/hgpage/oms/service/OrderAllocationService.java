@@ -48,12 +48,10 @@ public class OrderAllocationService {
         }
         if (order.getStatus() == OrderStatus.CANCEL_REQUESTED) {
             order.resolveCancellationRelease(reserved);
-        } else if (reserved) {
-            order.markOrdered();
+            clearWork(order);
         } else {
-            order.markBackordered();
+            order.completeAllocation(reserved);
         }
-        clearWork(order);
     }
 
     @Transactional
