@@ -131,20 +131,23 @@ class OrderRepositoryBackorderTest {
     }
 
     @Test
-    void 유료이고_출고전인_백오더만_주문일과_id_FIFO로_반환한다() {
+    void 기존_무결제와_PAID_백오더만_출고전_FIFO로_반환한다() {
         Product product = newProduct("부족상품");
-        Order unpaid = saveBackorder(OrderItem.createOrderItem(product, 10000, 1));
-        Order newer = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 12, 0));
+        Order legacy = saveBackorder(OrderItem.createOrderItem(product, 10000, 1));
+        legacy.setOrderDate(LocalDateTime.of(2026, 8, 15, 10, 0));
+        Order nonPaid = saveBackorder(OrderItem.createOrderItem(product, 10000, 1));
+        nonPaid.setOrderDate(LocalDateTime.of(2026, 8, 15, 11, 0));
+        em.persist(Payment.create(nonPaid, nonPaid.getTotalPrice()));
         Order shipped = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 10, 0));
         shipped.getDelivery().setStatus(DeliveryStatus.SHIPPED);
-        Order older = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 11, 0));
+        Order paid = savePaidBackorder(product, LocalDateTime.of(2026, 8, 15, 12, 0));
         em.flush();
         em.clear();
 
         List<Order> result = orderRepositoryQuery.findPaidBackordersContaining(List.of(product.getId()));
 
-        assertThat(result).extracting(Order::getId).containsExactly(older.getId(), newer.getId());
-        assertThat(result).extracting(Order::getId).doesNotContain(unpaid.getId(), shipped.getId());
+        assertThat(result).extracting(Order::getId).containsExactly(legacy.getId(), paid.getId());
+        assertThat(result).extracting(Order::getId).doesNotContain(nonPaid.getId(), shipped.getId());
     }
 
     @Test

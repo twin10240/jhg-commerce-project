@@ -164,8 +164,12 @@ public class OrderRepositoryQuery {
                         orderItem.product.id.in(productIds),
                         JPAExpressions.selectOne()
                                 .from(payment)
-                                .where(payment.order.eq(order), payment.status.eq(PaymentStatus.PAID))
-                                .exists())
+                                .where(payment.order.eq(order))
+                                .notExists()
+                                .or(JPAExpressions.selectOne()
+                                        .from(payment)
+                                        .where(payment.order.eq(order), payment.status.eq(PaymentStatus.PAID))
+                                        .exists()))
                 .fetch();
         if (orderIds.isEmpty()) {
             return List.of();
