@@ -6,6 +6,15 @@ SET cancellation_next_attempt_at = COALESCE(cancellation_requested_at, CURRENT_T
 WHERE status = 'CANCEL_REQUESTED'
   AND cancellation_release_required IS NOT NULL
   AND cancellation_processing_at IS NULL
+  AND cancellation_attempt_count < 5
+  AND cancellation_next_attempt_at IS NULL;
+
+UPDATE orders
+SET cancellation_failure_code = COALESCE(cancellation_failure_code, 'WMS_RETRY_EXHAUSTED')
+WHERE status = 'CANCEL_REQUESTED'
+  AND cancellation_release_required = TRUE
+  AND cancellation_processing_at IS NULL
+  AND cancellation_attempt_count >= 5
   AND cancellation_next_attempt_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_orders_cancellation_due

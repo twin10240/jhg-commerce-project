@@ -407,6 +407,23 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 결제전_취소_타임라인은_재고가_확보됐다고_표시하지않는다() throws Exception {
+        for (OrderStatus status : List.of(OrderStatus.CANCEL_REQUESTED, OrderStatus.CANCEL)) {
+            when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                    status, status == OrderStatus.CANCEL_REQUESTED
+                            ? PaymentStatus.PENDING : PaymentStatus.CANCELLED,
+                    0, 0, 0));
+
+            mockMvc.perform(get("/orders/10").with(user(principal())))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString(
+                            status == OrderStatus.CANCEL_REQUESTED
+                                    ? ">주문 취소 처리 중</div>" : ">주문 취소</div>")))
+                    .andExpect(content().string(not(containsString(">재고 확보</div>"))));
+        }
+    }
+
+    @Test
     void 주문_상세를_렌더링하고_취소가능하면_취소버튼이_보인다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, false));
 

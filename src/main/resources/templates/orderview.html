@@ -113,7 +113,7 @@
     <div class="timeline-step" th:classappend="${order.status.name() != 'CANCEL'} ? 'done'">주문 접수</div>
     <div class="timeline-step"
          th:classappend="${order.status.name() == 'ORDER'} ? 'done' : (${order.status.name() == 'BACKORDERED' or #strings.startsWith(order.status.name(), 'ALLOCATION_')} ? 'current' : '')"
-         th:text="${#strings.startsWith(order.status.name(), 'PAYMENT_')} ? '재고 확인 전' : (${#strings.startsWith(order.status.name(), 'ALLOCATION_')} ? '재고 확인' : '재고 확보')">재고 확보</div>
+         th:text="${#strings.startsWith(order.status.name(), 'PAYMENT_')} ? '재고 확인 전' : (${#strings.startsWith(order.status.name(), 'ALLOCATION_')} ? '재고 확인' : (${order.status.name() == 'CANCEL_REQUESTED'} ? '주문 취소 처리 중' : (${order.status.name() == 'CANCEL'} ? '주문 취소' : '재고 확보')))">재고 확보</div>
     <div class="timeline-step" th:classappend="${order.deliveryStatus.name() != 'READY'} ? 'done'">출고 완료</div>
     <div class="timeline-step" th:classappend="${order.deliveryStatus.name() == 'DELIVERED'} ? 'done'">배송 완료</div>
   </div>

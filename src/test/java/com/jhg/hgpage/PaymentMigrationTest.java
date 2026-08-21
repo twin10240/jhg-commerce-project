@@ -39,13 +39,21 @@ class PaymentMigrationTest {
         JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
         LocalDateTime requestedAt = LocalDateTime.of(2026, 8, 15, 12, 0);
         jdbcTemplate.update("insert into orders " +
-                        "(order_id, status, cancellation_release_required, cancellation_requested_at) " +
-                        "values (?, 'CANCEL_REQUESTED', ?, ?)",
-                101L, true, Timestamp.valueOf(requestedAt));
+                        "(order_id, status, cancellation_release_required, cancellation_requested_at, " +
+                        "cancellation_attempt_count) values (?, 'CANCEL_REQUESTED', ?, ?, ?)",
+                101L, true, Timestamp.valueOf(requestedAt), 4);
         jdbcTemplate.update("insert into orders " +
-                        "(order_id, status, cancellation_release_required, cancellation_requested_at) " +
-                        "values (?, 'CANCEL_REQUESTED', ?, ?)",
-                102L, false, Timestamp.valueOf(requestedAt.plusMinutes(1)));
+                        "(order_id, status, cancellation_release_required, cancellation_requested_at, " +
+                        "cancellation_attempt_count) values (?, 'CANCEL_REQUESTED', ?, ?, ?)",
+                102L, true, Timestamp.valueOf(requestedAt.plusMinutes(1)), 5);
+        new ResourceDatabasePopulator(
+                new ClassPathResource("db/migration/V8__add_cancellation_retry_review.sql"))
+                .execute(dataSource);
+        jdbcTemplate.update("insert into orders " +
+                        "(order_id, status, cancellation_release_required, cancellation_requested_at, " +
+                        "cancellation_attempt_count, cancellation_failure_code) " +
+                        "values (?, 'CANCEL_REQUESTED', ?, ?, ?, ?)",
+                103L, true, Timestamp.valueOf(requestedAt.plusMinutes(2)), 5, "WMS_503");
         new ResourceDatabasePopulator(
                 new ClassPathResource("db/migration/V8__add_cancellation_retry_review.sql"))
                 .execute(dataSource);
@@ -64,9 +72,16 @@ class PaymentMigrationTest {
         assertThat(indexColumns(metadata, "refund_request")).contains("status,next_attempt_at,refund_request_id");
         assertThat(indexColumns(metadata, "orders"))
                 .contains("status,cancellation_next_attempt_at,order_id");
+        assertThat(jdbcTemplate.queryForObject(
+                "select cancellation_next_attempt_at from orders where order_id = 101", LocalDateTime.class))
+                .isEqualTo(requestedAt);
         assertThat(jdbcTemplate.queryForList(
-                "select cancellation_next_attempt_at from orders order by order_id", LocalDateTime.class))
-                .containsExactly(requestedAt, requestedAt.plusMinutes(1));
+                "select cancellation_next_attempt_at from orders where order_id in (102, 103)", LocalDateTime.class))
+                .containsExactly((LocalDateTime) null, null);
+        assertThat(jdbcTemplate.queryForList(
+                "select cancellation_failure_code from orders where order_id in (102, 103) order by order_id",
+                String.class))
+                .containsExactly("WMS_RETRY_EXHAUSTED", "WMS_503");
     }
 
     private Set<String> tableNames(DatabaseMetaData metadata) throws Exception {
