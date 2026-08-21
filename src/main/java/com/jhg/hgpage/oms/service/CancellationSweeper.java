@@ -16,7 +16,8 @@ public class CancellationSweeper {
     @Scheduled(fixedDelayString = "${cancellations.sweep-delay:5s}",
             initialDelayString = "${cancellations.sweep-delay:5s}")
     public void sweep() {
-        cancellationService.recoverStaleCancellations(LocalDateTime.now().minusMinutes(5));
+        LocalDateTime now = LocalDateTime.now();
+        cancellationService.recoverStaleCancellations(now.minusMinutes(5), now);
         cancellationService.findDueCancellationOrderIds().forEach(processor::process);
     }
 }

@@ -2,6 +2,7 @@ package com.jhg.hgpage.oms.dto;
 
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
@@ -23,8 +24,15 @@ public class OrderDetailDto {
     private final int totalPrice;
     // 취소 버튼 노출 조건: 주문 상태가 ORDER이고 아직 출고완료 전
     private final boolean cancelable;
+    private final String orderStatusLabel;
+    private final String paymentStatusLabel;
+    private final int paidAmount;
+    private final int pendingRefundAmount;
+    private final int refundedAmount;
+    private final boolean paymentRetryable;
+    private final String refundStatusLabel;
 
-    private OrderDetailDto(Order order) {
+    private OrderDetailDto(Order order, Payment payment) {
         this.id = order.getId();
         this.status = order.getStatus();
         this.orderDate = order.getOrderDate();
@@ -38,13 +46,25 @@ public class OrderDetailDto {
                         oi.getOrderPrice(), oi.getCount(), oi.getTotalPrice()))
                 .toList();
         this.totalPrice = order.getTotalPrice();
-        // 백오더는 예약이 없어 자유롭게 취소 가능. 출고완료/이미취소만 불가.
-        this.cancelable = (order.getStatus() == OrderStatus.ORDER || order.getStatus() == OrderStatus.BACKORDERED)
-                && order.getDelivery().getStatus() == DeliveryStatus.READY;
+        this.cancelable = order.getDelivery().getStatus() == DeliveryStatus.READY
+                && order.getStatus() != OrderStatus.CANCEL
+                && order.getStatus() != OrderStatus.CANCEL_REQUESTED;
+        PaymentViewDto paymentView = PaymentViewDto.from(order, payment);
+        this.orderStatusLabel = paymentView.orderStatusLabel();
+        this.paymentStatusLabel = paymentView.paymentStatusLabel();
+        this.paidAmount = paymentView.paidAmount();
+        this.pendingRefundAmount = paymentView.pendingRefundAmount();
+        this.refundedAmount = paymentView.refundedAmount();
+        this.paymentRetryable = paymentView.paymentRetryable();
+        this.refundStatusLabel = paymentView.refundStatusLabel();
     }
 
     public static OrderDetailDto from(Order order) {
-        return new OrderDetailDto(order);
+        return new OrderDetailDto(order, null);
+    }
+
+    public static OrderDetailDto from(Order order, Payment payment) {
+        return new OrderDetailDto(order, payment);
     }
 
     @Getter

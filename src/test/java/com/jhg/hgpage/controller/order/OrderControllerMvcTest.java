@@ -4,6 +4,9 @@ import com.jhg.hgpage.oms.web.controller.OrderController;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.CustomerReturn;
 import com.jhg.hgpage.oms.domain.Member;
+import com.jhg.hgpage.oms.domain.Payment;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.exception.EntityNotFoundException;
@@ -319,6 +322,88 @@ class OrderControllerMvcTest {
             order.cancel();
         }
         return com.jhg.hgpage.oms.dto.OrderDetailDto.from(order);
+    }
+
+    private com.jhg.hgpage.oms.dto.OrderDetailDto paymentDetail(
+            com.jhg.hgpage.oms.domain.enums.OrderStatus orderStatus,
+            com.jhg.hgpage.oms.domain.enums.PaymentStatus paymentStatus,
+            int paidAmount,
+            int pendingRefundAmount,
+            int refundedAmount) {
+        Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.catalog.Product product = new com.jhg.hgpage.catalog.Product();
+        product.setName("결제상품");
+        product.setPrice(10000);
+        com.jhg.hgpage.oms.domain.Delivery delivery = new com.jhg.hgpage.oms.domain.Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(product, product.getPrice(), 2));
+        ReflectionTestUtils.setField(order, "id", 10L);
+        ReflectionTestUtils.setField(order, "status", orderStatus);
+        Payment payment = Payment.create(order, 20000);
+        ReflectionTestUtils.setField(payment, "status", paymentStatus);
+        ReflectionTestUtils.setField(payment, "paidAmount", paidAmount);
+        ReflectionTestUtils.setField(payment, "pendingRefundAmount", pendingRefundAmount);
+        ReflectionTestUtils.setField(payment, "refundedAmount", refundedAmount);
+        return com.jhg.hgpage.oms.dto.OrderDetailDto.from(order, payment);
+    }
+
+    @Test
+    void 결제실패_상세에만_다시결제_버튼을_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                com.jhg.hgpage.oms.domain.enums.OrderStatus.PAYMENT_FAILED,
+                com.jhg.hgpage.oms.domain.enums.PaymentStatus.PAYMENT_FAILED, 0, 0, 0));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("결제 실패")))
+                .andExpect(content().string(containsString("/orders/10/payment/retry")))
+                .andExpect(content().string(containsString("다시 결제")));
+
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                com.jhg.hgpage.oms.domain.enums.OrderStatus.PAYMENT_PENDING,
+                com.jhg.hgpage.oms.domain.enums.PaymentStatus.PENDING, 0, 0, 0));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("결제 확인 중")))
+                .andExpect(content().string(not(containsString("/orders/10/payment/retry"))))
+                .andExpect(content().string(not(containsString("다시 결제"))));
+    }
+
+    @Test
+    void 주문상세는_결제환불금액과_안전한상태만_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED,
+                com.jhg.hgpage.oms.domain.enums.PaymentStatus.PAID, 20000, 7000, 3000));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("주문 취소 처리 중")))
+                .andExpect(content().string(containsString("환불 확인 중")))
+                .andExpect(content().string(containsString("20,000")))
+                .andExpect(content().string(containsString("7,000")))
+                .andExpect(content().string(containsString("3,000")))
+                .andExpect(content().string(not(containsString("failureCode"))))
+                .andExpect(content().string(not(containsString("failureReason"))))
+                .andExpect(content().string(not(containsString("requestKey"))))
+                .andExpect(content().string(not(containsString("gatewayTransactionId"))));
+    }
+
+    @Test
+    void 결제처리단계_타임라인은_재고가_확보됐다고_표시하지않는다() throws Exception {
+        for (OrderStatus status : List.of(
+                OrderStatus.PAYMENT_PENDING, OrderStatus.PAYMENT_FAILED, OrderStatus.PAYMENT_REVIEW)) {
+            PaymentStatus paymentStatus = status == OrderStatus.PAYMENT_FAILED
+                    ? PaymentStatus.PAYMENT_FAILED
+                    : status == OrderStatus.PAYMENT_REVIEW ? PaymentStatus.PAYMENT_REVIEW : PaymentStatus.PENDING;
+            when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(status, paymentStatus, 0, 0, 0));
+
+            mockMvc.perform(get("/orders/10").with(user(principal())))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(containsString(">재고 확인 전</div>")))
+                    .andExpect(content().string(not(containsString(">재고 확보</div>"))));
+        }
     }
 
     @Test

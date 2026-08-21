@@ -54,6 +54,8 @@ public class Order {
     private Boolean cancellationReleaseRequired;
     private LocalDateTime cancellationRequestedAt;
     private LocalDateTime cancellationProcessingAt;
+    private LocalDateTime cancellationNextAttemptAt;
+    private String cancellationFailureCode;
 
     @Column(nullable = false)
     private int cancellationAttemptCount;
@@ -150,6 +152,13 @@ public class Order {
         allocationProcessingAt = null;
     }
 
+    public void requeueAllocationReview(LocalDateTime now) {
+        requireStatus(OrderStatus.ALLOCATION_REVIEW);
+        status = OrderStatus.ALLOCATION_PENDING;
+        nextAllocationAttemptAt = now;
+        allocationProcessingAt = null;
+    }
+
     public void requestCancellation(Boolean releaseRequired, LocalDateTime requestedAt) {
         if (delivery.getStatus() != DeliveryStatus.READY || status == OrderStatus.CANCEL) {
             throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
@@ -161,6 +170,8 @@ public class Order {
         cancellationReleaseRequired = releaseRequired;
         cancellationRequestedAt = requestedAt;
         cancellationProcessingAt = null;
+        cancellationNextAttemptAt = releaseRequired == null ? null : requestedAt;
+        cancellationFailureCode = null;
     }
 
     public void resolveCancellationRelease(boolean releaseRequired) {
@@ -169,15 +180,43 @@ public class Order {
             throw new IllegalStateException("취소 해제 여부가 이미 결정되었습니다.");
         }
         cancellationReleaseRequired = releaseRequired;
+        cancellationNextAttemptAt = LocalDateTime.now();
+        cancellationFailureCode = null;
     }
 
     public void claimCancellation(LocalDateTime now) {
         requireStatus(OrderStatus.CANCEL_REQUESTED);
-        if (cancellationReleaseRequired == null || cancellationProcessingAt != null) {
+        if (cancellationReleaseRequired == null || cancellationProcessingAt != null
+                || cancellationNextAttemptAt == null || cancellationNextAttemptAt.isAfter(now)) {
             throw new IllegalStateException("취소 요청을 선점할 수 없습니다.");
         }
         cancellationAttemptCount++;
         cancellationProcessingAt = now;
+        cancellationNextAttemptAt = null;
+    }
+
+    public void retryCancellation(LocalDateTime nextAttemptAt, String failureCode) {
+        requireActiveCancellation();
+        cancellationProcessingAt = null;
+        cancellationNextAttemptAt = nextAttemptAt;
+        cancellationFailureCode = failureCode;
+    }
+
+    public void reviewCancellation(String failureCode) {
+        requireActiveCancellation();
+        cancellationProcessingAt = null;
+        cancellationNextAttemptAt = null;
+        cancellationFailureCode = failureCode;
+    }
+
+    public void requeueCancellationReview(LocalDateTime now) {
+        requireStatus(OrderStatus.CANCEL_REQUESTED);
+        if (!Boolean.TRUE.equals(cancellationReleaseRequired)
+                || cancellationProcessingAt != null || cancellationNextAttemptAt != null
+                || cancellationAttemptCount == 0) {
+            throw new IllegalStateException("재고 취소 검토 주문만 다시 처리할 수 있습니다.");
+        }
+        cancellationNextAttemptAt = now;
     }
 
     public void finishCancellation() {
@@ -187,6 +226,8 @@ public class Order {
         }
         status = OrderStatus.CANCEL;
         cancellationProcessingAt = null;
+        cancellationNextAttemptAt = null;
+        cancellationFailureCode = null;
     }
 
     /** 주문 라인을 상품 id→수량 맵으로 집계한다(같은 상품 중복 라인은 합산). 재고 연산(예약/해제/출고)의 입력. */
@@ -239,6 +280,13 @@ public class Order {
     private void requireStatus(OrderStatus expected) {
         if (status != expected) {
             throw new IllegalStateException("주문 상태를 변경할 수 없습니다.");
+        }
+    }
+
+    private void requireActiveCancellation() {
+        requireStatus(OrderStatus.CANCEL_REQUESTED);
+        if (cancellationProcessingAt == null) {
+            throw new IllegalStateException("처리 중인 취소 요청이 아닙니다.");
         }
     }
 

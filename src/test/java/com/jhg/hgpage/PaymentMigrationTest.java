@@ -4,12 +4,15 @@ import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 import javax.sql.DataSource;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -18,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentMigrationTest {
 
     @Test
-    void V1_V4_V6_V7이_결제와_주문처리_스키마를_만든다() throws Exception {
+    void V1_V4_V6_V7_V8이_결제와_주문처리_스키마를_만든다() throws Exception {
         DataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:payment-migration;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=true;DEFAULT_NULL_ORDERING=HIGH",
                 "sa", "");
@@ -33,18 +36,37 @@ class PaymentMigrationTest {
                 new ClassPathResource("db/migration/V6__add_payments_and_order_processing.sql"),
                 new ClassPathResource("db/migration/V7__add_cancellation_attempt_count.sql"))
                 .execute(dataSource);
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+        LocalDateTime requestedAt = LocalDateTime.of(2026, 8, 15, 12, 0);
+        jdbcTemplate.update("insert into orders " +
+                        "(order_id, status, cancellation_release_required, cancellation_requested_at) " +
+                        "values (?, 'CANCEL_REQUESTED', ?, ?)",
+                101L, true, Timestamp.valueOf(requestedAt));
+        jdbcTemplate.update("insert into orders " +
+                        "(order_id, status, cancellation_release_required, cancellation_requested_at) " +
+                        "values (?, 'CANCEL_REQUESTED', ?, ?)",
+                102L, false, Timestamp.valueOf(requestedAt.plusMinutes(1)));
+        new ResourceDatabasePopulator(
+                new ClassPathResource("db/migration/V8__add_cancellation_retry_review.sql"))
+                .execute(dataSource);
 
         DatabaseMetaData metadata = dataSource.getConnection().getMetaData();
         assertThat(tableNames(metadata)).contains("payment", "payment_attempt", "refund_request");
         assertThat(columnNames(metadata, "orders")).contains(
                 "allocation_attempt_count", "next_allocation_attempt_at", "allocation_failure_code",
                 "allocation_processing_at", "cancellation_release_required", "cancellation_requested_at",
-                "cancellation_processing_at", "cancellation_attempt_count");
+                "cancellation_processing_at", "cancellation_attempt_count",
+                "cancellation_next_attempt_at", "cancellation_failure_code");
         assertThat(uniqueIndexColumns(metadata, "payment")).contains("order_id");
         assertThat(uniqueIndexColumns(metadata, "payment_attempt")).contains("request_key");
         assertThat(uniqueIndexColumns(metadata, "refund_request")).contains("request_key", "source_type,source_id");
         assertThat(indexColumns(metadata, "payment_attempt")).contains("status,next_attempt_at,payment_attempt_id");
         assertThat(indexColumns(metadata, "refund_request")).contains("status,next_attempt_at,refund_request_id");
+        assertThat(indexColumns(metadata, "orders"))
+                .contains("status,cancellation_next_attempt_at,order_id");
+        assertThat(jdbcTemplate.queryForList(
+                "select cancellation_next_attempt_at from orders order by order_id", LocalDateTime.class))
+                .containsExactly(requestedAt, requestedAt.plusMinutes(1));
     }
 
     private Set<String> tableNames(DatabaseMetaData metadata) throws Exception {

@@ -17,6 +17,7 @@ import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.service.OrderCancellationService;
 import com.jhg.hgpage.oms.service.RefundService;
+import com.jhg.hgpage.oms.service.RetrySchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,7 +52,7 @@ class OrderCancellationServiceTest {
     @BeforeEach
     void setUp() {
         service = new OrderCancellationService(
-                orderRepository, paymentRepository, paymentAttemptRepository, refundService);
+                orderRepository, paymentRepository, paymentAttemptRepository, refundService, new RetrySchedule());
     }
 
     @Test
@@ -228,13 +229,56 @@ class OrderCancellationServiceTest {
         ReflectionTestUtils.setField(fixture.order, "cancellationProcessingAt", now.minusMinutes(10));
         when(orderRepository.findStaleCancellationOrderIds(now.minusMinutes(5))).thenReturn(List.of(10L));
 
-        service.recoverStaleCancellations(now.minusMinutes(5));
+        service.recoverStaleCancellations(now.minusMinutes(5), now);
+        ReflectionTestUtils.setField(fixture.order, "cancellationNextAttemptAt", now.minusSeconds(1));
         OrderCancellationService.CancellationClaim attemptB = service.claim(10L).orElseThrow();
 
         assertThat(service.complete(10L, attemptA.attemptNumber())).isFalse();
         assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(service.complete(10L, attemptB.attemptNumber())).isTrue();
         verify(refundService).requestOrderCancellationRefund(10L);
+    }
+
+    @Test
+    void WMS해제_일시실패는_공유일정으로_다섯번까지만_재시도한다() {
+        Fixture fixture = paidState(OrderStatus.ORDER);
+        stubPaidOrReviewLocks(fixture);
+        service.request(10L, 1L);
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            ReflectionTestUtils.setField(fixture.order, "cancellationNextAttemptAt",
+                    LocalDateTime.now().minusSeconds(1));
+            OrderCancellationService.CancellationClaim claim = service.claim(10L).orElseThrow();
+            LocalDateTime before = LocalDateTime.now().plusSeconds(59);
+
+            service.retryOrReview(10L, claim.attemptNumber(), "WMS_UNAVAILABLE");
+
+            assertThat(fixture.order.getCancellationFailureCode()).isEqualTo("WMS_UNAVAILABLE");
+            if (attempt < 5) {
+                assertThat(fixture.order.getCancellationNextAttemptAt()).isAfter(before);
+            }
+        }
+
+        assertThat(fixture.order.getCancellationAttemptCount()).isEqualTo(5);
+        assertThat(fixture.order.getCancellationNextAttemptAt()).isNull();
+        assertThat(fixture.order.getCancellationProcessingAt()).isNull();
+        assertThat(service.requeueCancellationReview(10L)).isTrue();
+        assertThat(fixture.order.getCancellationNextAttemptAt()).isNotNull();
+        assertThat(service.requeueCancellationReview(10L)).isFalse();
+    }
+
+    @Test
+    void 영구_WMS해제실패는_즉시_검토상태로_남긴다() {
+        Fixture fixture = paidState(OrderStatus.ORDER);
+        stubPaidOrReviewLocks(fixture);
+        service.request(10L, 1L);
+        OrderCancellationService.CancellationClaim claim = service.claim(10L).orElseThrow();
+
+        service.manualReview(10L, claim.attemptNumber(), "WMS_400");
+
+        assertThat(fixture.order.getCancellationFailureCode()).isEqualTo("WMS_400");
+        assertThat(fixture.order.getCancellationNextAttemptAt()).isNull();
+        assertThat(fixture.order.getCancellationProcessingAt()).isNull();
     }
 
     @Test

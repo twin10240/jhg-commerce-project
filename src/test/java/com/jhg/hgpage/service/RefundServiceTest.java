@@ -241,6 +241,20 @@ class RefundServiceTest {
         assertThat(request.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
     }
 
+    @Test
+    void 수동검토_환불만_같은키와_시도횟수로_재큐한다() {
+        RefundRequest request = processingRequest(1);
+        request.manualReview("INVALID_AMOUNT", "invalid", LocalDateTime.now());
+        UUID requestKey = request.getRequestKey();
+        int attemptCount = request.getAttemptCount();
+
+        assertThat(service.requeueReview(30L)).isTrue();
+        assertThat(request.getStatus()).isEqualTo(RefundStatus.RETRYING);
+        assertThat(request.getRequestKey()).isEqualTo(requestKey);
+        assertThat(request.getAttemptCount()).isEqualTo(attemptCount);
+        assertThat(service.requeueReview(30L)).isFalse();
+    }
+
     private void stubPaymentLock() {
         when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
     }

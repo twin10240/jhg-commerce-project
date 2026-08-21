@@ -6,6 +6,7 @@ import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.domain.enums.Role;
 import com.jhg.hgpage.oms.dto.AdminOrderDto;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentAdminService;
 import com.jhg.hgpage.oms.web.controller.OrderAdminController;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +42,7 @@ class OrderAdminControllerMvcTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean OrderService orderService;
+    @MockBean PaymentAdminService paymentAdminService;
 
     private UserPrincipal admin() {
         return new UserPrincipal(2L, "admin@admin.com", "관리자", "010-1111-2222", "password", Role.ADMIN);
@@ -232,5 +234,35 @@ class OrderAdminControllerMvcTest {
                 .andExpect(flash().attribute("successMessage", "배송 완료되었습니다. (주문 #10)"));
 
         verify(orderService).deliverOrder(10L);
+    }
+
+    @Test
+    void 관리자는_할당검토를_같은주문으로_다시처리한다() throws Exception {
+        mockMvc.perform(post("/admin/orders/10/allocation/retry")
+                        .with(user(admin()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"));
+
+        verify(paymentAdminService).retryAllocation(10L);
+    }
+
+    @Test
+    void 일반사용자는_할당재시도를_할수없다() throws Exception {
+        mockMvc.perform(post("/admin/orders/10/allocation/retry")
+                        .with(user(normalUser()))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(paymentAdminService);
+    }
+
+    @Test
+    void 할당재시도는_CSRF가_필요하다() throws Exception {
+        mockMvc.perform(post("/admin/orders/10/allocation/retry")
+                        .with(user(admin())))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(paymentAdminService);
     }
 }

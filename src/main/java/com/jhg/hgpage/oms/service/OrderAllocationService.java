@@ -115,6 +115,16 @@ public class OrderAllocationService {
         return true;
     }
 
+    @Transactional
+    public boolean requeueAllocationReview(Long orderId) {
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || order.getStatus() != OrderStatus.ALLOCATION_REVIEW) {
+            return false;
+        }
+        order.requeueAllocationReview(LocalDateTime.now());
+        return true;
+    }
+
     private boolean isDue(Order order, LocalDateTime now) {
         if (order.getNextAllocationAttemptAt() == null
                 || order.getNextAllocationAttemptAt().isAfter(now)) {

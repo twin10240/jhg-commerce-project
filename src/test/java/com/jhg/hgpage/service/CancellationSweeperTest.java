@@ -32,10 +32,12 @@ class CancellationSweeperTest {
 
         InOrder calls = inOrder(cancellationService, processor);
         ArgumentCaptor<LocalDateTime> staleBefore = ArgumentCaptor.forClass(LocalDateTime.class);
-        calls.verify(cancellationService).recoverStaleCancellations(staleBefore.capture());
+        ArgumentCaptor<LocalDateTime> now = ArgumentCaptor.forClass(LocalDateTime.class);
+        calls.verify(cancellationService).recoverStaleCancellations(staleBefore.capture(), now.capture());
         calls.verify(cancellationService).findDueCancellationOrderIds();
         calls.verify(processor).process(10L);
         calls.verify(processor).process(20L);
         assertThat(staleBefore.getValue()).isBefore(LocalDateTime.now().minusMinutes(4));
+        assertThat(now.getValue()).isAfter(staleBefore.getValue());
     }
 }

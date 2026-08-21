@@ -42,6 +42,8 @@ class ResponsiveTemplateContractTest {
         assertThat(html).contains("@media (max-width: 720px)");
         assertThat(html).contains(".meta{grid-template-columns:1fr}");
         assertThat(html).contains(".actions{align-items:stretch;flex-direction:column}");
+        assertThat(html).contains("class=\"block payment-summary\"");
+        assertThat(html).contains(".payment-values{grid-template-columns:1fr}");
     }
 
     @Test

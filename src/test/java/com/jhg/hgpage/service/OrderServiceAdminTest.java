@@ -10,6 +10,7 @@ import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.dto.AdminOrderDto;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
@@ -77,6 +78,30 @@ class OrderServiceAdminTest {
         assertThat(result.get(1).getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(result.get(1).isShippable()).isFalse();
         assertThat(result.get(1).isDeliverable()).isFalse();
+    }
+
+    @Test
+    void 관리자주문도_결제를_일괄조회하고_두_할당검토경로를_구분한다() {
+        Order normalReview = newOrder("회원A");
+        ReflectionTestUtils.setField(normalReview, "id", 10L);
+        ReflectionTestUtils.setField(normalReview, "status", OrderStatus.ALLOCATION_REVIEW);
+        Order cancellationReview = newOrder("회원B");
+        ReflectionTestUtils.setField(cancellationReview, "id", 11L);
+        cancellationReview.requestCancellation(null, java.time.LocalDateTime.now());
+        Payment payment = Payment.create(normalReview, normalReview.getTotalPrice());
+        payment.markPaid(java.time.LocalDateTime.now());
+        when(orderRepositoryQuery.findAllForAdmin()).thenReturn(List.of(normalReview, cancellationReview));
+        when(orderRepositoryQuery.findPaymentsByOrderIds(List.of(10L, 11L))).thenReturn(List.of(payment));
+        when(orderRepositoryQuery.findCancellationAllocationReviewOrderIds()).thenReturn(List.of(11L));
+
+        List<AdminOrderDto> result = orderService.findAllForAdmin();
+
+        assertThat(result.get(0).isAllocationRetryable()).isTrue();
+        assertThat(result.get(0).getOrderStatusLabel()).isEqualTo("재고 확인 지연");
+        assertThat(result.get(0).getPaymentStatusLabel()).isEqualTo("결제 완료");
+        assertThat(result.get(1).isCancellationAllocationRetryable()).isTrue();
+        verify(orderRepositoryQuery).findPaymentsByOrderIds(List.of(10L, 11L));
+        verify(orderRepositoryQuery).findCancellationAllocationReviewOrderIds();
     }
 
     @Test

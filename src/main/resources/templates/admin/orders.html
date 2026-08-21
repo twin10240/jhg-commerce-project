@@ -121,6 +121,7 @@
         <th>주문자</th>
         <th>주문 상품</th>
         <th style="width:100px">주문상태</th>
+        <th style="width:110px">결제상태</th>
         <th style="width:100px">배송상태</th>
         <th class="right mobile-hide" style="width:120px">주문금액</th>
         <th class="mobile-hide" style="width:150px">주문일시</th>
@@ -146,9 +147,10 @@
         </td>
         <td>
           <span class="status-badge"
-                th:classappend="${o.status.name() == 'CANCEL'} ? 'cancel' : (${o.status.name() == 'BACKORDERED'} ? 'backorder' : 'order')"
-                th:text="${o.status.name() == 'CANCEL'} ? '주문 취소' : (${o.status.name() == 'BACKORDERED'} ? '입고 대기' : '재고 확보')">재고 확보</span>
+                th:classappend="${o.status.name() == 'CANCEL' or o.status.name() == 'PAYMENT_FAILED'} ? 'cancel' : (${o.status.name() == 'BACKORDERED' or o.status.name() == 'ALLOCATION_REVIEW'} ? 'backorder' : 'order')"
+                th:text="${o.orderStatusLabel}">재고 확보</span>
         </td>
+        <td th:text="${o.paymentStatusLabel}">결제 완료</td>
         <td>
           <span class="status-badge"
                 th:classappend="${o.deliveryStatus.name() == 'DELIVERED'} ? 'delivered' : (${o.deliveryStatus.name() == 'SHIPPED'} ? 'shipped' : 'ready')"
@@ -169,10 +171,16 @@
             <input type="hidden" name="orderId" th:value="${o.id}" />
             <button class="btn small" type="submit">배송 완료</button>
           </form>
+          <form th:if="${o.allocationRetryable or o.cancellationAllocationRetryable}"
+                th:action="@{/admin/orders/{orderId}/allocation/retry(orderId=${o.id})}" method="post"
+                onsubmit="return confirm('재고 처리를 다시 시도하시겠습니까?');">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <button class="btn small" type="submit">재고 다시 처리</button>
+          </form>
         </td>
       </tr>
       <tr th:if="${#lists.isEmpty(orders)}">
-        <td colspan="9" class="hint">주문 내역이 없습니다.</td>
+        <td colspan="10" class="hint">주문 내역이 없습니다.</td>
       </tr>
       </tbody>
     </table>

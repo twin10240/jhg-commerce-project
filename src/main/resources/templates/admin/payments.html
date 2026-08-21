@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>결제·환불 관리 · OMS</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <style>
+    .review-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.review-count{padding:16px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card)}.review-count span{display:block;color:var(--app-muted);font-size:13px}.review-count b{display:block;margin-top:6px;font-size:24px}
+    .filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:18px 0}.filters label{display:grid;gap:6px;color:var(--app-muted);font-size:13px}.filters select{min-width:180px;padding:10px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card);color:var(--app-ink);font:inherit}
+    .admin-section{margin-top:20px}.section-head{margin:0 0 4px;font-size:18px;letter-spacing:0}.table-wrap{overflow-x:auto}.payment-table{width:100%;min-width:1100px;border-collapse:collapse}.payment-table th,.payment-table td{padding:11px 9px;border-bottom:1px solid var(--app-line);text-align:left;font-size:13px;vertical-align:top}.payment-table th{color:var(--app-muted);white-space:nowrap}.number{text-align:right!important;font-variant-numeric:tabular-nums}.key{max-width:220px;overflow-wrap:anywhere}.row-action{white-space:nowrap}.flash{padding:12px 14px;margin:14px 0;border:1px solid #b9dfc8;border-radius:8px;background:#eaf7ef;color:var(--app-ok);font-weight:700}
+    @media(max-width:720px){.review-counts{grid-template-columns:1fr 1fr}.filters{align-items:stretch;flex-direction:column}.filters label,.filters select,.filters .app-btn{width:100%}.payment-table{min-width:960px}}
+    @media(max-width:440px){.review-counts{grid-template-columns:1fr}}
+    @media(prefers-color-scheme:dark){.review-count{background:var(--app-card)}.flash{background:#173528}}
+  </style>
+</head>
+<body style="margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif">
+<div th:replace="~{fragments/layout :: nav('payments')}"></div>
+<main class="app-shell">
+  <header>
+    <h1 class="app-title">결제·환불 관리</h1>
+    <p class="app-subtitle">결제와 환불 작업의 현재 상태를 확인하고 수동 검토 건을 다시 처리합니다.</p>
+  </header>
+
+  <section class="review-counts" aria-label="수동 검토 요약">
+    <div class="review-count"><span>환불 수동 확인</span><b th:text="|${counts.refundReviewCount}건|">0건</b></div>
+    <div class="review-count"><span>재고 할당 수동 확인</span><b th:text="|${counts.allocationReviewCount}건|">0건</b></div>
+    <div class="review-count"><span>결제 취소 수동 확인</span><b th:text="|${counts.cancellationPaymentReviewCount}건|">0건</b></div>
+    <div class="review-count"><span>재고 취소 검토</span><b th:text="|${counts.cancellationAllocationReviewCount}건|">0건</b></div>
+  </section>
+
+  <form class="filters" method="get" th:action="@{/admin/payments}">
+    <label>결제 상태
+      <select name="paymentStatus">
+        <option value="">전체</option>
+        <option th:each="status : ${paymentStatuses}" th:value="${status}"
+                th:selected="${status == paymentStatus}" th:text="${status}">PAID</option>
+      </select>
+    </label>
+    <label>환불 상태
+      <select name="refundStatus">
+        <option value="">전체</option>
+        <option th:each="status : ${refundStatuses}" th:value="${status}"
+                th:selected="${status == refundStatus}" th:text="${status}">SUCCEEDED</option>
+      </select>
+    </label>
+    <button class="app-btn" type="submit">조회</button>
+  </form>
+
+  <div class="flash" th:if="${successMessage}" th:text="${successMessage}">처리를 요청했습니다.</div>
+
+  <section class="admin-section app-card" aria-labelledby="payment-table-title">
+    <h2 id="payment-table-title" class="section-head">결제 작업</h2>
+    <div class="table-wrap">
+      <table class="payment-table">
+        <thead><tr><th>주문번호</th><th>상태</th><th class="number">결제액</th><th class="number">처리 중 환불</th><th class="number">누적 환불</th><th>요청 키</th><th class="number">시도</th><th>마지막 실패 원인</th><th>다음 시도</th><th>처리</th></tr></thead>
+        <tbody>
+        <tr th:each="row : ${payments}">
+          <td th:text="${row.orderId}">10</td>
+          <td th:text="${row.statusLabel}">결제 완료</td>
+          <td class="number" th:text="|${#numbers.formatInteger(row.paidAmount,3,'COMMA')}원|">10,000원</td>
+          <td class="number" th:text="|${#numbers.formatInteger(row.pendingRefundAmount,3,'COMMA')}원|">0원</td>
+          <td class="number" th:text="|${#numbers.formatInteger(row.refundedAmount,3,'COMMA')}원|">0원</td>
+          <td class="key" th:text="${row.requestKey ?: '-'}">key</td>
+          <td class="number" th:text="${row.attemptCount}">1</td>
+          <td th:text="${row.failureReason ?: '-'}">-</td>
+          <td th:text="${row.nextRetryAt == null ? '-' : #temporals.format(row.nextRetryAt,'yyyy-MM-dd HH:mm')}">-</td>
+          <td class="row-action">
+            <form th:if="${row.retryable}" th:action="@{/admin/payment-attempts/{attemptId}/retry(attemptId=${row.id})}" method="post">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <button class="app-btn secondary" type="submit">결제 확인 재시도</button>
+            </form>
+          </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(payments)}"><td colspan="10" class="empty-state">조건에 맞는 결제 작업이 없습니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="admin-section app-card" aria-labelledby="refund-table-title">
+    <h2 id="refund-table-title" class="section-head">환불 작업</h2>
+    <div class="table-wrap">
+      <table class="payment-table">
+        <thead><tr><th>주문번호</th><th>반품번호</th><th>상태</th><th class="number">환불 요청액</th><th>요청 키</th><th class="number">시도</th><th>마지막 실패 원인</th><th>다음 시도</th><th>처리</th></tr></thead>
+        <tbody>
+        <tr th:each="row : ${refunds}">
+          <td th:text="${row.orderId}">10</td>
+          <td th:text="${row.returnId ?: '-'}">40</td>
+          <td th:text="${row.statusLabel}">환불 확인 필요</td>
+          <td class="number" th:text="|${#numbers.formatInteger(row.amount,3,'COMMA')}원|">5,000원</td>
+          <td class="key" th:text="${row.requestKey}">key</td>
+          <td class="number" th:text="${row.attemptCount}">1</td>
+          <td th:text="${row.failureReason ?: '-'}">-</td>
+          <td th:text="${row.nextRetryAt == null ? '-' : #temporals.format(row.nextRetryAt,'yyyy-MM-dd HH:mm')}">-</td>
+          <td class="row-action">
+            <form th:if="${row.retryable}" th:action="@{/admin/refunds/{refundId}/retry(refundId=${row.id})}" method="post">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+              <button class="app-btn secondary" type="submit">환불 다시 처리</button>
+            </form>
+          </td>
+        </tr>
+        <tr th:if="${#lists.isEmpty(refunds)}"><td colspan="9" class="empty-state">조건에 맞는 환불 작업이 없습니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</body>
+</html>

@@ -118,6 +118,15 @@ public class RefundRequest {
         touch(Objects.requireNonNull(now));
     }
 
+    public void requeueReview(LocalDateTime now) {
+        if (status != RefundStatus.MANUAL_REVIEW) {
+            throw new IllegalStateException("수동 검토 환불만 다시 처리할 수 있습니다.");
+        }
+        status = RefundStatus.RETRYING;
+        nextAttemptAt = Objects.requireNonNull(now);
+        touch(now);
+    }
+
     public void succeed(LocalDateTime completedAt) {
         requireProcessing();
         status = RefundStatus.SUCCEEDED;

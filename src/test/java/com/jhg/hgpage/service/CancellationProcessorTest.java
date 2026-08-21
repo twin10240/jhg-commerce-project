@@ -10,6 +10,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.Map;
 import java.util.Optional;
@@ -65,7 +67,7 @@ class CancellationProcessorTest {
     }
 
     @Test
-    void WMS_예외는_lease를_반납해_재시도할수_있게한다() {
+    void WMS_일시예외는_제한재시도로_보낸다() {
         OrderCancellationService.CancellationClaim claim =
                 new OrderCancellationService.CancellationClaim(2, true, Map.of(7L, 2));
         when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
@@ -73,7 +75,21 @@ class CancellationProcessorTest {
 
         processor.process(10L);
 
-        verify(cancellationService).retry(10L, 2);
+        verify(cancellationService).retryOrReview(10L, 2, "WMS_UNAVAILABLE");
+        verify(cancellationService, never()).complete(10L, 2);
+    }
+
+    @Test
+    void WMS_4xx는_즉시_수동검토로_보낸다() {
+        OrderCancellationService.CancellationClaim claim =
+                new OrderCancellationService.CancellationClaim(2, true, Map.of(7L, 2));
+        when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
+        doThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST))
+                .when(inventoryPort).releaseAll(10L, claim.quantities());
+
+        processor.process(10L);
+
+        verify(cancellationService).manualReview(10L, 2, "WMS_400");
         verify(cancellationService, never()).complete(10L, 2);
     }
 }

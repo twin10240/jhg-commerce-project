@@ -2,6 +2,7 @@ package com.jhg.hgpage.oms.web.controller;
 
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.oms.service.PaymentAdminService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -18,6 +19,7 @@ import java.util.List;
 public class OrderAdminController {
 
     private final OrderService orderService;
+    private final PaymentAdminService paymentAdminService;
 
     @GetMapping("/admin/orders")
     public String orders(Model model) {
@@ -72,6 +74,14 @@ public class OrderAdminController {
         } catch (IllegalStateException | EntityNotFoundException e) {
             redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
         }
+        return "redirect:/admin/orders";
+    }
+
+    @PostMapping("/admin/orders/{orderId}/allocation/retry")
+    public String retryAllocation(@org.springframework.web.bind.annotation.PathVariable Long orderId,
+                                  RedirectAttributes redirectAttributes) {
+        paymentAdminService.retryAllocation(orderId);
+        redirectAttributes.addFlashAttribute("successMessage", "재고 처리를 다시 요청했습니다.");
         return "redirect:/admin/orders";
     }
 }

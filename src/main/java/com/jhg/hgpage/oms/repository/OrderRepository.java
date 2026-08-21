@@ -21,8 +21,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     @Query("select o.id from Order o where o.status = com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED " +
             "and o.cancellationReleaseRequired is not null and o.cancellationProcessingAt is null " +
+            "and o.cancellationNextAttemptAt <= :now " +
             "order by o.cancellationRequestedAt, o.id")
-    List<Long> findDueCancellationOrderIds();
+    List<Long> findDueCancellationOrderIds(@Param("now") LocalDateTime now);
 
     @Query("select o.id from Order o where o.status = com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED " +
             "and o.cancellationProcessingAt <= :staleBefore order by o.cancellationRequestedAt, o.id")

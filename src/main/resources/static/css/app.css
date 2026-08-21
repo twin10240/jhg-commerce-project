@@ -27,6 +27,7 @@ img,svg,video{max-width:100%}
 .app-grid{display:grid;gap:18px}.orders-grid{margin-top:22px}
 .order-card{display:grid;grid-template-columns:1fr auto;gap:14px;padding:20px;border:1px solid var(--app-line);border-radius:14px;background:#fff}
 .order-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--app-muted);font-size:14px;margin-top:10px}
+.order-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .product-detail{display:grid;grid-template-columns:minmax(260px,1fr) minmax(280px,1fr);gap:28px;align-items:center}
 .product-art{min-height:320px;border-radius:18px;width:100%;object-fit:cover}
 .catalog-image{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:14px;margin-bottom:14px}
@@ -49,6 +50,7 @@ img,svg,video{max-width:100%}
   .purchase-actions{align-items:stretch;flex-direction:column}
   .purchase-actions input,.purchase-actions .app-btn{box-sizing:border-box;width:100%}
   .order-card{grid-template-columns:1fr}
+  .order-actions{justify-content:space-between}
   .timeline-step{font-size:12px}
   .inline-message{top:16px;left:16px;right:16px;max-width:none}
 }

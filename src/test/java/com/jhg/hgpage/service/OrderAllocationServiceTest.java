@@ -169,6 +169,20 @@ class OrderAllocationServiceTest {
     }
 
     @Test
+    void 일반_할당검토만_같은주문과_시도횟수로_재큐한다() {
+        Order order = processingOrder(5);
+        order.markAllocationReview("WMS_UNAVAILABLE");
+        int attemptCount = order.getAllocationAttemptCount();
+        when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));
+
+        assertThat(service.requeueAllocationReview(100L)).isTrue();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PENDING);
+        assertThat(order.getAllocationAttemptCount()).isEqualTo(attemptCount);
+        assertThat(order.getNextAllocationAttemptAt()).isNotNull();
+        assertThat(service.requeueAllocationReview(100L)).isFalse();
+    }
+
+    @Test
     void 오래된_작업A의_결과는_재선점한_작업B를_변경하지_못한다() {
         Order order = pendingOrder();
         when(orderRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(order));

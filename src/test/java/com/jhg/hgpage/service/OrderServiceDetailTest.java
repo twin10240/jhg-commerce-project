@@ -10,6 +10,7 @@ import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
+import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.dto.OrderDetailDto;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
@@ -27,6 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,7 +71,11 @@ class OrderServiceDetailTest {
 
     @Test
     void 본인_주문_상세를_DTO로_반환한다() {
-        when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(orderOwnedBy(1L)));
+        Order order = orderOwnedBy(1L);
+        Payment payment = Payment.create(order, 20_000);
+        payment.markPaid(java.time.LocalDateTime.now());
+        when(orderRepositoryQuery.findDetailById(10L)).thenReturn(Optional.of(order));
+        when(orderRepositoryQuery.findPaymentByOrderId(10L)).thenReturn(Optional.of(payment));
 
         OrderDetailDto detail = orderService.findOrderDetail(10L, 1L);
 
@@ -82,6 +88,26 @@ class OrderServiceDetailTest {
         assertThat(detail.getItems().get(0).getTotalPrice()).isEqualTo(20000);
         assertThat(detail.getTotalPrice()).isEqualTo(20000);
         assertThat(detail.isCancelable()).isTrue();
+        assertThat(detail.getPaymentStatusLabel()).isEqualTo("결제 완료");
+        assertThat(detail.getPaidAmount()).isEqualTo(20_000);
+    }
+
+    @Test
+    void 주문목록의_결제정보를_주문별조회없이_한번에_가져온다() {
+        Order first = orderOwnedBy(1L);
+        ReflectionTestUtils.setField(first, "id", 10L);
+        Order second = orderOwnedBy(1L);
+        ReflectionTestUtils.setField(second, "id", 11L);
+        Payment payment = Payment.create(first, 20_000);
+        payment.markPaid(java.time.LocalDateTime.now());
+        when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of(first, second));
+        when(orderRepositoryQuery.findPaymentsByOrderIds(List.of(10L, 11L))).thenReturn(List.of(payment));
+
+        var orders = orderService.findOrders(1L);
+
+        assertThat(orders).extracting("paymentStatusLabel")
+                .containsExactly("결제 완료", "결제 이력 없음");
+        verify(orderRepositoryQuery).findPaymentsByOrderIds(List.of(10L, 11L));
     }
 
     @Test

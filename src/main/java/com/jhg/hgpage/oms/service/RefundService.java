@@ -118,6 +118,16 @@ public class RefundService {
                 .toList();
     }
 
+    @Transactional
+    public boolean requeueReview(Long refundId) {
+        RefundRequest request = refundRequestRepository.findByIdForUpdate(refundId).orElse(null);
+        if (request == null || request.getStatus() != RefundStatus.MANUAL_REVIEW) {
+            return false;
+        }
+        request.requeueReview(LocalDateTime.now());
+        return true;
+    }
+
     private Optional<Long> request(Payment payment, RefundSourceType sourceType, Long sourceId,
                                    ToIntFunction<Payment> amount) {
         if (payment == null) {

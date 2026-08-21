@@ -35,12 +35,18 @@ public class OrderService {
     }
 
     public OrderDetailDto findOrderDetail(Long orderId, Long memberId) {
-        return OrderDetailDto.from(findOwnedOrder(orderId, memberId));
+        return OrderDetailDto.from(findOwnedOrder(orderId, memberId),
+                orderRepositoryQuery.findPaymentByOrderId(orderId).orElse(null));
     }
 
     // 관리자 배송 관리 목록
     public List<AdminOrderDto> findAllForAdmin() {
         List<Order> orders = orderRepositoryQuery.findAllForAdmin();
+        Map<Long, Payment> payments = orderRepositoryQuery.findPaymentsByOrderIds(
+                        orders.stream().map(Order::getId).toList()).stream()
+                .collect(Collectors.toMap(payment -> payment.getOrder().getId(), payment -> payment));
+        var cancellationReviewOrderIds = new java.util.HashSet<>(
+                orderRepositoryQuery.findCancellationAllocationReviewOrderIds());
         List<Long> backorderedProductIds = orders.stream()
                 .filter(order -> order.getStatus() == OrderStatus.BACKORDERED)
                 .flatMap(order -> order.getOrderItems().stream())
@@ -51,7 +57,8 @@ public class OrderService {
                 ? Map.of()
                 : inventoryQueryPort.availableByProductIds(backorderedProductIds);
         return orders.stream()
-                .map(order -> AdminOrderDto.from(order, availability))
+                .map(order -> AdminOrderDto.from(order, availability, payments.get(order.getId()),
+                        cancellationReviewOrderIds.contains(order.getId())))
                 .toList();
     }
 
@@ -92,9 +99,11 @@ public class OrderService {
 
     public List<OrderDto> findOrders(Long memberId) {
         List<Order> orders = orderRepositoryQuery.findOrders(memberId);
+        Map<Long, Payment> payments = orderRepositoryQuery.findPaymentsByOrderIds(
+                        orders.stream().map(Order::getId).toList()).stream()
+                .collect(Collectors.toMap(payment -> payment.getOrder().getId(), payment -> payment));
         return orders.stream()
-                .map(o -> new OrderDto(o.getId(), o.getStatus(), o.getDelivery().getStatus(),
-                        o.getTotalPrice(), o.getOrderDate()))
+                .map(order -> OrderDto.from(order, payments.get(order.getId())))
                 .collect(Collectors.toList());
     }
 

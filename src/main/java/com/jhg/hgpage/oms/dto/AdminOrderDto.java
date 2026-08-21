@@ -1,6 +1,7 @@
 package com.jhg.hgpage.oms.dto;
 
 import com.jhg.hgpage.oms.domain.Order;
+import com.jhg.hgpage.oms.domain.Payment;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
@@ -21,10 +22,15 @@ public class AdminOrderDto {
     private final List<Item> items;
     private final boolean shippable;
     private final boolean deliverable;
+    private final String orderStatusLabel;
+    private final String paymentStatusLabel;
+    private final boolean allocationRetryable;
+    private final boolean cancellationAllocationRetryable;
 
     public record Item(Long productId, String productName, int quantity, boolean inboundRequired) {}
 
-    private AdminOrderDto(Order order, Map<Long, Integer> availability) {
+    private AdminOrderDto(Order order, Map<Long, Integer> availability,
+                          Payment payment, boolean cancellationAllocationRetryable) {
         this.id = order.getId();
         this.memberName = order.getMember().getName();
         this.status = order.getStatus();
@@ -44,6 +50,11 @@ public class AdminOrderDto {
         this.shippable = order.getStatus() == OrderStatus.ORDER
                 && order.getDelivery().getStatus() == DeliveryStatus.READY;
         this.deliverable = order.getDelivery().getStatus() == DeliveryStatus.SHIPPED;
+        PaymentViewDto paymentView = PaymentViewDto.from(order, payment);
+        this.orderStatusLabel = paymentView.orderStatusLabel();
+        this.paymentStatusLabel = paymentView.paymentStatusLabel();
+        this.allocationRetryable = order.getStatus() == OrderStatus.ALLOCATION_REVIEW;
+        this.cancellationAllocationRetryable = cancellationAllocationRetryable;
     }
 
     public static AdminOrderDto from(Order order) {
@@ -51,6 +62,11 @@ public class AdminOrderDto {
     }
 
     public static AdminOrderDto from(Order order, Map<Long, Integer> availability) {
-        return new AdminOrderDto(order, availability);
+        return new AdminOrderDto(order, availability, null, false);
+    }
+
+    public static AdminOrderDto from(Order order, Map<Long, Integer> availability,
+                                     Payment payment, boolean cancellationAllocationRetryable) {
+        return new AdminOrderDto(order, availability, payment, cancellationAllocationRetryable);
     }
 }

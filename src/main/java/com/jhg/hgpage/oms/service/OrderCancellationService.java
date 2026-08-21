@@ -31,6 +31,7 @@ public class OrderCancellationService {
     private final PaymentRepository paymentRepository;
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final RefundService refundService;
+    private final RetrySchedule retrySchedule;
 
     @Transactional
     public CancellationResult request(Long orderId, Long memberId) {
@@ -95,12 +96,15 @@ public class OrderCancellationService {
     @Transactional
     public Optional<CancellationClaim> claim(Long orderId) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        LocalDateTime now = LocalDateTime.now();
         if (order == null || order.getStatus() != OrderStatus.CANCEL_REQUESTED
                 || order.getCancellationReleaseRequired() == null
-                || order.getCancellationProcessingAt() != null) {
+                || order.getCancellationProcessingAt() != null
+                || order.getCancellationNextAttemptAt() == null
+                || order.getCancellationNextAttemptAt().isAfter(now)) {
             return Optional.empty();
         }
-        order.claimCancellation(LocalDateTime.now());
+        order.claimCancellation(now);
         return Optional.of(new CancellationClaim(order.getCancellationAttemptCount(),
                 order.getCancellationReleaseRequired(), Map.copyOf(order.quantitiesByProductId())));
     }
@@ -120,27 +124,49 @@ public class OrderCancellationService {
     }
 
     @Transactional
-    public void retry(Long orderId, int attemptNumber) {
+    public void retryOrReview(Long orderId, int attemptNumber, String failureCode) {
         Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
         if (ownsCancellationLease(order, attemptNumber)) {
-            order.setCancellationProcessingAt(null);
+            retryOrReview(order, failureCode, LocalDateTime.now());
         }
     }
 
     @Transactional
-    public void recoverStaleCancellations(LocalDateTime staleBefore) {
+    public void manualReview(Long orderId, int attemptNumber, String failureCode) {
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (ownsCancellationLease(order, attemptNumber)) {
+            order.reviewCancellation(failureCode);
+        }
+    }
+
+    @Transactional
+    public void recoverStaleCancellations(LocalDateTime staleBefore, LocalDateTime now) {
         for (Long orderId : orderRepository.findStaleCancellationOrderIds(staleBefore)) {
             Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
             if (order != null && order.getStatus() == OrderStatus.CANCEL_REQUESTED
                     && order.getCancellationProcessingAt() != null
                     && !order.getCancellationProcessingAt().isAfter(staleBefore)) {
-                order.setCancellationProcessingAt(null);
+                retryOrReview(order, "STALE_PROCESSING", now);
             }
         }
     }
 
     public List<Long> findDueCancellationOrderIds() {
-        return orderRepository.findDueCancellationOrderIds();
+        return orderRepository.findDueCancellationOrderIds(LocalDateTime.now());
+    }
+
+    @Transactional
+    public boolean requeueCancellationReview(Long orderId) {
+        Order order = orderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null || order.getStatus() != OrderStatus.CANCEL_REQUESTED
+                || !Boolean.TRUE.equals(order.getCancellationReleaseRequired())
+                || order.getCancellationAttemptCount() == 0
+                || order.getCancellationProcessingAt() != null
+                || order.getCancellationNextAttemptAt() != null) {
+            return false;
+        }
+        order.requeueCancellationReview(LocalDateTime.now());
+        return true;
     }
 
     private void cancelPending(Order order, Payment payment, PaymentAttempt activeAttempt) {
@@ -164,6 +190,13 @@ public class OrderCancellationService {
         return order != null && order.getStatus() == OrderStatus.CANCEL_REQUESTED
                 && order.getCancellationProcessingAt() != null
                 && order.getCancellationAttemptCount() == attemptNumber;
+    }
+
+    private void retryOrReview(Order order, String failureCode, LocalDateTime now) {
+        retrySchedule.nextAttemptAt(order.getCancellationAttemptCount(), now)
+                .ifPresentOrElse(
+                        next -> order.retryCancellation(next, failureCode),
+                        () -> order.reviewCancellation(failureCode));
     }
 
     private boolean isPaid(Payment payment) {
