@@ -448,7 +448,28 @@ WMS 저장소와 OMS 저장소의 각 터미널에서 다음 명령을 실행하
 ```
 
 이후에는 어느 앱에도 `local` 프로파일을 다시 사용하지 않는다. 실행 전 각 주문 ID, 결제 ID, 승인/환불
-`requestKey`, WMS 예약 또는 RMA ID를 기록한다. 아래는 절차 기준이며 아직 실행 결과가 아니다.
+`requestKey`, WMS 예약 또는 RMA ID를 기록한다.
+
+### 실행 결과 (2026-08-21)
+
+브라우저 UI 캡처 런타임은 사용할 수 없어 화면 캡처는 남기지 못했다. 아래 결과는 실제 HTTP/CSRF 요청과
+OMS·WMS DB 직접 조회로 확인했다. 시나리오 11은 공개 런타임 제어만으로 `reserveAll`을 결정적으로
+중단할 수 없어 수동 통과로 기록하지 않고 자동 동시성 테스트 근거를 별도로 남긴다.
+
+| 시나리오 | 결과 | 실행 근거 |
+|---|---|---|
+| S1 정상 결제 후 `ORDER` | 통과 | `orderId=8`, `paymentId=8`: `PAID`, 결제액 `11,000`; `attemptId=8` `SUCCEEDED`; WMS `reservationId=1` `RESERVED` |
+| S2 `BACKORDERED` 입고 후 승격 | 통과 | `orderId=9`, `paymentId=9`: 최초 `BACKORDERED`/`PAID 552,000`, 예약 없음; WMS `productId=3` 1개 입고 후 `ORDER`, `allocationAttemptCount=1`; `reservationId=2` `RESERVED`, 수량 46 |
+| S3 거절 후 고객 재결제 | 통과 | `orderId=52`, `paymentId=52`: `DECLINED` 후 `PAYMENT_FAILED`, 결제액 0; `attemptId=52` `FAILED`/`MOCK_DECLINED`, WMS 예약 없음; 성공 재결제 후 `ORDER`/`PAID 13,000`, `attemptId=102` `SUCCEEDED`, `reservationId=3` `RESERVED` |
+| S4 유료 `BACKORDERED` 취소 | 통과 | `orderId=102`, `paymentId=102`: `BACKORDERED`/`PAID 1,064,000`에서 `CANCEL`/`REFUNDED`; `refundRequestId=52` `SUCCEEDED`, 금액 `1,064,000`; 반복 취소 후 환불 행 1건·합계 `1,064,000`, WMS 예약 없음 |
+| S5 재고 확보 주문 취소 | 통과 | `orderId=103`, `paymentId=103`: 취소 후 `CANCEL`/`REFUNDED 15,000`, 환불 행 1건; WMS `reservationId=4` `RELEASED` |
+| S6 전량 반품 승인 | 통과 | `orderId=104`, `orderItemId=104`, `customerReturnId=2`, `rmaId=1`, WMS `itemId=1`: 요청 2·승인 2 `RESTOCKED`; 결제 `REFUNDED`, 결제액·환불액 `32,000`, 환불 `SUCCEEDED` |
+| S7 부분 승인 환불 | 통과 | `orderId=105`, `orderItemId=105`, `customerReturnId=3`, `rmaId=2`, WMS `itemId=2`: 요청 2·승인 1 `DISPOSED`; 결제 `PARTIALLY_REFUNDED`, 결제액 `34,000`, 환불액 `17,000`, 환불 `SUCCEEDED` |
+| S8 전량 거절 | 통과 | `orderId=106`, `orderItemId=106`, `customerReturnId=4`, `rmaId=3`, WMS `itemId=3`: 요청 1·승인 0 `REJECTED`; 결제 `PAID 18,000`, 환불액 0, 환불 요청 없음 |
+| S9 일시 실패 후 자동 복구 | 통과 | `orderId=152`, `paymentId=152`, `refundRequestId=102`: 취소 환불 첫 실행은 `RETRYING`, `attemptCount=1`, `MOCK_RETRYABLE_FAILURE`, pending `19,000`; 재시도 시각 경과 후 기본 설정으로 재기동해 `SUCCEEDED`, `attemptCount=2`, `REFUNDED 19,000`, pending 0 |
+| S10 영구 실패 후 관리자 재시도 | 통과 | `orderId=202`, `paymentId=202`, `refundRequestId=152`: 첫 실행 `MANUAL_REVIEW`, `attemptCount=1`, pending `20,000`, `nextAttemptAt=null`; 기본 설정 재기동 후 관리자 CSRF POST 재시도로 `SUCCEEDED`, `attemptCount=2`, `REFUNDED 20,000`, pending 0 |
+| S11 결제 성공·할당 중 취소 경합 | 수동 미실행 | 공개 런타임 제어로 `reserveAll` 중단을 재현하지 못함. `PaymentCancellationConcurrencyTest.할당처리중_취소는_예약성공을_해제한뒤_한번의_전액환불로_수렴한다`와 `PaymentAdminConcurrencyTest.미확정_취소할당_관리자와_처리기가_경합해도_같은주문을_한번만_예약한다`에서 자동 검증 |
+| S12 OMS·WMS 재기동 복구 | 통과 | OMS 재기동이 S9 미완료 환불을 복구. WMS 재기동 후 예약 9건·RMA 3건 유지; 예약 1~3 `RESERVED`, 4·8·9 `RELEASED`, 5~7 `SHIPPED`; RMA 1~3 `COMPLETED` |
 
 모의 게이트웨이는 공개 제어 API 없이 OMS 프로세스 시작 시 환경변수로 결과를 선택한다. 허용값은 승인
 `SUCCESS`·`DECLINED`·`RETRYABLE_FAILURE`·`PERMANENT_FAILURE`·`UNKNOWN`, 환불도 같은 값이며 기본은
