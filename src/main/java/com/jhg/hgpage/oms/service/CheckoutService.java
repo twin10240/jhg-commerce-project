@@ -8,16 +8,13 @@ import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.Payment;
-import com.jhg.hgpage.oms.domain.PaymentAttempt;
 import com.jhg.hgpage.oms.repository.OrderRepository;
-import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,7 +26,6 @@ public class CheckoutService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
-    private final PaymentAttemptRepository paymentAttemptRepository;
     private final CartService cartService;
 
     @Transactional
@@ -53,15 +49,14 @@ public class CheckoutService {
         Order order = Order.createOrder(member, delivery, items);
         order.markPaymentPending();
         orderRepository.save(order);
-        Payment payment = paymentRepository.save(Payment.create(order, order.getTotalPrice()));
-        PaymentAttempt attempt = paymentAttemptRepository.save(PaymentAttempt.create(payment, UUID.randomUUID()));
+        paymentRepository.save(Payment.create(order, order.getTotalPrice()));
 
         if (fromCart) {
             cartService.removeCartItems(memberId, lines.stream().map(OrderService.OrderLine::productId).toList());
         }
-        return new CheckoutResult(order.getId(), attempt.getId());
+        return new CheckoutResult(order.getId());
     }
 
-    public record CheckoutResult(Long orderId, Long attemptId) {
+    public record CheckoutResult(Long orderId) {
     }
 }

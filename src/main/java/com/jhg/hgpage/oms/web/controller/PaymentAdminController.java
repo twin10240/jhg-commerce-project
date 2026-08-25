@@ -19,10 +19,15 @@ public class PaymentAdminController {
     private final PaymentAdminService paymentAdminService;
 
     @GetMapping("/admin/payments")
-    public String payments(@RequestParam(required = false) PaymentStatus paymentStatus,
+    public String payments(@RequestParam(defaultValue = "payment") String tab,
+                           @RequestParam(required = false) PaymentStatus paymentStatus,
                            @RequestParam(required = false) RefundStatus refundStatus,
                            Model model) {
-        PaymentAdminService.PageView page = paymentAdminService.findPage(paymentStatus, refundStatus);
+        String activeTab = "refund".equals(tab) ? "refund" : "payment";
+        boolean refundTab = "refund".equals(activeTab);
+        paymentStatus = refundTab ? null : paymentStatus;
+        refundStatus = refundTab ? refundStatus : null;
+        PaymentAdminService.PageView page = paymentAdminService.findPage(refundTab, paymentStatus, refundStatus);
         model.addAttribute("payments", page.payments());
         model.addAttribute("refunds", page.refunds());
         model.addAttribute("counts", page.counts());
@@ -30,6 +35,7 @@ public class PaymentAdminController {
         model.addAttribute("refundStatus", refundStatus);
         model.addAttribute("paymentStatuses", PaymentStatus.values());
         model.addAttribute("refundStatuses", RefundStatus.values());
+        model.addAttribute("activeTab", activeTab);
         return "admin/payments";
     }
 
@@ -37,7 +43,7 @@ public class PaymentAdminController {
     public String retryRefund(@PathVariable Long refundId, RedirectAttributes redirectAttributes) {
         paymentAdminService.retryRefund(refundId);
         redirectAttributes.addFlashAttribute("successMessage", "환불 처리를 다시 요청했습니다.");
-        return "redirect:/admin/payments";
+        return "redirect:/admin/payments?tab=refund";
     }
 
     @PostMapping("/admin/payment-attempts/{attemptId}/retry")
@@ -45,6 +51,6 @@ public class PaymentAdminController {
                                            RedirectAttributes redirectAttributes) {
         paymentAdminService.retryCancellationPayment(attemptId);
         redirectAttributes.addFlashAttribute("successMessage", "결제 확인을 다시 요청했습니다.");
-        return "redirect:/admin/payments";
+        return "redirect:/admin/payments?tab=payment";
     }
 }

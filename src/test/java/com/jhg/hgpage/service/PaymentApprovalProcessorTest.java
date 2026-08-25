@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -68,6 +69,32 @@ class PaymentApprovalProcessorTest {
         when(paymentAttemptRepository.findByIdForUpdate(30L)).thenReturn(Optional.of(fixture.attempt));
         when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
         when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
+    }
+
+    @Test
+    void 결제대기_주문은_고객승인시_최초_결제시도를_만든다() {
+        when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
+        when(paymentAttemptRepository.findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(eq(10L), any()))
+                .thenReturn(Optional.empty());
+        when(paymentAttemptRepository.save(any())).thenAnswer(invocation -> {
+            PaymentAttempt attempt = invocation.getArgument(0);
+            ReflectionTestUtils.setField(attempt, "id", 31L);
+            return attempt;
+        });
+
+        assertThat(paymentService.startPayment(10L, 1L)).isEqualTo(31L);
+    }
+
+    @Test
+    void 중복_결제승인은_진행중인_결제시도를_재사용한다() {
+        when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
+        when(paymentAttemptRepository.findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(eq(10L), any()))
+                .thenReturn(Optional.of(fixture.attempt));
+
+        assertThat(paymentService.startPayment(10L, 1L)).isEqualTo(30L);
+        verify(paymentAttemptRepository, never()).save(any());
     }
 
     @Test

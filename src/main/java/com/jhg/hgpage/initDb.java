@@ -173,7 +173,7 @@ public class initDb {
                     sourceType, sourceId, amount);
             em.persist(request);
             request.claim(LocalDateTime.now());
-            request.succeed(LocalDateTime.now());
+            request.succeed("MOCK-REFUND-DEMO", LocalDateTime.now());
             payment.completeRefund(amount);
         }
 

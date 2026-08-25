@@ -32,6 +32,25 @@ public class PaymentService {
     private final RetrySchedule retrySchedule;
 
     @Transactional
+    public Long startPayment(Long orderId, Long memberId) {
+        Payment payment = paymentRepository.findByOrderIdForUpdate(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Payment", orderId));
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+        if (!order.getMember().getId().equals(memberId)) {
+            throw new EntityNotFoundException("Order", orderId);
+        }
+        if (payment.getStatus() != PaymentStatus.PENDING || order.getStatus() != OrderStatus.PAYMENT_PENDING) {
+            throw new IllegalStateException("결제 대기 주문만 결제할 수 있습니다.");
+        }
+        return paymentAttemptRepository.findFirstByPaymentOrderIdAndStatusInOrderByIdDesc(
+                        orderId, List.of(PaymentAttemptStatus.PENDING, PaymentAttemptStatus.PROCESSING))
+                .map(PaymentAttempt::getId)
+                .orElseGet(() -> paymentAttemptRepository.save(
+                        PaymentAttempt.create(payment, UUID.randomUUID())).getId());
+    }
+
+    @Transactional
     public Optional<ApprovalCommand> claimApproval(Long attemptId) {
         LockedPayment locked = lockPaymentForAttempt(attemptId);
         if (locked == null) {

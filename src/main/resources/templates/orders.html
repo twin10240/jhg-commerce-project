@@ -31,6 +31,10 @@
         <span class="status-badge"
               th:classappend="${order.status.name() == 'CANCEL' or order.status.name() == 'PAYMENT_FAILED'} ? 'status-cancel' : (${order.status.name() == 'BACKORDERED' or order.status.name() == 'ALLOCATION_REVIEW'} ? 'status-backordered' : (${order.deliveryStatus.name() == 'DELIVERED'} ? 'status-complete' : 'status-ready'))"
               th:text="${order.orderStatusLabel}">상태</span>
+        <a class="app-btn" th:if="${order.status.name() == 'PAYMENT_PENDING'}"
+           th:href="@{|/orders/${order.id}/payment|}">결제 계속</a>
+        <a class="app-btn" th:if="${order.status.name() == 'PAYMENT_FAILED'}"
+           th:href="@{|/orders/${order.id}/payment|}">다시 결제</a>
         <a class="app-btn secondary" th:href="@{|/orders/${order.id}|}">상세</a>
       </div>
     </article>

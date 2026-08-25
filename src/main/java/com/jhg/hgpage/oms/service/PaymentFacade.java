@@ -16,9 +16,11 @@ public class PaymentFacade {
     private final OrderCancellationService cancellationService;
 
     public Long checkout(Long memberId, Address address, List<OrderService.OrderLine> lines, boolean fromCart) {
-        CheckoutService.CheckoutResult result = checkoutService.createPending(memberId, address, lines, fromCart);
-        approvalProcessor.process(result.attemptId());
-        return result.orderId();
+        return checkoutService.createPending(memberId, address, lines, fromCart).orderId();
+    }
+
+    public void startPayment(Long orderId, Long memberId) {
+        approvalProcessor.process(paymentService.startPayment(orderId, memberId));
     }
 
     public void retryPayment(Long orderId, Long memberId) {

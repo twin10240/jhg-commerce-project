@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.core.env.Environment;
+import org.springframework.scheduling.annotation.ScheduledAnnotationBeanPostProcessor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -13,9 +14,15 @@ class HgpageApplicationTests {
 
 	@Autowired ServerProperties serverProperties;
 	@Autowired Environment environment;
+	@Autowired(required = false) ScheduledAnnotationBeanPostProcessor scheduledTasks;
 
 	@Test
 	void contextLoads() {
+	}
+
+	@Test
+	void 테스트에서는_백그라운드_스케줄러를_실행하지_않는다() {
+		assertThat(scheduledTasks).isNull();
 	}
 
 	@Test

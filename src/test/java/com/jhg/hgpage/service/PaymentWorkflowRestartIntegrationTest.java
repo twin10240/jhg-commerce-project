@@ -45,7 +45,7 @@ class PaymentWorkflowRestartIntegrationTest {
                     memberId, new Address("서울", "관악구", "500"),
                     List.of(new OrderService.OrderLine(productId, 1)), false);
             orderId = pending.orderId();
-            attemptId = pending.attemptId();
+            attemptId = writer.getBean(PaymentService.class).startPayment(orderId, memberId);
             assertThat(writer.getBean(OrderRepository.class).findById(orderId).orElseThrow().getStatus())
                     .isEqualTo(OrderStatus.PAYMENT_PENDING);
         }

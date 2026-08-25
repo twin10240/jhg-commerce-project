@@ -38,9 +38,10 @@ class RefundRequestTest {
         LocalDateTime now = LocalDateTime.now();
 
         request.claim(now);
-        request.succeed(now.plusSeconds(1));
+        request.succeed("MOCK-REFUND-1", now.plusSeconds(1));
 
         assertThat(request.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
+        assertThat(request.getGatewayTransactionId()).isEqualTo("MOCK-REFUND-1");
         assertThat(request.getCompletedAt()).isEqualTo(now.plusSeconds(1));
     }
 

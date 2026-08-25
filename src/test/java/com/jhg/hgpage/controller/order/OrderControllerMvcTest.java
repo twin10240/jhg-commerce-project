@@ -110,7 +110,7 @@ class OrderControllerMvcTest {
     }
 
     @Test
-    void 정상주문이면_생성된_주문상세로_리다이렉트한다() throws Exception {
+    void 정상주문이면_생성된_주문의_결제페이지로_리다이렉트한다() throws Exception {
         when(paymentFacade.checkout(eq(1L), any(Address.class), anyList(), eq(false))).thenReturn(10L);
 
         mockMvc.perform(post("/orders/checkout")
@@ -122,7 +122,7 @@ class OrderControllerMvcTest {
                         .param("product[0].id", "1")
                 .param("product[0].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10?created=true"));
+                .andExpect(redirectedUrl("/orders/10/payment"));
 
         verify(paymentFacade).checkout(eq(1L), any(Address.class), anyList(), eq(false));
     }
@@ -144,7 +144,7 @@ class OrderControllerMvcTest {
                         .param("product[1].quantity", "3")
                 .param("product[1].selected", "false"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10?created=true"));
+                .andExpect(redirectedUrl("/orders/10/payment"));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
@@ -232,7 +232,7 @@ class OrderControllerMvcTest {
                         .param("product[1].quantity", "3")
                 .param("product[1].selected", "false"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10?created=true"));
+                .andExpect(redirectedUrl("/orders/10/payment"));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor =
@@ -257,7 +257,7 @@ class OrderControllerMvcTest {
                         .param("product[0].id", "1")
                 .param("product[0].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10?created=true"));
+                .andExpect(redirectedUrl("/orders/10/payment"));
 
         verify(paymentFacade).checkout(eq(1L), any(Address.class), anyList(), eq(false));
     }
@@ -301,8 +301,8 @@ class OrderControllerMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("orderdetail"))
                 .andExpect(model().attribute("checkout", hasProperty("fromCart", is(false))))
-                .andExpect(content().string(containsString("모의 카드 결제")))
-                .andExpect(content().string(containsString("결제하고 주문하기")));
+                .andExpect(content().string(containsString("결제 수단과 최종 금액")))
+                .andExpect(content().string(containsString("결제 단계로 이동")));
     }
 
     /** memberId 1L 소유의 주문 상세 DTO (상품 2개 × 10000원) */
@@ -357,7 +357,7 @@ class OrderControllerMvcTest {
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("결제 실패")))
-                .andExpect(content().string(containsString("/orders/10/payment/retry")))
+                .andExpect(content().string(containsString("/orders/10/payment")))
                 .andExpect(content().string(containsString("다시 결제")));
 
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
@@ -366,9 +366,34 @@ class OrderControllerMvcTest {
 
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("결제 확인 중")))
+                .andExpect(content().string(containsString("결제 대기")))
                 .andExpect(content().string(not(containsString("/orders/10/payment/retry"))))
                 .andExpect(content().string(not(containsString("다시 결제"))));
+    }
+
+    @Test
+    void 결제대기_주문상세에는_결제계속하기를_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                OrderStatus.PAYMENT_PENDING, PaymentStatus.PENDING, 0, 0, 0));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("결제 대기")))
+                .andExpect(content().string(containsString("/orders/10/payment")))
+                .andExpect(content().string(containsString("결제 계속하기")));
+    }
+
+    @Test
+    void 소유자의_결제페이지는_주문과_최종금액을_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                OrderStatus.PAYMENT_PENDING, PaymentStatus.PENDING, 0, 0, 0));
+
+        mockMvc.perform(get("/orders/10/payment").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(view().name("payment"))
+                .andExpect(model().attributeExists("order"))
+                .andExpect(content().string(containsString("모의 카드")))
+                .andExpect(content().string(containsString("20,000원 결제하기")));
     }
 
     @Test
@@ -655,14 +680,45 @@ class OrderControllerMvcTest {
 
     @Test
     void 결제재시도는_소유자정보를_위임하고_한국어_flash를_담는다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                OrderStatus.ALLOCATION_PENDING, PaymentStatus.PAID, 20_000, 0, 0));
+
         mockMvc.perform(post("/orders/10/payment/retry")
                         .with(user(principal()))
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("successMessage", "결제를 다시 시도했습니다."));
+                .andExpect(redirectedUrl("/orders/10?created=true"))
+                .andExpect(flash().attribute("successMessage", "결제가 승인되었습니다."));
 
         verify(paymentFacade).retryPayment(10L, 1L);
+    }
+
+    @Test
+    void 결제승인은_소유자정보를_위임하고_성공한_주문상세로_이동한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                OrderStatus.ALLOCATION_PENDING, PaymentStatus.PAID, 20_000, 0, 0));
+
+        mockMvc.perform(post("/orders/10/payment/approve")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10?created=true"))
+                .andExpect(flash().attribute("successMessage", "결제가 승인되었습니다."));
+
+        verify(paymentFacade).startPayment(10L, 1L);
+    }
+
+    @Test
+    void 결제거절은_결제페이지에서_다시_시도할_수_있다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(paymentDetail(
+                OrderStatus.PAYMENT_FAILED, PaymentStatus.PAYMENT_FAILED, 0, 0, 0));
+
+        mockMvc.perform(post("/orders/10/payment/approve")
+                        .with(user(principal()))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/orders/10/payment"))
+                .andExpect(flash().attribute("errorMessage", "결제가 승인되지 않았습니다. 다시 시도해주세요."));
     }
 
     @Test
@@ -692,7 +748,7 @@ class OrderControllerMvcTest {
                         .with(user(principal()))
                         .with(csrf()))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10"))
+                .andExpect(redirectedUrl("/orders/10/payment"))
                 .andExpect(flash().attribute("errorMessage", "재결제 가능한 상태가 아닙니다."));
     }
 

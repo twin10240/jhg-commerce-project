@@ -176,6 +176,7 @@ class RefundServiceTest {
                 SUCCESS, "MOCK-REFUND-1", null, null));
 
         assertThat(request.getStatus()).isEqualTo(RefundStatus.SUCCEEDED);
+        assertThat(request.getGatewayTransactionId()).isEqualTo("MOCK-REFUND-1");
         assertThat(fixture.payment.getPendingRefundAmount()).isZero();
         assertThat(fixture.payment.getRefundedAmount()).isEqualTo(20_000);
     }

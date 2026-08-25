@@ -57,6 +57,19 @@ class AdminPaymentDtoTest {
         assertThat(row.retryable()).isTrue();
     }
 
+    @Test
+    void 완료된_환불행은_게이트웨이_거래번호를_담는다() {
+        Fixture fixture = fixture();
+        RefundRequest request = RefundRequest.create(fixture.payment, UUID.randomUUID(),
+                RefundSourceType.ORDER_CANCEL, 10L, 10_000);
+        request.claim(LocalDateTime.now());
+        request.succeed("MOCK-REFUND-1", LocalDateTime.now());
+
+        AdminPaymentDto row = AdminPaymentDto.refund(request);
+
+        assertThat(row.gatewayTransactionId()).isEqualTo("MOCK-REFUND-1");
+    }
+
     private Fixture fixture() {
         Product product = new Product();
         product.setName("상품");

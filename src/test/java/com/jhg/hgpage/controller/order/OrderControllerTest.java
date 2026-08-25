@@ -91,7 +91,7 @@ class OrderControllerTest {
         String viewName = orderController.checkout(userPrincipal(), form, bindingResult);
 
         assertThat(bindingResult.hasErrors()).isFalse();
-        assertThat(viewName).isEqualTo("redirect:/orders/10?created=true");
+        assertThat(viewName).isEqualTo("redirect:/orders/10/payment");
 
         ArgumentCaptor<Address> addressCaptor = ArgumentCaptor.forClass(Address.class);
         ArgumentCaptor<List<OrderService.OrderLine>> linesCaptor = ArgumentCaptor.forClass(List.class);

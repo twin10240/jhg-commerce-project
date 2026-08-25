@@ -146,6 +146,7 @@ CANCELLED
 | `sourceId` | 주문 ID 또는 OMS 반품 ID |
 | `amount` | 환불 요청 금액 |
 | `status` | 환불 작업 상태 |
+| `gatewayTransactionId` | 성공한 모의 또는 실제 PG 환불 거래 식별자 |
 | `attemptCount` | 최초 시도를 포함한 실행 횟수 |
 | `nextAttemptAt` | 다음 실행 시각 |
 | `lastFailureCode`, `lastFailureReason` | 내부 운영 정보 |
@@ -167,9 +168,9 @@ MANUAL_REVIEW → PROCESSING (관리자 재시도)
 ## 7. 주문·결제 흐름
 
 ```text
-1. 주문과 Payment, 첫 PaymentAttempt를 한 트랜잭션으로 저장
-2. 주문은 PAYMENT_PENDING, 결제와 시도는 PENDING
-3. 커밋 후 PaymentGateway.approve를 즉시 한 번 호출
+1. 주문과 Payment를 한 트랜잭션으로 저장
+2. 주문은 PAYMENT_PENDING, 결제는 PENDING으로 두고 결제 페이지로 이동
+3. 고객이 최종 결제 버튼을 누르면 첫 PaymentAttempt를 만들고 PaymentGateway.approve를 호출
 4. 승인 성공
    - PaymentAttempt → SUCCEEDED
    - Payment → PAID
@@ -211,7 +212,7 @@ ALLOCATION_PENDING/재시도 도래
 
 ## 9. 주문 취소와 전액 환불
 
-- `PAYMENT_PENDING`: 승인 시도가 아직 선점되지 않았으면 시도와 결제를 `CANCELLED`로 바꾸고 즉시 `CANCEL`; 승인 처리 중이면 `CANCEL_REQUESTED`로 전환해 승인 결과에 따라 환불 여부 확정
+- `PAYMENT_PENDING`: 승인 전이면 결제를 `CANCELLED`로 바꾸고 즉시 `CANCEL`; 승인 처리 중이면 `CANCEL_REQUESTED`로 전환해 승인 결과에 따라 환불 여부 확정
 - `PAYMENT_FAILED`: 결제를 `CANCELLED`로 바꾸고 즉시 `CANCEL`, 환불 없음
 - `PAYMENT_REVIEW`: 관리자 확인 전 중복 결제 가능성을 배제할 수 없으므로 `CANCEL_REQUESTED`로 두고 결제 확인 후 환불 여부를 확정
 - `ALLOCATION_PENDING`, `ALLOCATION_REVIEW`, `BACKORDERED`: 즉시 취소 후 결제 전액 환불 요청
@@ -278,9 +279,10 @@ refundedAmount + pendingRefundAmount + 신규 환불액 <= paidAmount
 
 ### 주문서
 
-- 결제 수단은 `모의 카드 결제` 하나다.
-- 카드정보는 받거나 저장하지 않는다.
-- 명령 버튼은 `결제하고 주문하기`로 표시한다.
+- 주문 생성 버튼은 `결제 단계로 이동`으로 표시한다.
+- 주문 생성 뒤 별도 결제 페이지에서 상품·배송지·최종 금액을 다시 확인한다.
+- 결제 수단은 `모의 카드` 하나이며 카드정보는 받거나 저장하지 않는다.
+- 결제 페이지를 이탈한 주문은 `결제 대기`로 보존하고 내 주문에서 이어서 결제할 수 있다.
 
 ### 내 주문·주문 상세
 
@@ -294,6 +296,8 @@ refundedAmount + pendingRefundAmount + 신규 환불액 <= paidAmount
 
 ```text
 POST /orders/checkout
+GET  /orders/{orderId}/payment
+POST /orders/{orderId}/payment/approve
 POST /orders/{orderId}/payment/retry
 POST /orders/{orderId}/cancel
 GET  /orders

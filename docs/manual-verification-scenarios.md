@@ -600,3 +600,20 @@ env -u MOCK_PAYMENT_APPROVAL_OUTCOME -u MOCK_PAYMENT_REFUND_OUTCOME ./gradlew bo
 - 기대 WMS: 동일 주문 ID의 예약/해제는 기존 결과를 재사용하며 중복 재고 원장이 없다.
 - 결제/환불: 승인·환불은 원래 멱등키와 금액을 유지한다.
 - 멱등성: 재기동을 반복해도 결제 승인, 환불, 예약, 해제, RETURN 원장 건수는 증가하지 않는다.
+
+### 별도 결제 페이지·환불 거래번호 후속 검증 (2026-08-24)
+
+OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립 HTTP/CSRF 세션으로 확인했다.
+
+| 확인 | 결과 | 실행 근거 |
+|---|---|---|
+| 결제 페이지 이탈·재개 | 통과 | 상품1 주문 `orderId=8` 생성 후 `/orders/8/payment`에서 이탈. 내 주문에 `결제 대기`와 `결제 계속`이 표시됐고 같은 결제 페이지로 복귀 |
+| 정상 승인 | 통과 | 주문 8의 `10,000원 결제하기` 실행 후 `결제가 승인되었습니다`, 결제액 `10,000원`, 재고 확인 상태 확인 |
+| 결제 실패 후 재시도 | 통과 | 시드 주문 3의 `다시 결제하기` 실행 후 `결제 완료 10,000원`, `재고 확보`로 전이 |
+| 전액 환불과 거래번호 | 통과 | 주문 8 취소 후 결제 `REFUNDED`, pending `0원`, 누적 환불 `10,000원`. 관리자 화면에 `requestKey=5cc2e915-fbf3-449e-b258-23584f653486`, `gatewayTransactionId=MOCK-REFUND-5cc2e915-fbf3-449e-b258-23584f653486` 표시 |
+| 부분 환불 표시 | 통과 | 시드 주문 4가 결제 `20,000원`, 누적 환불 `10,000원`, `PARTIALLY_REFUNDED`; 환불 행에 `MOCK-REFUND-DEMO` 표시 |
+| 수동 검토 재처리 | 통과 | 시드 주문 6의 `refundRequestId=3`, `MANUAL_REVIEW`, pending `20,000원`을 관리자 재시도. `SUCCEEDED`, 누적 환불 `20,000원`, `gatewayTransactionId=MOCK-REFUND-385fabd6-ef67-4edd-ba96-7a10f4584de9`로 수렴 |
+| 동시 중복 승인 | 자동 검증 | UI에서 처리 중 상태를 결정적으로 정지할 수 없어 `PaymentApprovalProcessorTest.중복_결제승인은_진행중인_결제시도를_재사용한다`로 확인 |
+| 환불 일시 실패 자동 재시도 | 자동 검증 | `RefundServiceTest.성공은_pending을_refunded로_이동하고_일시실패는_같은키로_재시도한다`와 `RefundSweeperTest`로 확인 |
+
+강제 전체 재실행: `./gradlew test --rerun-tasks` → **507개, 실패 0, 오류 0, 제외 0**.

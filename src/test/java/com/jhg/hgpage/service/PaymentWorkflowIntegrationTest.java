@@ -207,8 +207,10 @@ class PaymentWorkflowIntegrationTest {
     }
 
     private Long checkout(int quantity) {
-        return paymentFacade.checkout(memberId, new Address("서울", "관악구", "500"),
+        Long orderId = paymentFacade.checkout(memberId, new Address("서울", "관악구", "500"),
                 List.of(new OrderService.OrderLine(product.getId(), quantity)), false);
+        paymentFacade.startPayment(orderId, memberId);
+        return orderId;
     }
 
     private WorkflowSnapshot snapshot(Long orderId) {

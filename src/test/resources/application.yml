@@ -7,6 +7,10 @@ server:
         name: OMSSESSION
 
 spring:
+  task:
+    scheduling:
+      enabled: false
+
   datasource:
     url: jdbc:h2:mem:hgpage-test;DB_CLOSE_DELAY=-1
     username: sa

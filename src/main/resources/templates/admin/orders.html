@@ -79,7 +79,7 @@
     .status-badge.ready{color:#1f5f8b; background:#eef6fb; border:1px solid #b5d4e8}
     .status-badge.shipped{color:#8a6d3b; background:#fcf6e8; border:1px solid #e7d3a1}
     .status-badge.delivered{color:#2e7d32; background:#f1f8ef; border:1px solid #b7d9b0}
-    .order-lines{display:grid;gap:6px;min-width:180px}.order-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.inbound-required{color:#a4690f;font-size:12px;font-weight:800}
+    .order-lines,.quantity-lines{display:grid;gap:6px}.order-lines{min-width:150px}.order-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.inbound-required{color:#a4690f;font-size:12px;font-weight:800}
     @media(max-width:720px){.page-head{align-items:flex-start;flex-direction:column}.bulk-actions{align-items:stretch;width:100%}.bulk-actions .btn{width:100%}.table-wrap{max-width:100%}.table-wrap{overflow-x:auto}table{min-width:950px}.mobile-hide{display:none}}
 
     @media (prefers-color-scheme: dark){
@@ -118,8 +118,9 @@
                  aria-label="출고 가능 주문 전체 선택">
         </th>
         <th style="width:90px">주문번호</th>
-        <th>주문자</th>
-        <th>주문 상품</th>
+        <th style="width:140px">주문자</th>
+        <th style="width:150px">주문 상품</th>
+        <th class="right" style="width:70px">수량</th>
         <th style="width:100px">주문상태</th>
         <th style="width:110px">결제상태</th>
         <th style="width:100px">배송상태</th>
@@ -140,9 +141,14 @@
         <td>
           <div class="order-lines">
             <div class="order-line" th:each="item : ${o.items}">
-              <span th:text="|${item.productName} × ${item.quantity}|">상품1 × 2</span>
+              <span th:text="${item.productName}">상품1</span>
               <span class="inbound-required" th:if="${item.inboundRequired}">입고 필요</span>
             </div>
+          </div>
+        </td>
+        <td class="right">
+          <div class="quantity-lines">
+            <div th:each="item : ${o.items}" th:text="${item.quantity}">2</div>
           </div>
         </td>
         <td>
@@ -180,7 +186,7 @@
         </td>
       </tr>
       <tr th:if="${#lists.isEmpty(orders)}">
-        <td colspan="10" class="hint">주문 내역이 없습니다.</td>
+        <td colspan="11" class="hint">주문 내역이 없습니다.</td>
       </tr>
       </tbody>
     </table>

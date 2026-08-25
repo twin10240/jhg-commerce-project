@@ -30,22 +30,27 @@ public class PaymentAdminService {
     private final CancellationProcessor cancellationProcessor;
 
     @Transactional(readOnly = true)
-    public PageView findPage(PaymentStatus paymentStatus, RefundStatus refundStatus) {
-        var payments = orderRepositoryQuery.findPaymentsForAdmin(paymentStatus);
-        Map<Long, PaymentAttempt> latestAttempts = new HashMap<>();
-        orderRepositoryQuery.findAttemptsForPaymentIds(payments.stream().map(payment -> payment.getId()).toList())
-                .forEach(attempt -> latestAttempts.putIfAbsent(attempt.getPayment().getId(), attempt));
+    public PageView findPage(boolean refundTab, PaymentStatus paymentStatus, RefundStatus refundStatus) {
         Set<Long> cancellationPaymentIds = new HashSet<>(paymentService.findCancellationReviewAttemptIds());
-        List<AdminPaymentDto> paymentRows = payments.stream()
-                .map(payment -> {
-                    PaymentAttempt attempt = latestAttempts.get(payment.getId());
-                    return AdminPaymentDto.payment(payment, attempt,
-                            attempt != null && cancellationPaymentIds.contains(attempt.getId()));
-                })
-                .toList();
-        List<AdminPaymentDto> refundRows = orderRepositoryQuery.findRefundsForAdmin(refundStatus).stream()
-                .map(AdminPaymentDto::refund)
-                .toList();
+        List<AdminPaymentDto> paymentRows = List.of();
+        List<AdminPaymentDto> refundRows = List.of();
+        if (refundTab) {
+            refundRows = orderRepositoryQuery.findRefundsForAdmin(refundStatus).stream()
+                    .map(AdminPaymentDto::refund)
+                    .toList();
+        } else {
+            var payments = orderRepositoryQuery.findPaymentsForAdmin(paymentStatus);
+            Map<Long, PaymentAttempt> latestAttempts = new HashMap<>();
+            orderRepositoryQuery.findAttemptsForPaymentIds(payments.stream().map(payment -> payment.getId()).toList())
+                    .forEach(attempt -> latestAttempts.putIfAbsent(attempt.getPayment().getId(), attempt));
+            paymentRows = payments.stream()
+                    .map(payment -> {
+                        PaymentAttempt attempt = latestAttempts.get(payment.getId());
+                        return AdminPaymentDto.payment(payment, attempt,
+                                attempt != null && cancellationPaymentIds.contains(attempt.getId()));
+                    })
+                    .toList();
+        }
         ReviewCounts counts = new ReviewCounts(
                 Math.toIntExact(orderRepositoryQuery.countRefundReviews()),
                 Math.toIntExact(orderRepositoryQuery.countAllocationReviews()),

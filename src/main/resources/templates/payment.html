@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>결제 · 그니마켓</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <style>
+    body{margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+    .payment-shell{max-width:760px;margin:0 auto}
+    .payment-head{margin-bottom:20px}.payment-head h1{margin:0 0 6px;font-size:28px}.payment-head p{margin:0;color:var(--app-muted)}
+    .payment-section{padding:22px 0;border-top:1px solid var(--app-line)}
+    .payment-section h2{margin:0 0 14px;font-size:18px;letter-spacing:0}
+    .payment-table{width:100%;border-collapse:collapse}.payment-table th,.payment-table td{padding:11px 8px;border-bottom:1px solid var(--app-line);text-align:left}.payment-table th{color:var(--app-muted);font-size:13px}.payment-table .number{text-align:right}
+    .payment-total{display:flex;justify-content:space-between;align-items:center;margin-top:18px;font-size:20px;font-weight:800}
+    .payment-method{display:flex;align-items:center;gap:12px;padding:16px;border:2px solid var(--app-accent);border-radius:8px;background:var(--app-card)}
+    .payment-method input{width:18px;height:18px;accent-color:var(--app-accent)}.payment-method strong{display:block}.payment-method span{display:block;margin-top:3px;color:var(--app-muted);font-size:13px}
+    .payment-notice{margin:12px 0 0;color:var(--app-muted);font-size:13px}
+    .payment-actions{display:grid;gap:10px;margin-top:22px}.payment-actions form,.payment-actions .app-btn{width:100%}
+    .payment-actions .link{text-align:center;color:var(--app-muted);font-weight:700;text-decoration:none;padding:10px}
+    .payment-flash{padding:12px 14px;margin-bottom:14px;border-radius:8px}.payment-flash.error{background:#fdeaea;color:var(--app-danger)}.payment-flash.success{background:#e8f6ee;color:var(--app-ok)}
+    @media(max-width:720px){body{padding:16px}.payment-head h1{font-size:24px}.payment-table{font-size:14px}.payment-section{overflow-x:auto}.payment-actions .app-btn{min-height:48px}}
+  </style>
+</head>
+<body>
+<div th:replace="~{fragments/layout :: nav('orders')}"></div>
+<main class="payment-shell">
+  <header class="payment-head">
+    <h1>결제</h1>
+    <p th:text="|주문 #${order.id}의 결제 정보를 확인하세요.|">주문 결제 정보를 확인하세요.</p>
+  </header>
+
+  <div class="payment-flash success" th:if="${successMessage}" th:text="${successMessage}">완료 메시지</div>
+  <div class="payment-flash error" th:if="${errorMessage}" th:text="${errorMessage}">오류 메시지</div>
+
+  <section class="payment-section" aria-labelledby="payment-products">
+    <h2 id="payment-products">주문 상품</h2>
+    <table class="payment-table">
+      <thead><tr><th>상품명</th><th class="number">수량</th><th class="number">금액</th></tr></thead>
+      <tbody>
+      <tr th:each="item : ${order.items}">
+        <td th:text="${item.productName}">상품명</td>
+        <td class="number" th:text="${item.count}">1</td>
+        <td class="number"><span th:text="${#numbers.formatInteger(item.totalPrice,3,'COMMA')}">20,000</span>원</td>
+      </tr>
+      </tbody>
+    </table>
+    <div class="payment-total">
+      <span>최종 결제 금액</span>
+      <span><span th:text="${#numbers.formatInteger(order.totalPrice,3,'COMMA')}">20,000</span>원</span>
+    </div>
+  </section>
+
+  <section class="payment-section" aria-labelledby="payment-address">
+    <h2 id="payment-address">배송지</h2>
+    <span th:text="|${order.city} ${order.street} (${order.zipcode})|">서울 관악구 (500)</span>
+  </section>
+
+  <section class="payment-section" aria-labelledby="payment-method">
+    <h2 id="payment-method">결제 수단</h2>
+    <label class="payment-method">
+      <input type="radio" name="method" checked>
+      <span><strong>모의 카드</strong><span>포트폴리오 테스트 결제</span></span>
+    </label>
+    <p class="payment-notice">테스트 결제로 실제 금액이 청구되지 않습니다.</p>
+
+    <div class="payment-actions">
+      <form th:if="${order.status.name() == 'PAYMENT_PENDING'}"
+            th:action="@{|/orders/${order.id}/payment/approve|}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button class="app-btn" type="submit">
+          <span th:text="|${#numbers.formatInteger(order.totalPrice,3,'COMMA')}원 결제하기|">20,000원 결제하기</span>
+        </button>
+      </form>
+      <form th:if="${order.status.name() == 'PAYMENT_FAILED'}"
+            th:action="@{|/orders/${order.id}/payment/retry|}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button class="app-btn" type="submit">다시 결제하기</button>
+      </form>
+      <p class="payment-notice" th:if="${order.status.name() == 'PAYMENT_REVIEW'}">결제 결과를 확인하고 있습니다. 잠시 후 주문 내역에서 상태를 확인해주세요.</p>
+      <form th:if="${order.cancelable}" th:action="@{|/orders/${order.id}/cancel|}" method="post"
+            onsubmit="return confirm('결제 대기 주문을 취소하시겠습니까?');">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <button class="app-btn danger" type="submit">주문 취소</button>
+      </form>
+      <a class="link" th:href="@{|/orders/${order.id}|}">주문 상세로 돌아가기</a>
+    </div>
+  </section>
+</main>
+</body>
+</html>

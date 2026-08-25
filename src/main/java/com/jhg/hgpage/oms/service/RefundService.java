@@ -85,7 +85,7 @@ public class RefundService {
                 if (result.transactionId() == null) {
                     retryOrReview(request, "INVALID_GATEWAY_RESULT", "Missing transaction id", now);
                 } else {
-                    request.succeed(now);
+                    request.succeed(result.transactionId(), now);
                     payment.completeRefund(request.getAmount());
                 }
             }

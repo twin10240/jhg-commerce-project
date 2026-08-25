@@ -71,4 +71,14 @@ class OrderAccessControlMvcTest {
 
         verify(paymentFacade, never()).retryPayment(anyLong(), anyLong());
     }
+
+    @Test
+    void admin은_결제승인도_403으로_차단된다() throws Exception {
+        mockMvc.perform(post("/orders/10/payment/approve")
+                        .with(user(adminPrincipal()))
+                        .with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verify(paymentFacade, never()).startPayment(anyLong(), anyLong());
+    }
 }

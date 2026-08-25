@@ -22,7 +22,8 @@ public record PaymentViewDto(
         return new PaymentViewDto(
                 orderStatusLabel(order, payment),
                 switch (payment.getStatus()) {
-                    case PENDING, PAYMENT_REVIEW -> "결제 확인 중";
+                    case PENDING -> "결제 대기";
+                    case PAYMENT_REVIEW -> "결제 확인 중";
                     case PAYMENT_FAILED -> "결제 실패";
                     case PAID, PARTIALLY_REFUNDED, REFUNDED -> "결제 완료";
                     case CANCELLED -> "결제 취소";
@@ -38,7 +39,8 @@ public record PaymentViewDto(
 
     public static PaymentViewDto legacy(OrderStatus status, DeliveryStatus deliveryStatus) {
         String label = switch (status) {
-            case PAYMENT_PENDING, PAYMENT_REVIEW -> "결제 확인 중";
+            case PAYMENT_PENDING -> "결제 대기";
+            case PAYMENT_REVIEW -> "결제 확인 중";
             case PAYMENT_FAILED -> "결제 실패";
             case ALLOCATION_PENDING, ALLOCATION_PROCESSING -> "재고 확인 중";
             case ALLOCATION_REVIEW -> "재고 확인 지연";
@@ -52,7 +54,8 @@ public record PaymentViewDto(
 
     private static String orderStatusLabel(Order order, Payment payment) {
         return switch (order.getStatus()) {
-            case PAYMENT_PENDING, PAYMENT_REVIEW -> "결제 확인 중";
+            case PAYMENT_PENDING -> "결제 대기";
+            case PAYMENT_REVIEW -> "결제 확인 중";
             case PAYMENT_FAILED -> "결제 실패";
             case ALLOCATION_PENDING, ALLOCATION_PROCESSING -> "재고 확인 중";
             case ALLOCATION_REVIEW -> "재고 확인 지연";

@@ -120,13 +120,17 @@ class OrderAdminControllerMvcTest {
     }
 
     @Test
-    void 백오더_주문의_상품과_입고필요_상태를_표시한다() throws Exception {
+    void 백오더_주문의_상품과_수량을_분리하고_입고필요_상태를_표시한다() throws Exception {
         when(orderService.findAllForAdmin()).thenReturn(List.of(backorderedAdminOrderDto()));
 
         mockMvc.perform(get("/admin/orders").with(user(admin())))
                 .andExpect(status().isOk())
+                .andExpect(content().string(containsString("style=\"width:140px\">주문자</th>")))
+                .andExpect(content().string(containsString("style=\"width:150px\">주문 상품</th>")))
+                .andExpect(content().string(containsString(">수량</th>")))
                 .andExpect(content().string(containsString("상품1")))
-                .andExpect(content().string(containsString("× 2")))
+                .andExpect(content().string(containsString(">2</div>")))
+                .andExpect(content().string(not(containsString("상품1 × 2"))))
                 .andExpect(content().string(containsString(">입고 대기</span>")))
                 .andExpect(content().string(containsString("입고 필요")));
     }

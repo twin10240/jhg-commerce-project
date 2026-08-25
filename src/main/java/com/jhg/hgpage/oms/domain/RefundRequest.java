@@ -62,6 +62,7 @@ public class RefundRequest {
 
     private LocalDateTime nextAttemptAt;
 
+    private String gatewayTransactionId;
     private String lastFailureCode;
     private String lastFailureReason;
 
@@ -127,9 +128,10 @@ public class RefundRequest {
         touch(now);
     }
 
-    public void succeed(LocalDateTime completedAt) {
+    public void succeed(String gatewayTransactionId, LocalDateTime completedAt) {
         requireProcessing();
         status = RefundStatus.SUCCEEDED;
+        this.gatewayTransactionId = Objects.requireNonNull(gatewayTransactionId);
         this.completedAt = Objects.requireNonNull(completedAt);
         touch(completedAt);
     }

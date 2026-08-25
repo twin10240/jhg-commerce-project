@@ -8,12 +8,9 @@ import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.Payment;
-import com.jhg.hgpage.oms.domain.PaymentAttempt;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
-import com.jhg.hgpage.oms.domain.enums.PaymentAttemptStatus;
 import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
-import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.CheckoutService;
@@ -44,7 +41,6 @@ class CheckoutServiceTest {
     @Mock ProductRepository productRepository;
     @Mock OrderRepository orderRepository;
     @Mock PaymentRepository paymentRepository;
-    @Mock PaymentAttemptRepository paymentAttemptRepository;
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
 
@@ -53,7 +49,7 @@ class CheckoutServiceTest {
     @BeforeEach
     void setUp() {
         checkoutService = new CheckoutService(memberService, productRepository, orderRepository,
-                paymentRepository, paymentAttemptRepository, cartService);
+                paymentRepository, cartService);
         when(memberService.findMember(1L)).thenReturn(
                 Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500")));
     }
@@ -77,31 +73,23 @@ class CheckoutServiceTest {
             ReflectionTestUtils.setField(payment, "id", 20L);
             return payment;
         });
-        when(paymentAttemptRepository.save(any(PaymentAttempt.class))).thenAnswer(invocation -> {
-            PaymentAttempt attempt = invocation.getArgument(0);
-            ReflectionTestUtils.setField(attempt, "id", 30L);
-            return attempt;
-        });
     }
 
     @Test
-    void 주문과_결제시도를_저장하지만_승인전에는_WMS를_호출하지_않는다() {
+    void 주문과_결제만_저장하고_고객승인전에는_결제시도를_만들지_않는다() {
         stubSuccessfulPersistence();
         CheckoutService.CheckoutResult result = checkoutService.createPending(1L,
                 new Address("서울", "관악구", "500"), List.of(new OrderService.OrderLine(7L, 2)), false);
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-        ArgumentCaptor<PaymentAttempt> attemptCaptor = ArgumentCaptor.forClass(PaymentAttempt.class);
         verify(orderRepository).save(orderCaptor.capture());
         verify(paymentRepository).save(paymentCaptor.capture());
-        verify(paymentAttemptRepository).save(attemptCaptor.capture());
 
-        assertThat(result).isEqualTo(new CheckoutService.CheckoutResult(10L, 30L));
+        assertThat(result.orderId()).isEqualTo(10L);
         assertThat(orderCaptor.getValue().getStatus()).isEqualTo(OrderStatus.PAYMENT_PENDING);
         assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(paymentCaptor.getValue().getOrderAmount()).isEqualTo(20_000);
-        assertThat(attemptCaptor.getValue().getStatus()).isEqualTo(PaymentAttemptStatus.PENDING);
         verifyNoInteractions(inventoryPort);
     }
 

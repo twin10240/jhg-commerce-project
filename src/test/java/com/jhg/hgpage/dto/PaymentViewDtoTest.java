@@ -33,7 +33,7 @@ class PaymentViewDtoTest {
 
     static Stream<Arguments> processingLabels() {
         return Stream.of(
-                Arguments.of(OrderStatus.PAYMENT_PENDING, "결제 확인 중"),
+                Arguments.of(OrderStatus.PAYMENT_PENDING, "결제 대기"),
                 Arguments.of(OrderStatus.PAYMENT_REVIEW, "결제 확인 중"),
                 Arguments.of(OrderStatus.PAYMENT_FAILED, "결제 실패"),
                 Arguments.of(OrderStatus.ALLOCATION_PENDING, "재고 확인 중"),

@@ -47,8 +47,7 @@ class PaymentAdminServiceTest {
     }
 
     @Test
-    void 화면필터와_네가지_검토건수를_서로_분리해_조회한다() {
-        when(orderRepositoryQuery.findPaymentsForAdmin(PaymentStatus.PAYMENT_REVIEW)).thenReturn(java.util.List.of());
+    void 환불탭과_네가지_검토건수를_서로_분리해_조회한다() {
         when(orderRepositoryQuery.findRefundsForAdmin(RefundStatus.MANUAL_REVIEW)).thenReturn(java.util.List.of());
         when(orderRepositoryQuery.countRefundReviews()).thenReturn(1L);
         when(orderRepositoryQuery.countAllocationReviews()).thenReturn(2L);
@@ -57,11 +56,24 @@ class PaymentAdminServiceTest {
                 .thenReturn(java.util.List.of(10L, 11L, 12L, 13L));
 
         PaymentAdminService.PageView page = service.findPage(
-                PaymentStatus.PAYMENT_REVIEW, RefundStatus.MANUAL_REVIEW);
+                true, null, RefundStatus.MANUAL_REVIEW);
 
         assertThat(page.counts()).isEqualTo(new PaymentAdminService.ReviewCounts(1, 2, 3, 4));
-        verify(orderRepositoryQuery).findPaymentsForAdmin(PaymentStatus.PAYMENT_REVIEW);
         verify(orderRepositoryQuery).findRefundsForAdmin(RefundStatus.MANUAL_REVIEW);
+        verify(orderRepositoryQuery, never()).findPaymentsForAdmin(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 결제탭은_환불작업을_조회하지않는다() {
+        when(orderRepositoryQuery.findPaymentsForAdmin(PaymentStatus.PAID)).thenReturn(java.util.List.of());
+        when(paymentService.findCancellationReviewAttemptIds()).thenReturn(java.util.List.of());
+        when(orderAllocationService.findCancellationAllocationReviewOrderIds()).thenReturn(java.util.List.of());
+
+        PaymentAdminService.PageView page = service.findPage(false, PaymentStatus.PAID, null);
+
+        assertThat(page.refunds()).isEmpty();
+        verify(orderRepositoryQuery).findPaymentsForAdmin(PaymentStatus.PAID);
+        verify(orderRepositoryQuery, never()).findRefundsForAdmin(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

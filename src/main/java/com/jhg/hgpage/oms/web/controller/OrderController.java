@@ -15,6 +15,7 @@ import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.oms.dto.CustomerReturnDto;
 import com.jhg.hgpage.oms.dto.OrderDetailDto;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.web.form.CustomerReturnForm;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import jakarta.validation.Valid;
@@ -129,7 +130,7 @@ public class OrderController {
 
         Long orderId = paymentFacade.checkout(user.getId(), deliveryAddress, lines, form.isFromCart());
 
-        return "redirect:/orders/" + orderId + "?created=true";
+        return "redirect:/orders/" + orderId + "/payment";
     }
 
     private Product findProduct(Long productId) {
@@ -204,6 +205,33 @@ public class OrderController {
         return "orderview";
     }
 
+    @GetMapping("/orders/{orderId}/payment")
+    public String payment(@AuthenticationPrincipal UserPrincipal user,
+                          @PathVariable Long orderId,
+                          Model model) {
+        OrderDetailDto order = orderService.findOrderDetail(orderId, user.getId());
+        if (order.getStatus() != OrderStatus.PAYMENT_PENDING
+                && order.getStatus() != OrderStatus.PAYMENT_FAILED
+                && order.getStatus() != OrderStatus.PAYMENT_REVIEW) {
+            return "redirect:/orders/" + orderId;
+        }
+        model.addAttribute("order", order);
+        return "payment";
+    }
+
+    @PostMapping("/orders/{orderId}/payment/approve")
+    public String approvePayment(@AuthenticationPrincipal UserPrincipal user,
+                                 @PathVariable Long orderId,
+                                 RedirectAttributes redirectAttributes) {
+        try {
+            paymentFacade.startPayment(orderId, user.getId());
+            return redirectAfterPayment(user, orderId, redirectAttributes);
+        } catch (IllegalStateException exception) {
+            redirectAttributes.addFlashAttribute("errorMessage", exception.getMessage());
+            return "redirect:/orders/" + orderId + "/payment";
+        }
+    }
+
     @PostMapping("/orders/{orderId}/cancel")
     public String cancelOrder(@AuthenticationPrincipal UserPrincipal user,
                               @PathVariable Long orderId,
@@ -229,10 +257,25 @@ public class OrderController {
                                RedirectAttributes redirectAttributes) {
         try {
             paymentFacade.retryPayment(orderId, user.getId());
-            redirectAttributes.addFlashAttribute("successMessage", "결제를 다시 시도했습니다.");
+            return redirectAfterPayment(user, orderId, redirectAttributes);
         } catch (IllegalStateException exception) {
             redirectAttributes.addFlashAttribute("errorMessage", exception.getMessage());
+            return "redirect:/orders/" + orderId + "/payment";
         }
-        return "redirect:/orders/" + orderId;
+    }
+
+    private String redirectAfterPayment(UserPrincipal user, Long orderId,
+                                        RedirectAttributes redirectAttributes) {
+        OrderStatus status = orderService.findOrderDetail(orderId, user.getId()).getStatus();
+        if (status == OrderStatus.PAYMENT_PENDING
+                || status == OrderStatus.PAYMENT_FAILED
+                || status == OrderStatus.PAYMENT_REVIEW) {
+            if (status == OrderStatus.PAYMENT_FAILED) {
+                redirectAttributes.addFlashAttribute("errorMessage", "결제가 승인되지 않았습니다. 다시 시도해주세요.");
+            }
+            return "redirect:/orders/" + orderId + "/payment";
+        }
+        redirectAttributes.addFlashAttribute("successMessage", "결제가 승인되었습니다.");
+        return "redirect:/orders/" + orderId + "?created=true";
     }
 }
