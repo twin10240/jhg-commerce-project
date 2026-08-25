@@ -13,9 +13,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -169,6 +173,21 @@ class OrderAdminControllerMvcTest {
     }
 
     @Test
+    void 단건_출고_WMS통신실패는_주문번호와_조치를_안내한다() throws Exception {
+        doThrow(new ResourceAccessException("Connection refused"))
+                .when(orderService).shipOrder(10L);
+
+        mockMvc.perform(post("/admin/orders/ship")
+                        .with(user(admin()))
+                        .with(csrf())
+                        .param("orderId", "10"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("errorMessage",
+                        "주문 #10 — [WMS_UNAVAILABLE] WMS와 통신할 수 없습니다. 잠시 후 다시 시도해 주세요."));
+    }
+
+    @Test
     void 선택한_주문을_모두_출고_처리한다() throws Exception {
         mockMvc.perform(post("/admin/orders/ships")
                         .with(user(admin()))
@@ -185,7 +204,9 @@ class OrderAdminControllerMvcTest {
 
     @Test
     void 선택_출고는_실패한_주문을_제외하고_계속_처리한다() throws Exception {
-        doThrow(new ResourceAccessException("WMS unavailable"))
+        doThrow(HttpClientErrorException.create(HttpStatus.CONFLICT, "Conflict", new HttpHeaders(),
+                        "예약이 없어 출고할 수 없습니다. orderId=11".getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8))
                 .when(orderService).shipOrder(11L);
 
         mockMvc.perform(post("/admin/orders/ships")
@@ -195,7 +216,9 @@ class OrderAdminControllerMvcTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/orders"))
                 .andExpect(flash().attribute(
-                        "errorMessage", "출고 처리 결과: 성공 1건 / 실패 1건."));
+                        "errorMessage", "출고 처리 결과: 성공 1건 / 실패 1건. 실패 사유: "
+                                + "주문 #11 — [WMS_RESERVATION_NOT_FOUND] WMS 예약 내역이 없습니다. "
+                                + "OMS/WMS 동기화 상태를 확인해 주세요."));
 
         verify(orderService).shipOrder(10L);
         verify(orderService).shipOrder(11L);
