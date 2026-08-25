@@ -63,10 +63,13 @@
     #chkAll,.row-chk{width:22px;height:22px;margin:0;accent-color:var(--accent2);cursor:pointer}
 
     /* 수량 컨트롤 */
-    .qty{display:inline-flex;align-items:center;border:1px solid #ead9c7;border-radius:12px;overflow:hidden}
-    .qty input{width:64px;border:0;padding:10px 8px;text-align:center;font-size:14px;outline:none;background:#fff}
-    .qty button{width:36px;height:36px;border:0;background:#fff;cursor:pointer;border-left:1px solid #ead9c7}
-    .qty button:first-child{border-left:0;border-right:1px solid #ead9c7}
+    .qty{display:inline-flex;align-items:center;padding:4px;border:0;border-radius:999px;background:rgba(244,162,97,.18)}
+    .qty input{width:48px;height:38px;border:0;padding:0;text-align:center;font-size:15px;font-weight:700;outline:none;background:transparent;appearance:textfield}
+    .qty input::-webkit-inner-spin-button,.qty input::-webkit-outer-spin-button{appearance:none;margin:0}
+    .qty button{width:38px;height:38px;border:0;border-radius:50%;background:#fff;color:var(--ink);cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(68,60,51,.14);transition:transform .12s ease,box-shadow .12s ease}
+    .qty:focus-within{box-shadow:0 0 0 3px var(--ring)}
+    .qty button:hover{transform:translateY(-1px);box-shadow:0 5px 12px rgba(68,60,51,.18)}
+    .qty button:active{transform:translateY(0)}
 
     .price,.line-total{text-align:right;font-variant-numeric:tabular-nums}
     .mobile-label{display:none}
@@ -100,9 +103,9 @@
       .grid.head{background:#161412; border-color:#39322c; color:#bfb4a9}
       .grid.row{border-color:#39322c}
       .item .thumb{border-color:#39322c}
-      .qty{border-color:#39322c}
-      .qty input,
-      .qty button{background:#161412; color:#f1eee9; border-color:#39322c}
+      .qty{background:rgba(244,162,97,.16)}
+      .qty input{color:#f1eee9}
+      .qty button{background:#161412;color:#f1eee9;box-shadow:0 3px 10px rgba(0,0,0,.28)}
       .summary .chip{background:#161412; border-color:#39322c; color:#d9d4cf}
       .btn.ghost{background:#161412; border-color:#39322c; color:#d9d4cf}
     }
@@ -157,7 +160,6 @@
             <img class="thumb" th:src="@{/images/product-catalog.png}" th:alt="|${ci.productName} 이미지|">
             <div>
               <div class="name" th:text="${ci.productName}">상품명</div>
-              <div class="muted"><span th:text="${#numbers.formatInteger(ci.unitPrice, 1, 'COMMA')}">0</span>원/개</div>
               <div class="muted" data-stock-status
                    th:hidden="${availability.getOrDefault(ci.productId, 0) >= ci.quantity}"
                    th:text="|${ci.quantity - availability.getOrDefault(ci.productId, 0)}개 부족 · 주문 전체 입고 대기|">재고 부족</div>

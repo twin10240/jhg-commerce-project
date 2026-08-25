@@ -29,4 +29,13 @@ class CartTemplateThemeTest {
         assertThat(html).contains("lineTotal.textContent = fmt.format(total);");
         assertThat(html).doesNotContain("lineTotal.textContent = fmt.format(total) + '원';");
     }
+
+    @Test
+    void 수량조절은_소프트캡슐이며_상품정보의_중복단가는_숨긴다() throws Exception {
+        String html = Files.readString(cartTemplate, StandardCharsets.UTF_8);
+
+        assertThat(html).contains(".qty{display:inline-flex;align-items:center;padding:4px;border:0;border-radius:999px");
+        assertThat(html).contains(".qty button{width:38px;height:38px;border:0;border-radius:50%");
+        assertThat(html).doesNotContain("원/개</div>");
+    }
 }
