@@ -171,12 +171,14 @@ public class OrderCancellationService {
 
     private void cancelPending(Order order, Payment payment, PaymentAttempt activeAttempt) {
         if (payment == null || payment.getStatus() != PaymentStatus.PENDING
-                || activeAttempt == null || activeAttempt.getStatus() == PaymentAttemptStatus.PROCESSING
-                || activeAttempt.getAttemptCount() > 0) {
+                || activeAttempt != null && (activeAttempt.getStatus() == PaymentAttemptStatus.PROCESSING
+                || activeAttempt.getAttemptCount() > 0)) {
             order.requestCancellation(null, LocalDateTime.now());
             return;
         }
-        activeAttempt.cancel(LocalDateTime.now());
+        if (activeAttempt != null) {
+            activeAttempt.cancel(LocalDateTime.now());
+        }
         payment.cancelUnpaid();
         finishWithoutRelease(order);
     }

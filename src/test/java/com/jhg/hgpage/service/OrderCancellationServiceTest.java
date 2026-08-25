@@ -70,6 +70,20 @@ class OrderCancellationServiceTest {
     }
 
     @Test
+    void PAYMENT_PENDING_결제시도없으면_즉시취소한다() {
+        Fixture fixture = pendingPayment();
+        when(paymentRepository.findByOrderIdForUpdate(10L)).thenReturn(Optional.of(fixture.payment));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(fixture.order));
+
+        OrderCancellationService.CancellationResult result = service.request(10L, 1L);
+
+        assertThat(result.outcome()).isEqualTo(OrderCancellationService.CancellationOutcome.COMPLETED);
+        assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.CANCEL);
+        assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        verifyNoInteractions(refundService);
+    }
+
+    @Test
     void PAYMENT_PENDING_기제출시도는_같은키_결과가_결정할때까지_취소대기로_남긴다() {
         Fixture fixture = pendingPayment();
         fixture.attempt.claim(LocalDateTime.now());
