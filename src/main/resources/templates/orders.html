@@ -23,7 +23,7 @@
         <strong th:text="|주문 #${order.id}|">주문 #1</strong>
         <div class="order-meta">
           <span th:text="${#temporals.format(order.createdAt,'yyyy-MM-dd HH:mm')}">2026-07-25</span>
-          <span><b th:text="${#numbers.formatInteger(order.totalAmount,3,'COMMA')}">10,000</b>원</span>
+          <span><b th:text="${#numbers.formatInteger(order.totalAmount,1,'COMMA')}">10,000</b>원</span>
           <span th:text="${order.paymentStatusLabel}">결제 완료</span>
         </div>
       </div>

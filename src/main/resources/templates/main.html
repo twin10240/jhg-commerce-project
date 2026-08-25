@@ -333,7 +333,7 @@
                         <span class="soldout-badge" th:if="${stock <= 0}">입고 대기</span>
                     </h3>
                     <div class="price">
-                        <span th:text="${#numbers.formatInteger(p.price,3,'COMMA')}" name="price">6,500</span>원
+                        <span th:text="${#numbers.formatInteger(p.price,1,'COMMA')}" name="price">6,500</span>원
                     </div>
                     <div class="low-stock" sec:authorize="hasRole('USER')" th:if="${stock <= 0}">주문 시 전체 수량이 입고 대기로 접수됩니다</div>
 

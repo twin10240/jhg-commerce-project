@@ -162,7 +162,7 @@
                 th:classappend="${o.deliveryStatus.name() == 'DELIVERED'} ? 'delivered' : (${o.deliveryStatus.name() == 'SHIPPED'} ? 'shipped' : 'ready')"
                 th:text="${o.deliveryStatus.name() == 'DELIVERED'} ? '배송 완료' : (${o.deliveryStatus.name() == 'SHIPPED'} ? '출고 완료' : '출고 준비')">출고 준비</span>
         </td>
-        <td class="right mobile-hide"><span th:text="${#numbers.formatInteger(o.totalPrice,3,'COMMA')}">23,000</span>원</td>
+        <td class="right mobile-hide"><span th:text="${#numbers.formatInteger(o.totalPrice,1,'COMMA')}">23,000</span>원</td>
         <td class="mobile-hide" th:text="${#temporals.format(o.orderDate,'yyyy-MM-dd HH:mm')}">2026-06-12 10:22</td>
         <td>
           <form th:if="${o.shippable}" th:action="@{/admin/orders/ship}" method="post"

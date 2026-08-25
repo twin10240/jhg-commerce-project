@@ -157,7 +157,7 @@
             <img class="thumb" th:src="@{/images/product-catalog.png}" th:alt="|${ci.productName} 이미지|">
             <div>
               <div class="name" th:text="${ci.productName}">상품명</div>
-              <div class="muted"><span th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')}">0</span>원/개</div>
+              <div class="muted"><span th:text="${#numbers.formatInteger(ci.unitPrice, 1, 'COMMA')}">0</span>원/개</div>
               <div class="muted" data-stock-status
                    th:hidden="${availability.getOrDefault(ci.productId, 0) >= ci.quantity}"
                    th:text="|${ci.quantity - availability.getOrDefault(ci.productId, 0)}개 부족 · 주문 전체 입고 대기|">재고 부족</div>
@@ -176,8 +176,8 @@
             <input type="hidden" th:name="|items[${stat.index}].productId|" th:value="${ci.productId}" />
           </div>
 
-          <div class="price"><span class="mobile-label">단가</span><span th:text="${#numbers.formatInteger(ci.unitPrice, 3, 'COMMA')}">0</span>원</div>
-          <div class="line-total"><span class="mobile-label">합계</span><span data-line-total th:text="${#numbers.formatInteger(ci.lineTotalPrice, 3, 'COMMA')}">0</span>원</div>
+          <div class="price"><span class="mobile-label">단가</span><span th:text="${#numbers.formatInteger(ci.unitPrice, 1, 'COMMA')}">0</span>원</div>
+          <div class="line-total"><span class="mobile-label">합계</span><span data-line-total th:text="${#numbers.formatInteger(ci.lineTotalPrice, 1, 'COMMA')}">0</span>원</div>
         </div>
         <!-- // row -->
       </div>

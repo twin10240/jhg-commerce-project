@@ -145,9 +145,9 @@
     <h2 id="payment-summary-title">결제·환불</h2>
     <dl class="payment-values">
       <div><dt>결제 상태</dt><dd th:text="${order.paymentStatusLabel}">결제 완료</dd></div>
-      <div><dt>결제액</dt><dd><span th:text="${#numbers.formatInteger(order.paidAmount,3,'COMMA')}">20,000</span>원</dd></div>
-      <div><dt>처리 중 환불액</dt><dd><span th:text="${#numbers.formatInteger(order.pendingRefundAmount,3,'COMMA')}">0</span>원</dd></div>
-      <div><dt>누적 환불액</dt><dd><span th:text="${#numbers.formatInteger(order.refundedAmount,3,'COMMA')}">0</span>원</dd></div>
+      <div><dt>결제액</dt><dd><span th:text="${#numbers.formatInteger(order.paidAmount,1,'COMMA')}">20,000</span>원</dd></div>
+      <div><dt>처리 중 환불액</dt><dd><span th:text="${#numbers.formatInteger(order.pendingRefundAmount,1,'COMMA')}">0</span>원</dd></div>
+      <div><dt>누적 환불액</dt><dd><span th:text="${#numbers.formatInteger(order.refundedAmount,1,'COMMA')}">0</span>원</dd></div>
     </dl>
     <p class="refund-state" th:if="${order.pendingRefundAmount > 0 or order.refundedAmount > 0}"
        th:text="${order.refundStatusLabel}">환불 확인 중</p>
@@ -166,15 +166,15 @@
       <tbody>
       <tr th:each="item : ${order.items}">
         <td th:text="${item.productName}">상품1</td>
-        <td class="num"><span th:text="${#numbers.formatInteger(item.orderPrice,3,'COMMA')}">10,000</span>원</td>
+        <td class="num"><span th:text="${#numbers.formatInteger(item.orderPrice,1,'COMMA')}">10,000</span>원</td>
         <td class="num" th:text="${item.count}">2</td>
-        <td class="num"><span th:text="${#numbers.formatInteger(item.totalPrice,3,'COMMA')}">20,000</span>원</td>
+        <td class="num"><span th:text="${#numbers.formatInteger(item.totalPrice,1,'COMMA')}">20,000</span>원</td>
       </tr>
       </tbody>
     </table>
     <div class="total">
       <span>총 주문금액</span>
-      <span><span th:text="${#numbers.formatInteger(order.totalPrice,3,'COMMA')}">20,000</span>원</span>
+      <span><span th:text="${#numbers.formatInteger(order.totalPrice,1,'COMMA')}">20,000</span>원</span>
     </div>
   </div>
 

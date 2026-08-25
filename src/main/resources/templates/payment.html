@@ -41,13 +41,13 @@
       <tr th:each="item : ${order.items}">
         <td th:text="${item.productName}">상품명</td>
         <td class="number" th:text="${item.count}">1</td>
-        <td class="number"><span th:text="${#numbers.formatInteger(item.totalPrice,3,'COMMA')}">20,000</span>원</td>
+        <td class="number"><span th:text="${#numbers.formatInteger(item.totalPrice,1,'COMMA')}">20,000</span>원</td>
       </tr>
       </tbody>
     </table>
     <div class="payment-total">
       <span>최종 결제 금액</span>
-      <span><span th:text="${#numbers.formatInteger(order.totalPrice,3,'COMMA')}">20,000</span>원</span>
+      <span><span th:text="${#numbers.formatInteger(order.totalPrice,1,'COMMA')}">20,000</span>원</span>
     </div>
   </section>
 
@@ -69,7 +69,7 @@
             th:action="@{|/orders/${order.id}/payment/approve|}" method="post">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <button class="app-btn" type="submit">
-          <span th:text="|${#numbers.formatInteger(order.totalPrice,3,'COMMA')}원 결제하기|">20,000원 결제하기</span>
+          <span th:text="|${#numbers.formatInteger(order.totalPrice,1,'COMMA')}원 결제하기|">20,000원 결제하기</span>
         </button>
       </form>
       <form th:if="${order.status.name() == 'PAYMENT_FAILED'}"
