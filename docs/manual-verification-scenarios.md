@@ -616,4 +616,4 @@ OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립
 | 동시 중복 승인 | 자동 검증 | UI에서 처리 중 상태를 결정적으로 정지할 수 없어 `PaymentApprovalProcessorTest.중복_결제승인은_진행중인_결제시도를_재사용한다`로 확인 |
 | 환불 일시 실패 자동 재시도 | 자동 검증 | `RefundServiceTest.성공은_pending을_refunded로_이동하고_일시실패는_같은키로_재시도한다`와 `RefundSweeperTest`로 확인 |
 
-강제 전체 재실행: `./gradlew test --rerun-tasks` → **508개, 실패 0, 오류 0, 제외 0**.
+강제 전체 재실행: `./gradlew test --rerun-tasks` → **509개, 실패 0, 오류 0, 제외 0**.

@@ -253,7 +253,7 @@
     const { unitPrice, qtyInput, lineTotal } = getRowParts(row);
     const q = Math.max(1, parseInt(qtyInput.value || '1', 10));
     const total = unitPrice * q;
-    lineTotal.textContent = fmt.format(total) + '원';
+    lineTotal.textContent = fmt.format(total);
     const available = Number(row.dataset.available) || 0;
     const status = row.querySelector('[data-stock-status]');
     status.hidden = available >= q;
