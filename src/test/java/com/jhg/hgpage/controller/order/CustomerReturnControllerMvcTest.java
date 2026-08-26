@@ -12,7 +12,6 @@ import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
-import com.jhg.hgpage.oms.service.ReturnSubmissionService;
 import com.jhg.hgpage.oms.web.controller.CustomerReturnController;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -52,7 +51,6 @@ class CustomerReturnControllerMvcTest {
     @Autowired MockMvc mockMvc;
 
     @MockBean CustomerReturnService customerReturnService;
-    @MockBean ReturnSubmissionService returnSubmissionService;
 
     private UserPrincipal userPrincipal() {
         return new UserPrincipal(1L, "user@example.com", "테스터", "010-0000-0000", "password", Role.USER);
@@ -77,14 +75,12 @@ class CustomerReturnControllerMvcTest {
                         .param("lines[1].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("successMessage", "반품 요청을 저장했습니다. OMS 승인을 기다리고 있습니다."));
+                .andExpect(flash().attribute("successMessage", "반품 신청이 접수되어 관리자 승인을 기다리고 있습니다."));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CustomerReturnService.ReturnLine>> lines = ArgumentCaptor.forClass(List.class);
         verify(customerReturnService).request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), lines.capture());
         assertThat(lines.getValue()).containsExactly(new CustomerReturnService.ReturnLine(102L, 2));
-
-        verify(returnSubmissionService, never()).submit(77L);
     }
 
     @Test
@@ -101,7 +97,6 @@ class CustomerReturnControllerMvcTest {
                 .andExpect(flash().attributeExists("org.springframework.validation.BindingResult.returnForm"));
 
         verify(customerReturnService, never()).request(eq(10L), eq(1L), eq("단순 변심"), anyList());
-        verify(returnSubmissionService, never()).submit(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -136,7 +131,6 @@ class CustomerReturnControllerMvcTest {
                 .andExpect(flash().attributeExists("returnForm"))
                 .andExpect(flash().attributeExists("org.springframework.validation.BindingResult.returnForm"));
 
-        verify(returnSubmissionService, never()).submit(org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -157,14 +151,36 @@ class CustomerReturnControllerMvcTest {
     }
 
     @Test
-    void 접수된_반품은_고객용_4단계와_현재단계를_표시한다() throws Exception {
-        CustomerReturn customerReturn = requestedReturn();
+    void 승인대기_반품은_OMS_승인단계를_현재로_표시한다() throws Exception {
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(approvalPendingReturn());
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("OMS 승인 대기")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step current\">OMS 승인</div>")));
+    }
+
+    @Test
+    void 반려된_반품은_반려사유를_표시한다() throws Exception {
+        CustomerReturn value = approvalPendingReturn();
+        value.reject("admin@example.com", "배송 완료 후 30일이 지났습니다.");
+        when(customerReturnService.findOwned(77L, 1L)).thenReturn(value);
+
+        mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 반려")))
+                .andExpect(content().string(containsString("배송 완료 후 30일이 지났습니다.")));
+    }
+
+    @Test
+    void WMS_전송대기_반품은_고객용_4단계와_현재단계를_표시한다() throws Exception {
+        CustomerReturn customerReturn = pendingSubmissionReturn();
         when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
 
         mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("<div class=\"timeline-step done\">접수 요청</div>")))
-                .andExpect(content().string(containsString("<div class=\"timeline-step current\">반품 접수</div>")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step done\">OMS 승인</div>")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step current\">WMS 접수</div>")))
                 .andExpect(content().string(containsString(">창고 도착</div>")))
                 .andExpect(content().string(containsString(">반품 완료</div>")));
     }
@@ -178,20 +194,20 @@ class CustomerReturnControllerMvcTest {
         mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("반품 취소")))
-                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">반품 접수</div>")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">WMS 접수</div>")))
                 .andExpect(content().string(containsString("<td>취소</td>")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("<td>처리 중</td>"))));
     }
 
     @Test
     void 접수실패한_반품의_품목결과는_처리중이_아니라_접수실패로_표시한다() throws Exception {
-        CustomerReturn customerReturn = pendingReturn();
+        CustomerReturn customerReturn = pendingSubmissionReturn();
         customerReturn.failSubmission("BAD_REQUEST");
         when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
 
         mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">접수 요청</div>")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">WMS 접수</div>")))
                 .andExpect(content().string(containsString("접수 실패 사유")))
                 .andExpect(content().string(containsString("반품 요청 정보가 올바르지 않거나 반품 가능 수량을 초과했습니다.")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("BAD_REQUEST"))))
@@ -205,7 +221,7 @@ class CustomerReturnControllerMvcTest {
             "UNKNOWN,WMS에서 반품 요청을 처리할 수 없습니다."
     })
     void 접수실패_코드를_고객용_사유로_변환한다(String code, String expectedReason) throws Exception {
-        CustomerReturn customerReturn = pendingReturn();
+        CustomerReturn customerReturn = pendingSubmissionReturn();
         customerReturn.failSubmission(code);
         when(customerReturnService.findOwned(77L, 1L)).thenReturn(customerReturn);
 
@@ -251,12 +267,18 @@ class CustomerReturnControllerMvcTest {
     }
 
     private CustomerReturn requestedReturn() {
-        CustomerReturn customerReturn = pendingReturn();
+        CustomerReturn customerReturn = pendingSubmissionReturn();
         customerReturn.markRequested(900L);
         return customerReturn;
     }
 
-    private CustomerReturn pendingReturn() {
+    private CustomerReturn pendingSubmissionReturn() {
+        CustomerReturn customerReturn = approvalPendingReturn();
+        customerReturn.approve("admin@example.com");
+        return customerReturn;
+    }
+
+    private CustomerReturn approvalPendingReturn() {
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
         ReflectionTestUtils.setField(member, "id", 1L);
         Product product = new Product();
@@ -273,7 +295,6 @@ class CustomerReturnControllerMvcTest {
         order.deliver();
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
                 List.of(new CustomerReturn.RequestItem(orderItem, 2)));
-        customerReturn.approve("admin@example.com");
         ReflectionTestUtils.setField(customerReturn, "id", 77L);
         return customerReturn;
     }

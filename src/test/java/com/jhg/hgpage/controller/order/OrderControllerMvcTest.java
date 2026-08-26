@@ -509,6 +509,21 @@ class OrderControllerMvcTest {
     }
 
     @Test
+    void 반려된_반품은_주문상세에_반려사유를_표시한다() throws Exception {
+        DeliveredFixture fixture = deliveredFixture();
+        CustomerReturn rejected = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "단순 변심",
+                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 1)));
+        rejected.reject("admin@example.com", "배송 완료 후 30일이 지났습니다.");
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(fixture.detail());
+        when(customerReturnService.findForOwnedOrder(10L, 1L)).thenReturn(List.of(rejected));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("반품 반려")))
+                .andExpect(content().string(containsString("반려 사유: 배송 완료 후 30일이 지났습니다.")));
+    }
+
+    @Test
     void 출고전과_배송중_주문에는_반품폼이_없다() throws Exception {
         when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, false));
         mockMvc.perform(get("/orders/10").with(user(principal())))

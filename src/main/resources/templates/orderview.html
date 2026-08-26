@@ -185,6 +185,8 @@
         <a th:href="@{|/returns/${customerReturn.id}|}">
           <span th:text="|반품 #${customerReturn.id}|">반품 #1</span>
           <span th:text="${customerReturn.statusLabel}">반품 접수</span>
+          <span th:if="${customerReturn.rejectionReason != null}"
+                th:text="|반려 사유: ${customerReturn.rejectionReason}|">반려 사유</span>
         </a>
       </li>
     </ul>

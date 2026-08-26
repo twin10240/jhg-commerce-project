@@ -48,7 +48,7 @@ public class CustomerReturnController {
                 bindingResult.reject("invalidReturn", exception.getMessage());
             }
             if (returnId != null) {
-                redirectAttributes.addFlashAttribute("successMessage", "반품 요청을 저장했습니다. OMS 승인을 기다리고 있습니다.");
+                redirectAttributes.addFlashAttribute("successMessage", "반품 신청이 접수되어 관리자 승인을 기다리고 있습니다.");
             }
         }
 
