@@ -62,6 +62,10 @@ class CustomerReturnTest {
 
         assertThatThrownBy(() -> result.reject("admin@example.com", reason))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThat(result.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_APPROVAL);
+        assertThat(result.getReviewedBy()).isNull();
+        assertThat(result.getReviewedAt()).isNull();
+        assertThat(result.getRejectionReason()).isNull();
     }
 
     @Test

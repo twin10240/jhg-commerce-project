@@ -3,7 +3,6 @@ package com.jhg.hgpage.oms.web.controller;
 import com.jhg.hgpage.domain.dto.UserPrincipal;
 import com.jhg.hgpage.oms.dto.CustomerReturnDto;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
-import com.jhg.hgpage.oms.service.ReturnSubmissionService;
 import com.jhg.hgpage.oms.web.form.CustomerReturnForm;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +25,6 @@ public class CustomerReturnController {
     private static final String BINDING_RESULT = "org.springframework.validation.BindingResult.returnForm";
 
     private final CustomerReturnService customerReturnService;
-    private final ReturnSubmissionService returnSubmissionService;
 
     @PostMapping("/orders/{orderId}/returns")
     public String request(@AuthenticationPrincipal UserPrincipal user,
@@ -50,17 +48,7 @@ public class CustomerReturnController {
                 bindingResult.reject("invalidReturn", exception.getMessage());
             }
             if (returnId != null) {
-                returnSubmissionService.submit(returnId);
-                CustomerReturnDto customerReturn = CustomerReturnDto.from(
-                        customerReturnService.findOwned(returnId, user.getId()));
-                switch (customerReturn.getStatus()) {
-                    case SUBMISSION_FAILED -> redirectAttributes.addFlashAttribute("errorMessage",
-                            "WMS에서 반품 접수를 거절했습니다. " + customerReturn.getFailureReasonLabel()
-                                    + " 내용을 확인한 후 다시 신청해주세요.");
-                    case PENDING_SUBMISSION -> redirectAttributes.addFlashAttribute("successMessage",
-                            "반품 요청을 저장했습니다. WMS 접수를 확인 중입니다.");
-                    default -> redirectAttributes.addFlashAttribute("successMessage", "반품이 접수되었습니다.");
-                }
+                redirectAttributes.addFlashAttribute("successMessage", "반품 요청을 저장했습니다. OMS 승인을 기다리고 있습니다.");
             }
         }
 

@@ -103,8 +103,10 @@ public class CustomerReturn {
 
     public void reject(String reviewer, String reason) {
         requirePendingApproval();
-        reviewedBy = requireText(reviewer, "승인자는 필수입니다.", 255);
-        rejectionReason = requireText(reason, "반려 사유는 1자 이상 500자 이하여야 합니다.", 500);
+        String reviewedBy = requireText(reviewer, "승인자는 필수입니다.", 255);
+        String rejectionReason = requireText(reason, "반려 사유는 1자 이상 500자 이하여야 합니다.", 500);
+        this.reviewedBy = reviewedBy;
+        this.rejectionReason = rejectionReason;
         reviewedAt = LocalDateTime.now();
         changeStatus(CustomerReturnStatus.REJECTED);
     }

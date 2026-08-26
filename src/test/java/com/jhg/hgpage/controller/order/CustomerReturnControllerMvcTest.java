@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -33,7 +32,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,10 +63,9 @@ class CustomerReturnControllerMvcTest {
     }
 
     @Test
-    void 양수인_품목만_요청하고_로컬_저장_후_WMS에_전송한다() throws Exception {
+    void 양수인_품목만_요청하고_OMS_승인대기를_안내한다() throws Exception {
         when(customerReturnService.request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), anyList()))
                 .thenReturn(77L);
-        when(customerReturnService.findOwned(77L, 1L)).thenReturn(requestedReturn());
 
         mockMvc.perform(post("/orders/10/returns")
                         .with(user(userPrincipal()))
@@ -80,55 +77,14 @@ class CustomerReturnControllerMvcTest {
                         .param("lines[1].quantity", "2"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("successMessage", "반품이 접수되었습니다."));
+                .andExpect(flash().attribute("successMessage", "반품 요청을 저장했습니다. OMS 승인을 기다리고 있습니다."));
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<CustomerReturnService.ReturnLine>> lines = ArgumentCaptor.forClass(List.class);
         verify(customerReturnService).request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), lines.capture());
         assertThat(lines.getValue()).containsExactly(new CustomerReturnService.ReturnLine(102L, 2));
 
-        InOrder order = inOrder(customerReturnService, returnSubmissionService);
-        order.verify(customerReturnService).request(eq(10L), eq(1L), eq("사이즈가 맞지 않습니다."), anyList());
-        order.verify(returnSubmissionService).submit(77L);
-    }
-
-    @Test
-    void WMS_접수대기면_확인중_메시지를_표시한다() throws Exception {
-        when(customerReturnService.request(eq(10L), eq(1L), eq("단순 변심"), anyList()))
-                .thenReturn(77L);
-        when(customerReturnService.findOwned(77L, 1L)).thenReturn(pendingReturn());
-
-        mockMvc.perform(post("/orders/10/returns")
-                        .with(user(userPrincipal()))
-                        .with(csrf())
-                        .param("reason", "단순 변심")
-                        .param("lines[0].orderItemId", "101")
-                        .param("lines[0].quantity", "1"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("successMessage",
-                        "반품 요청을 저장했습니다. WMS 접수를 확인 중입니다."));
-    }
-
-    @Test
-    void WMS_영구거절이면_접수성공이_아닌_재신청_안내를_표시한다() throws Exception {
-        CustomerReturn failed = pendingReturn();
-        failed.failSubmission("BAD_REQUEST");
-        when(customerReturnService.request(eq(10L), eq(1L), eq("단순 변심"), anyList()))
-                .thenReturn(77L);
-        when(customerReturnService.findOwned(77L, 1L)).thenReturn(failed);
-
-        mockMvc.perform(post("/orders/10/returns")
-                        .with(user(userPrincipal()))
-                        .with(csrf())
-                        .param("reason", "단순 변심")
-                        .param("lines[0].orderItemId", "101")
-                        .param("lines[0].quantity", "1"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/orders/10"))
-                .andExpect(flash().attribute("errorMessage",
-                        "WMS에서 반품 접수를 거절했습니다. 반품 요청 정보가 올바르지 않거나 반품 가능 수량을 초과했습니다. 내용을 확인한 후 다시 신청해주세요."))
-                .andExpect(flash().attributeCount(1));
+        verify(returnSubmissionService, never()).submit(77L);
     }
 
     @Test
