@@ -17,6 +17,7 @@ public class CustomerReturnDto {
     private final CustomerReturnStatus status;
     private final String statusLabel;
     private final String failureReasonLabel;
+    private final String rejectionReason;
     private final String reason;
     private final LocalDateTime requestedAt;
     private final LocalDateTime updatedAt;
@@ -26,8 +27,9 @@ public class CustomerReturnDto {
         id = customerReturn.getId();
         orderId = customerReturn.getOrder().getId();
         status = customerReturn.getStatus();
-        statusLabel = statusLabel(status);
+        statusLabel = status.getLabel();
         failureReasonLabel = failureReasonLabel(customerReturn.getFailureReason());
+        rejectionReason = customerReturn.getRejectionReason();
         reason = customerReturn.getReason();
         requestedAt = customerReturn.getRequestedAt();
         updatedAt = customerReturn.getUpdatedAt();
@@ -43,20 +45,9 @@ public class CustomerReturnDto {
 
     private static int claimedQuantity(CustomerReturnStatus status, CustomerReturnItem item) {
         return switch (status) {
-            case PENDING_SUBMISSION, REQUESTED, RECEIVED -> item.getRequestedQuantity();
+            case PENDING_APPROVAL, PENDING_SUBMISSION, REQUESTED, RECEIVED -> item.getRequestedQuantity();
             case COMPLETED -> item.getAcceptedQuantity();
-            case SUBMISSION_FAILED, CANCELLED -> 0;
-        };
-    }
-
-    private static String statusLabel(CustomerReturnStatus status) {
-        return switch (status) {
-            case PENDING_SUBMISSION -> "WMS 전송 중";
-            case SUBMISSION_FAILED -> "접수 실패";
-            case REQUESTED -> "반품 접수";
-            case RECEIVED -> "창고 입고";
-            case COMPLETED -> "반품 완료";
-            case CANCELLED -> "반품 취소";
+            case SUBMISSION_FAILED, CANCELLED, REJECTED -> 0;
         };
     }
 
@@ -72,6 +63,7 @@ public class CustomerReturnDto {
     private static String resultLabel(CustomerReturnStatus status, ReturnDisposition disposition) {
         if (status == CustomerReturnStatus.CANCELLED) return "취소";
         if (status == CustomerReturnStatus.SUBMISSION_FAILED) return "접수 실패";
+        if (status == CustomerReturnStatus.REJECTED) return "반품 반려";
         if (disposition == null) return "처리 중";
         return switch (disposition) {
             case RESTOCKED -> "재입고";

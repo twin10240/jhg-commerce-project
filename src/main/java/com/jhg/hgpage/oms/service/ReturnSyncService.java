@@ -133,6 +133,7 @@ public class ReturnSyncService {
 
     private boolean isLegal(CustomerReturnStatus current, CustomerReturnStatus target) {
         return switch (current) {
+            case PENDING_APPROVAL, REJECTED -> false;
             case PENDING_SUBMISSION -> true;
             case REQUESTED -> true;
             case RECEIVED -> target == CustomerReturnStatus.RECEIVED || target == CustomerReturnStatus.COMPLETED;

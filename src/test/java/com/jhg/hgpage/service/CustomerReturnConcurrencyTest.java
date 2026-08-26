@@ -58,7 +58,8 @@ class CustomerReturnConcurrencyTest {
         }
 
         int activeQuantity = customerReturnService.findForOwnedOrder(fixture.orderId(), fixture.memberId()).stream()
-                .filter(customerReturn -> customerReturn.getStatus() == CustomerReturnStatus.PENDING_SUBMISSION
+                .filter(customerReturn -> customerReturn.getStatus() == CustomerReturnStatus.PENDING_APPROVAL
+                        || customerReturn.getStatus() == CustomerReturnStatus.PENDING_SUBMISSION
                         || customerReturn.getStatus() == CustomerReturnStatus.REQUESTED
                         || customerReturn.getStatus() == CustomerReturnStatus.RECEIVED)
                 .flatMap(customerReturn -> customerReturn.getItems().stream())

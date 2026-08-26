@@ -117,6 +117,7 @@ class ReturnRefundConcurrencyTest {
         em.persist(payment);
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "불량",
                 List.of(new CustomerReturn.RequestItem(item, 1)));
+        customerReturn.approve("admin@example.com");
         em.persist(customerReturn);
         em.flush();
         Long rmaId = 9000L + customerReturn.getId();

@@ -182,6 +182,7 @@ class ReturnReconciliationSweeperTest {
             Long rmaId = 1000L + order.getId();
             CustomerReturn customerReturn = CustomerReturn.create(order, requestKey, "불량",
                     List.of(new CustomerReturn.RequestItem(item, 2)));
+            customerReturn.approve("admin@example.com");
             if (status != CustomerReturnStatus.PENDING_SUBMISSION) {
                 customerReturn.markRequested(rmaId);
             }

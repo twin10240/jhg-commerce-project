@@ -45,21 +45,19 @@ class CustomerReturnServiceTest {
     }
 
     @Test
-    void 배송완료_주문의_반품요청을_한_UUID의_PENDING으로_저장한다() {
+    void 배송완료_주문의_반품요청을_한_UUID의_OMS승인대기로_저장한다() {
         Long returnId = customerReturnService.request(fixture.order().getId(), fixture.member().getId(),
                 "  상품 불량  ", List.of(new CustomerReturnService.ReturnLine(fixture.item().getId(), 2)));
 
         em.flush();
         em.clear();
         CustomerReturn saved = customerReturnRepository.findDetailedById(returnId).orElseThrow();
-        CustomerReturnService.Submission submission = customerReturnService.pendingSubmission(returnId);
 
         assertThat(saved.getRequestKey()).isNotNull();
-        assertThat(submission.requestKey()).isEqualTo(saved.getRequestKey());
-        assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
+        assertThat(saved.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_APPROVAL);
         assertThat(saved.getReason()).isEqualTo("상품 불량");
-        assertThat(submission.items()).containsExactly(new CustomerReturnService.SubmissionItem(
-                fixture.item().getId(), fixture.item().getProduct().getId(), 2));
+        assertThatThrownBy(() -> customerReturnService.pendingSubmission(returnId))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -185,6 +183,9 @@ class CustomerReturnServiceTest {
         Long failedId = customerReturnService.request(fixture.order().getId(), fixture.member().getId(), "불량3",
                 List.of(new CustomerReturnService.ReturnLine(fixture.item().getId(), 1)));
 
+        customerReturnRepository.findDetailedById(requestedId).orElseThrow().approve("admin@example.com");
+        customerReturnRepository.findDetailedById(receivedId).orElseThrow().approve("admin@example.com");
+        customerReturnRepository.findDetailedById(failedId).orElseThrow().approve("admin@example.com");
         customerReturnService.markRequested(requestedId, 101L);
         customerReturnService.markRequested(receivedId, 102L);
         customerReturnRepository.findDetailedById(receivedId).orElseThrow().markReceived();
@@ -202,6 +203,7 @@ class CustomerReturnServiceTest {
         Long returnId = customerReturnService.request(fixture.order().getId(), fixture.member().getId(), "불량",
                 List.of(new CustomerReturnService.ReturnLine(fixture.item().getId(), 1)));
 
+        customerReturnRepository.findDetailedById(returnId).orElseThrow().approve("admin@example.com");
         customerReturnService.markRequested(returnId, 101L);
         customerReturnService.markRequested(returnId, 101L);
         CustomerReturn customerReturn = customerReturnRepository.findDetailedById(returnId).orElseThrow();
@@ -231,6 +233,7 @@ class CustomerReturnServiceTest {
     private CustomerReturn savedReturn(Fixture target, int quantity) {
         CustomerReturn customerReturn = CustomerReturn.create(target.order(), UUID.randomUUID(), "기존 반품",
                 List.of(new CustomerReturn.RequestItem(target.item(), quantity)));
+        customerReturn.approve("admin@example.com");
         return customerReturnRepository.save(customerReturn);
     }
 

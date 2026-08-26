@@ -83,6 +83,7 @@ class CustomerReturnRepositoryTest {
 
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "불량",
                 List.of(new CustomerReturn.RequestItem(orderItem, 2)));
+        customerReturn.approve("admin@example.com");
         em.persistAndFlush(customerReturn);
         return customerReturn;
     }

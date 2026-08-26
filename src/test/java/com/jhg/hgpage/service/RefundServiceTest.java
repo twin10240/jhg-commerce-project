@@ -133,6 +133,7 @@ class RefundServiceTest {
         fixture.order.deliver();
         CustomerReturn customerReturn = CustomerReturn.create(fixture.order, UUID.randomUUID(), "부분 불량",
                 List.of(new CustomerReturn.RequestItem(fixture.item, 2)));
+        customerReturn.approve("admin@example.com");
         ReflectionTestUtils.setField(customerReturn, "id", 40L);
         customerReturn.complete(List.of(new CustomerReturn.ResultItem(
                 fixture.item.getId(), 1, ReturnDisposition.DISPOSED)));
@@ -315,6 +316,7 @@ class RefundServiceTest {
         order.deliver();
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "기존 반품",
                 List.of(new CustomerReturn.RequestItem(item, quantity)));
+        customerReturn.approve("admin@example.com");
         ReflectionTestUtils.setField(customerReturn, "id", 40L);
         customerReturn.complete(List.of(new CustomerReturn.ResultItem(
                 item.getId(), quantity, ReturnDisposition.DISPOSED)));

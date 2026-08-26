@@ -11,10 +11,14 @@ import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,20 +26,55 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class CustomerReturnTest {
 
     @Test
-    void 배송완료_주문의_반품요청을_PENDING으로_생성한다() {
-        Fixture fixture = deliveredOrder();
+    void 새_반품은_OMS_승인대기로_생성한다() {
+        CustomerReturn result = pendingReturn(2);
 
-        CustomerReturn result = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
-                List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 2)));
+        assertThat(result.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_APPROVAL);
+    }
+
+    @Test
+    void 승인하면_WMS_전송대기가_되고_승인자를_기록한다() {
+        CustomerReturn result = pendingReturn(2);
+
+        result.approve(" admin@example.com ");
 
         assertThat(result.getStatus()).isEqualTo(CustomerReturnStatus.PENDING_SUBMISSION);
-        assertThat(result.getItems()).singleElement()
-                .extracting(CustomerReturnItem::getRequestedQuantity).isEqualTo(2);
+        assertThat(result.getReviewedBy()).isEqualTo("admin@example.com");
+        assertThat(result.getReviewedAt()).isNotNull();
+    }
+
+    @Test
+    void 반려하면_사유를_기록하고_재처리를_거부한다() {
+        CustomerReturn result = pendingReturn(2);
+
+        result.reject("admin@example.com", " 정책상 반품 불가 ");
+
+        assertThat(result.getStatus()).isEqualTo(CustomerReturnStatus.REJECTED);
+        assertThat(result.getRejectionReason()).isEqualTo("정책상 반품 불가");
+        assertThatThrownBy(() -> result.approve("admin@example.com"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidRejectionReasons")
+    void 반려사유는_비어있거나_500자를_초과할수없다(String reason) {
+        CustomerReturn result = pendingReturn(2);
+
+        assertThatThrownBy(() -> result.reject("admin@example.com", reason))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void 승인자는_비어있을수없다() {
+        CustomerReturn result = pendingReturn(2);
+
+        assertThatThrownBy(() -> result.approve(" "))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void 승인0은_REJECTED만_허용한다() {
-        CustomerReturn result = pendingReturn(2);
+        CustomerReturn result = pendingSubmissionReturn(2);
         Long orderItemId = result.getItems().get(0).getOrderItem().getId();
 
         assertThatThrownBy(() -> result.complete(List.of(new CustomerReturn.ResultItem(
@@ -47,9 +86,9 @@ class CustomerReturnTest {
 
     @Test
     void 승인수량이_있으면_RESTOCKED나_DISPOSED만_허용한다() {
-        CustomerReturn rejected = pendingReturn(2);
+        CustomerReturn rejected = pendingSubmissionReturn(2);
         Long rejectedOrderItemId = rejected.getItems().get(0).getOrderItem().getId();
-        CustomerReturn exceeded = pendingReturn(2);
+        CustomerReturn exceeded = pendingSubmissionReturn(2);
         Long exceededOrderItemId = exceeded.getItems().get(0).getOrderItem().getId();
 
         assertThatThrownBy(() -> rejected.complete(List.of(new CustomerReturn.ResultItem(
@@ -65,6 +104,7 @@ class CustomerReturnTest {
         Fixture fixture = deliveredOrder();
         CustomerReturn result = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
                 List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 2)));
+        result.approve("admin@example.com");
         result.markRequested(1L);
 
         result.complete(List.of(new CustomerReturn.ResultItem(
@@ -95,6 +135,7 @@ class CustomerReturnTest {
         Fixture fixture = deliveredOrder(2, 2);
         CustomerReturn result = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
                 fixture.orderItems().stream().map(item -> new CustomerReturn.RequestItem(item, 2)).toList());
+        result.approve("admin@example.com");
         result.markRequested(1L);
 
         assertThatThrownBy(() -> result.complete(List.of(
@@ -113,6 +154,12 @@ class CustomerReturnTest {
         Fixture fixture = deliveredOrder();
         return CustomerReturn.create(fixture.order(), UUID.randomUUID(), "불량",
                 List.of(new CustomerReturn.RequestItem(fixture.orderItem(), quantity)));
+    }
+
+    private CustomerReturn pendingSubmissionReturn(int quantity) {
+        CustomerReturn customerReturn = pendingReturn(quantity);
+        customerReturn.approve("admin@example.com");
+        return customerReturn;
     }
 
     private Fixture deliveredOrder() {
@@ -139,7 +186,7 @@ class CustomerReturnTest {
     }
 
     private CustomerReturn completedReturn() {
-        CustomerReturn result = pendingReturn(2);
+        CustomerReturn result = pendingSubmissionReturn(2);
         result.markRequested(1L);
         result.complete(List.of(new CustomerReturn.ResultItem(
                 result.getItems().get(0).getOrderItem().getId(), 1, ReturnDisposition.RESTOCKED)));
@@ -150,5 +197,10 @@ class CustomerReturnTest {
         private OrderItem orderItem() {
             return orderItems.get(0);
         }
+    }
+
+    private static Stream<Arguments> invalidRejectionReasons() {
+        return Stream.of(Arguments.of((String) null), Arguments.of(""), Arguments.of("   "),
+                Arguments.of("x".repeat(501)));
     }
 }

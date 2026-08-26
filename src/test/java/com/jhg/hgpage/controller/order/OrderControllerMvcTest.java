@@ -494,6 +494,7 @@ class OrderControllerMvcTest {
         DeliveredFixture fixture = deliveredFixture();
         CustomerReturn completed = CustomerReturn.create(fixture.order(), UUID.randomUUID(), "단순 변심",
                 List.of(new CustomerReturn.RequestItem(fixture.orderItem(), 1)));
+        completed.approve("admin@example.com");
         completed.complete(List.of(new CustomerReturn.ResultItem(
                 fixture.orderItem().getId(), 1,
                 com.jhg.hgpage.oms.domain.enums.ReturnDisposition.RESTOCKED)));

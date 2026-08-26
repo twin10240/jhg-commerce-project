@@ -317,6 +317,7 @@ class CustomerReturnControllerMvcTest {
         order.deliver();
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
                 List.of(new CustomerReturn.RequestItem(orderItem, 2)));
+        customerReturn.approve("admin@example.com");
         ReflectionTestUtils.setField(customerReturn, "id", 77L);
         return customerReturn;
     }

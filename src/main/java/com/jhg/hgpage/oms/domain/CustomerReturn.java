@@ -52,6 +52,15 @@ public class CustomerReturn {
     @Column(name = "failure_reason", length = 100)
     private String failureReason;
 
+    @Column(name = "reviewed_by", length = 255)
+    private String reviewedBy;
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "rejection_reason", length = 500)
+    private String rejectionReason;
+
     @Column(name = "requested_at", nullable = false)
     private LocalDateTime requestedAt;
 
@@ -75,7 +84,7 @@ public class CustomerReturn {
         customerReturn.order = order;
         customerReturn.requestKey = Objects.requireNonNull(requestKey);
         customerReturn.reason = Objects.requireNonNull(reason);
-        customerReturn.status = CustomerReturnStatus.PENDING_SUBMISSION;
+        customerReturn.status = CustomerReturnStatus.PENDING_APPROVAL;
         customerReturn.requestedAt = LocalDateTime.now();
         customerReturn.updatedAt = customerReturn.requestedAt;
         for (RequestItem requestItem : requestItems) {
@@ -83,6 +92,21 @@ public class CustomerReturn {
                     requestItem.orderItem(), requestItem.quantity()));
         }
         return customerReturn;
+    }
+
+    public void approve(String reviewer) {
+        requirePendingApproval();
+        reviewedBy = requireText(reviewer, "승인자는 필수입니다.", 255);
+        reviewedAt = LocalDateTime.now();
+        changeStatus(CustomerReturnStatus.PENDING_SUBMISSION);
+    }
+
+    public void reject(String reviewer, String reason) {
+        requirePendingApproval();
+        reviewedBy = requireText(reviewer, "승인자는 필수입니다.", 255);
+        rejectionReason = requireText(reason, "반려 사유는 1자 이상 500자 이하여야 합니다.", 500);
+        reviewedAt = LocalDateTime.now();
+        changeStatus(CustomerReturnStatus.REJECTED);
     }
 
     public void markRequested(Long rmaId) {
@@ -153,6 +177,19 @@ public class CustomerReturn {
             throw new IllegalArgumentException("RMA 식별자가 일치하지 않습니다.");
         }
         this.rmaId = rmaId;
+    }
+
+    private void requirePendingApproval() {
+        if (status != CustomerReturnStatus.PENDING_APPROVAL) {
+            throw new IllegalStateException("OMS 승인 대기 상태의 반품만 처리할 수 있습니다.");
+        }
+    }
+
+    private String requireText(String value, String message, int maxLength) {
+        if (value == null || value.trim().isEmpty() || value.trim().length() > maxLength) {
+            throw new IllegalArgumentException(message);
+        }
+        return value.trim();
     }
 
     private Map<Long, ResultItem> resultsByOrderItemId(List<ResultItem> results) {

@@ -278,6 +278,28 @@ class ReturnSyncServiceTest {
         assertThat(saved(fixture.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.RECEIVED);
     }
 
+    @Test
+    void OMS_승인전_콜백은_반품상태를_변경할수없다() {
+        Fixture fixture = pendingApprovalReturn();
+
+        assertThatThrownBy(() -> returnSyncService.apply(result(fixture, "REQUESTED")))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        assertThat(saved(fixture.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.PENDING_APPROVAL);
+    }
+
+    @Test
+    void 반려된_반품의_콜백은_반품상태를_변경할수없다() {
+        Fixture fixture = pendingApprovalReturn();
+        transactionTemplate.executeWithoutResult(status ->
+                saved(fixture.returnId()).reject("admin@example.com", "반품 불가"));
+
+        assertThatThrownBy(() -> returnSyncService.apply(result(fixture, "REQUESTED")))
+                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+
+        assertThat(saved(fixture.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.REJECTED);
+    }
+
     @ParameterizedTest
     @MethodSource("conflictingTerminalTransitions")
     void 서로_다른_종료상태로는_변경하지_않는다(String initial, String conflicting) {
@@ -390,6 +412,14 @@ class ReturnSyncServiceTest {
     }
 
     private Fixture pendingReturn(int firstOrderQuantity, int firstRequestedQuantity) {
+        return pendingReturn(firstOrderQuantity, firstRequestedQuantity, true);
+    }
+
+    private Fixture pendingApprovalReturn() {
+        return pendingReturn(3, 2, false);
+    }
+
+    private Fixture pendingReturn(int firstOrderQuantity, int firstRequestedQuantity, boolean approved) {
         return transactionTemplate.execute(status -> {
             Product firstProduct = product("첫 상품");
             Product secondProduct = product("둘째 상품");
@@ -413,6 +443,7 @@ class ReturnSyncServiceTest {
             CustomerReturn customerReturn = CustomerReturn.create(order, requestKey, "불량", List.of(
                     new CustomerReturn.RequestItem(firstItem, firstRequestedQuantity),
                     new CustomerReturn.RequestItem(secondItem, 1)));
+            if (approved) customerReturn.approve("admin@example.com");
             em.persist(customerReturn);
             em.flush();
             return new Fixture(customerReturn.getId(), requestKey, rmaId, order.getId(),
@@ -434,6 +465,7 @@ class ReturnSyncServiceTest {
             OrderItem item = em.find(OrderItem.class, fixture.firstOrderItemId());
             CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "추가 불량",
                     List.of(new CustomerReturn.RequestItem(item, 1)));
+            customerReturn.approve("admin@example.com");
             em.persist(customerReturn);
             em.flush();
             return new SingleReturnFixture(customerReturn.getId(), customerReturn.getRequestKey(),

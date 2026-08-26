@@ -236,6 +236,7 @@ class ReturnSubmissionServiceTest {
             em.flush();
             Long returnId = customerReturnService.request(order.getId(), member.getId(), "상품 불량",
                     List.of(new CustomerReturnService.ReturnLine(item.getId(), 2)));
+            customerReturnRepository.findDetailedById(returnId).orElseThrow().approve("admin@example.com");
             UUID requestKey = customerReturnService.pendingSubmission(returnId).requestKey();
             return new Fixture(returnId, requestKey, order.getId(), item.getId(), product.getId(), 1000L + returnId);
         });

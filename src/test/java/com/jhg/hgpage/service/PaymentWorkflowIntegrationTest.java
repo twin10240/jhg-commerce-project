@@ -176,6 +176,7 @@ class PaymentWorkflowIntegrationTest {
                 new CustomerReturnService.ReturnLine(orderItemId, 2)));
         ReturnFixture returnFixture = transactionTemplate.execute(status -> {
             CustomerReturn customerReturn = customerReturnRepository.findDetailedById(returnId).orElseThrow();
+            customerReturn.approve("admin@example.com");
             return new ReturnFixture(customerReturn.getRequestKey(),
                     customerReturn.getItems().get(0).getOrderItem().getId());
         });

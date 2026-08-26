@@ -130,6 +130,7 @@ public class initDb {
                     "Reset demo partial return", List.of(
                             new CustomerReturn.RequestItem(fixture.order().getOrderItems().get(0), 2)));
             em.persist(customerReturn);
+            customerReturn.approve("admin@example.com");
             customerReturn.markRequested(100_000L + customerReturn.getId());
             customerReturn.complete(List.of(new CustomerReturn.ResultItem(
                     fixture.order().getOrderItems().get(0).getId(), 1, ReturnDisposition.RESTOCKED)));

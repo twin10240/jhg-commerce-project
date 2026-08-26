@@ -128,8 +128,8 @@ public class CustomerReturnService {
             for (CustomerReturnItem item : customerReturn.getItems()) {
                 int quantity = switch (customerReturn.getStatus()) {
                     case COMPLETED -> item.getAcceptedQuantity();
-                    case PENDING_SUBMISSION, REQUESTED, RECEIVED -> item.getRequestedQuantity();
-                    case CANCELLED, SUBMISSION_FAILED -> 0;
+                    case PENDING_APPROVAL, PENDING_SUBMISSION, REQUESTED, RECEIVED -> item.getRequestedQuantity();
+                    case CANCELLED, SUBMISSION_FAILED, REJECTED -> 0;
                 };
                 used.merge(item.getOrderItem().getId(), quantity, Integer::sum);
             }

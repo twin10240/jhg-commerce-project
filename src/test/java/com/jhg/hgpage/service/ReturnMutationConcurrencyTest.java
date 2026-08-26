@@ -165,6 +165,7 @@ class ReturnMutationConcurrencyTest {
             UUID requestKey = UUID.randomUUID();
             CustomerReturn customerReturn = CustomerReturn.create(order, requestKey, "불량",
                     List.of(new CustomerReturn.RequestItem(item, 1)));
+            customerReturn.approve("admin@example.com");
             em.persist(customerReturn);
             em.flush();
             Long rmaId = 9000L + customerReturn.getId();
