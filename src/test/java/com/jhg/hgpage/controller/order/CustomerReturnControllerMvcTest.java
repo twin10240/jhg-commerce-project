@@ -169,6 +169,7 @@ class CustomerReturnControllerMvcTest {
         mockMvc.perform(get("/returns/77").with(user(userPrincipal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("반품 반려")))
+                .andExpect(content().string(containsString("<div class=\"timeline-step stopped\">OMS 승인</div>")))
                 .andExpect(content().string(containsString("배송 완료 후 30일이 지났습니다.")));
     }
 

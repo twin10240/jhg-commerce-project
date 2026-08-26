@@ -520,7 +520,9 @@ class OrderControllerMvcTest {
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("반품 반려")))
-                .andExpect(content().string(containsString("반려 사유: 배송 완료 후 30일이 지났습니다.")));
+                .andExpect(content().string(containsString("반려 사유: 배송 완료 후 30일이 지났습니다.")))
+                .andExpect(content().string(containsString("/orders/10/returns")))
+                .andExpect(content().string(containsString("max=\"2\"")));
     }
 
     @Test

@@ -326,8 +326,18 @@ WMS Docker Compose는 WMS 수평 확장 데모이므로 전체 OMS-WMS 배포 �
 
 1. 고객 주문을 WMS 출고 후 OMS 배송 완료까지 처리해 `DELIVERED`로 만든다.
 2. 주문 ID, 주문상품 ID, 상품 ID, 주문 수량과 WMS 재고·원장 전후 값을 기록한다.
-3. 고객 주문 상세의 반품 신청과 `/returns/{returnId}`, WMS `/admin/returns/{rmaId}`를 함께 확인한다.
-4. 각 시나리오는 별도 주문이나 품목을 사용하고 `returnId`, `requestKey`, `rmaId`를 기록한다.
+3. WMS RMA를 다루는 모든 시나리오에서는 고객이 반품을 신청한 뒤 OMS 관리자가 승인하고, 승인 뒤 생성된
+   `rmaId`로 WMS `/admin/returns/{rmaId}`를 확인한다.
+4. 고객 주문 상세의 반품 신청과 `/returns/{returnId}`를 함께 확인한다.
+5. 각 시나리오는 별도 주문이나 품목을 사용하고 `returnId`, `requestKey`, `rmaId`를 기록한다.
+
+### V2-0. OMS 승인·반려 게이트
+
+1. 고객이 배송 완료 주문의 반품을 신청한다.
+2. WMS에 RMA가 없고 OMS 반품 상태가 `PENDING_APPROVAL`인지 확인한다.
+3. 한 건은 OMS에서 반려 사유와 함께 반려하고 고객 화면에서 사유를 확인한다.
+4. 같은 수량을 다시 신청한 뒤 OMS에서 승인한다.
+5. 승인 뒤에만 WMS RMA가 생성되고 OMS가 `REQUESTED`로 수렴하는지 확인한다.
 
 ### V2-1. 단일 품목 전량 승인 `RESTOCKED` (single-line full approval RESTOCKED)
 
@@ -372,13 +382,14 @@ WMS Docker Compose는 WMS 수평 확장 데모이므로 전체 OMS-WMS 배포 �
 
 기대 결과: 재시도 응답은 최초와 같은 `rmaId`이고 RMA가 추가 생성되지 않는다.
 
-### V2-6. 고객 신청 중 WMS 중단 후 스윕 복구 (WMS unavailable during customer submission then sweeper recovery)
+### V2-6. OMS 승인 전 WMS 중단 후 스윕 복구 (WMS unavailable before OMS approval then sweeper recovery)
 
-1. WMS를 중단하고 배송 완료 주문의 반품을 OMS에서 신청한다.
-2. OMS 반품 상세가 `PENDING_SUBMISSION`(WMS 전송 중)이고 요청이 보존됐는지 확인한다.
+1. 배송 완료 주문의 반품을 OMS에서 신청한 뒤 WMS를 중단한다.
+2. WMS가 중단된 상태에서 OMS 관리자가 승인하고 OMS 반품 상세가 `PENDING_SUBMISSION`(WMS 전송 중)이며
+   요청이 보존됐는지 확인한다.
 3. WMS를 재기동하고 `returns.sweep-delay` 한 주기 이상 기다린다.
 
-기대 결과: 고객 신청 자체는 사라지지 않는다. 스윕이 같은 `requestKey`로 접수해 `rmaId`를 결합하고
+기대 결과: 고객 신청과 OMS 승인 자체는 사라지지 않는다. 스윕이 같은 `requestKey`로 접수해 `rmaId`를 결합하고
 OMS가 `REQUESTED`로 수렴한다.
 
 ### V2-7. WMS 완료 콜백 유실 후 단건 조회 복구 (OMS unavailable during WMS completion then GET recovery)
