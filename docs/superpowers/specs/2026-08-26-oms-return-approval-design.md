@@ -116,7 +116,7 @@ OMS 내비게이션에 `반품 관리` 링크를 추가하고 `/admin/returns`�
 
 기존 `PENDING_SUBMISSION`, `SUBMISSION_FAILED`, `REQUESTED`, `RECEIVED`, `COMPLETED`, `CANCELLED` 행의 의미와 처리는 바꾸지 않는다. 새 감사 필드는 nullable이므로 기존 행을 백필하지 않는다.
 
-상태는 문자열로 저장되므로 새 enum 값이 기존 행의 값을 바꾸지 않는다. 이 프로젝트의 현재 스키마 관리 방식에 따라 애플리케이션 스키마 업데이트로 nullable 열을 추가한다. WMS 데이터와 API 계약은 변경하지 않는다.
+상태는 문자열로 저장되므로 새 enum 값이 기존 행의 값을 바꾸지 않는다. 로컬·테스트 H2는 기존 Hibernate 스키마 관리를 사용하고, 운영 PostgreSQL에는 Flyway `V10` 마이그레이션으로 nullable 감사 열을 추가한다. WMS 데이터와 API 계약은 변경하지 않는다.
 
 ## 오류 처리
 
