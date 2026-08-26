@@ -8,12 +8,15 @@ import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
+import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
+import com.jhg.hgpage.oms.service.CustomerReturnService;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.context.annotation.Import;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,9 +24,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
+@Import(CustomerReturnService.class)
 class CustomerReturnRepositoryTest {
 
     @Autowired CustomerReturnRepository customerReturnRepository;
+    @Autowired CustomerReturnService customerReturnService;
     @Autowired TestEntityManager em;
 
     @Test
@@ -93,6 +98,20 @@ class CustomerReturnRepositoryTest {
         assertThat(Hibernate.isInitialized(found.getItems().get(0).getOrderItem().getProduct())).isTrue();
     }
 
+    @Test
+    void 관리자_상세조회는_여러_요청품목도_반품_한건으로_반환한다() {
+        CustomerReturn customerReturn = saveMultiItemCustomerReturn();
+        em.clear();
+
+        List<AdminCustomerReturnDto> found = customerReturnService
+                .findAllForAdmin(CustomerReturnStatus.PENDING_APPROVAL);
+
+        assertThat(found).singleElement().satisfies(value -> {
+            assertThat(value.id()).isEqualTo(customerReturn.getId());
+            assertThat(value.items()).hasSize(2);
+        });
+    }
+
     private CustomerReturn saveCustomerReturn() {
         return saveCustomerReturn(true);
     }
@@ -118,6 +137,29 @@ class CustomerReturnRepositoryTest {
         if (approved) {
             customerReturn.approve("admin@example.com");
         }
+        em.persistAndFlush(customerReturn);
+        return customerReturn;
+    }
+
+    private CustomerReturn saveMultiItemCustomerReturn() {
+        Product product = new Product();
+        product.setName("다품목 상품");
+        product.setPrice(10000);
+        em.persist(product);
+        Member member = Member.createUser("다품목 테스터", "010-0000-0001", new Address("서울", "관악구", "500"));
+        em.persist(member);
+        Delivery delivery = new Delivery();
+        delivery.setAddress(new Address("서울", "관악구", "500"));
+        OrderItem first = OrderItem.createOrderItem(product, product.getPrice(), 1);
+        OrderItem second = OrderItem.createOrderItem(product, product.getPrice(), 1);
+        Order order = Order.createOrder(member, delivery, first, second);
+        order.ship();
+        order.deliver();
+        em.persist(order);
+        em.flush();
+
+        CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "불량",
+                List.of(new CustomerReturn.RequestItem(first, 1), new CustomerReturn.RequestItem(second, 1)));
         em.persistAndFlush(customerReturn);
         return customerReturn;
     }

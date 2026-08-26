@@ -43,7 +43,7 @@ public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, 
 
     @EntityGraph(attributePaths = {"order", "order.member", "items", "items.orderItem", "items.orderItem.product"})
     @Query("""
-            select distinct r from CustomerReturn r
+            select r from CustomerReturn r
             where (:status is null or r.status = :status)
             order by case when r.status = com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus.PENDING_APPROVAL
                           then 0 else 1 end,
