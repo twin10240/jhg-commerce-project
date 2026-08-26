@@ -15,6 +15,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -137,6 +138,17 @@ class OrderAdminControllerMvcTest {
                 .andExpect(content().string(not(containsString("상품1 × 2"))))
                 .andExpect(content().string(containsString(">입고 대기</span>")))
                 .andExpect(content().string(containsString("입고 필요")));
+    }
+
+    @Test
+    void 복합_주문상태는_구분점에서_줄바꿈한다() throws Exception {
+        AdminOrderDto order = backorderedAdminOrderDto();
+        ReflectionTestUtils.setField(order, "orderStatusLabel", "결제 완료 · 입고 대기");
+        when(orderService.findAllForAdmin()).thenReturn(List.of(order));
+
+        mockMvc.perform(get("/admin/orders").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("결제 완료<br>입고 대기")));
     }
 
     @Test

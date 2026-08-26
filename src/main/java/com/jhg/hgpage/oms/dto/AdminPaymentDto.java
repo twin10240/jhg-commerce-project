@@ -32,15 +32,7 @@ public record AdminPaymentDto(
                 payment.getOrder().getId(),
                 null,
                 payment.getStatus().name(),
-                switch (payment.getStatus()) {
-                    case PENDING -> "결제 대기";
-                    case PAYMENT_FAILED -> "결제 실패";
-                    case PAYMENT_REVIEW -> "결제 확인 필요";
-                    case PAID -> "결제 완료";
-                    case PARTIALLY_REFUNDED -> "부분 환불";
-                    case REFUNDED -> "환불 완료";
-                    case CANCELLED -> "결제 취소";
-                },
+                payment.getStatus().getLabel(),
                 payment.getOrderAmount(),
                 payment.getPaidAmount(),
                 payment.getPendingRefundAmount(),
@@ -61,13 +53,7 @@ public record AdminPaymentDto(
                 payment.getOrder().getId(),
                 request.getSourceType() == RefundSourceType.RETURN ? request.getSourceId() : null,
                 request.getStatus().name(),
-                switch (request.getStatus()) {
-                    case PENDING -> "환불 대기";
-                    case PROCESSING -> "환불 처리 중";
-                    case RETRYING -> "환불 재시도 대기";
-                    case SUCCEEDED -> "환불 완료";
-                    case MANUAL_REVIEW -> "환불 확인 필요";
-                },
+                request.getStatus().getLabel(),
                 request.getAmount(),
                 payment.getPaidAmount(),
                 payment.getPendingRefundAmount(),

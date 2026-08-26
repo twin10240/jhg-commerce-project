@@ -43,14 +43,14 @@
       <select name="paymentStatus">
         <option value="">전체</option>
         <option th:each="status : ${paymentStatuses}" th:value="${status}"
-                th:selected="${status == paymentStatus}" th:text="${status}">PAID</option>
+                th:selected="${status == paymentStatus}" th:text="${status.label}">결제 완료</option>
       </select>
     </label>
     <label th:if="${activeTab == 'refund'}">환불 상태
       <select name="refundStatus">
         <option value="">전체</option>
         <option th:each="status : ${refundStatuses}" th:value="${status}"
-                th:selected="${status == refundStatus}" th:text="${status}">SUCCEEDED</option>
+                th:selected="${status == refundStatus}" th:text="${status.label}">환불 완료</option>
       </select>
     </label>
     <button class="app-btn" type="submit">조회</button>

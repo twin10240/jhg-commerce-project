@@ -80,6 +80,26 @@ class PaymentAdminControllerMvcTest {
     }
 
     @Test
+    void 결제필터는_영문값과_한글표시명을_사용한다() throws Exception {
+        when(paymentAdminService.findPage(false, null, null)).thenReturn(
+                new PageView(List.of(), List.of(), new ReviewCounts(0, 0, 0, 0)));
+
+        mockMvc.perform(get("/admin/payments").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"PAYMENT_REVIEW\">결제 확인 필요</option>")));
+    }
+
+    @Test
+    void 환불필터는_영문값과_한글표시명을_사용한다() throws Exception {
+        when(paymentAdminService.findPage(true, null, null)).thenReturn(
+                new PageView(List.of(), List.of(), new ReviewCounts(0, 0, 0, 0)));
+
+        mockMvc.perform(get("/admin/payments").param("tab", "refund").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("value=\"MANUAL_REVIEW\">환불 확인 필요</option>")));
+    }
+
+    @Test
     void 환불탭은_환불필터와_환불작업만_보여준다() throws Exception {
         when(paymentAdminService.findPage(true, null, RefundStatus.MANUAL_REVIEW)).thenReturn(
                 new PageView(List.of(), List.of(), new ReviewCounts(0, 0, 0, 0)));

@@ -68,10 +68,11 @@
     tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
     .right{text-align:right}
     .hint{color:var(--muted); font-size:12px}
+    .payment-status{white-space:nowrap}
 
     .status-badge{
       display:inline-block; padding:3px 10px; border-radius:999px;
-      font-size:12px; font-weight:800;
+      font-size:12px; font-weight:800; white-space:nowrap;
     }
     .status-badge.order{color:#8a6d3b; background:#fcf6e8; border:1px solid #e7d3a1}
     .status-badge.cancel{color:#c0392b; background:#fdf3f1; border:1px solid #e3b4ac}
@@ -122,7 +123,7 @@
         <th style="width:150px">주문 상품</th>
         <th class="right" style="width:70px">수량</th>
         <th style="width:100px">주문상태</th>
-        <th style="width:110px">결제상태</th>
+        <th class="payment-status" style="width:110px">결제상태</th>
         <th style="width:100px">배송상태</th>
         <th class="right mobile-hide" style="width:120px">주문금액</th>
         <th class="mobile-hide" style="width:150px">주문일시</th>
@@ -154,9 +155,9 @@
         <td>
           <span class="status-badge"
                 th:classappend="${o.status.name() == 'CANCEL' or o.status.name() == 'PAYMENT_FAILED'} ? 'cancel' : (${o.status.name() == 'BACKORDERED' or o.status.name() == 'ALLOCATION_REVIEW'} ? 'backorder' : 'order')"
-                th:text="${o.orderStatusLabel}">재고 확보</span>
+                th:utext="${#strings.replace(o.orderStatusLabel, ' · ', '&lt;br&gt;')}">재고 확보</span>
         </td>
-        <td th:text="${o.paymentStatusLabel}">결제 완료</td>
+        <td class="payment-status" th:text="${o.paymentStatusLabel}">결제 완료</td>
         <td>
           <span class="status-badge"
                 th:classappend="${o.deliveryStatus.name() == 'DELIVERED'} ? 'delivered' : (${o.deliveryStatus.name() == 'SHIPPED'} ? 'shipped' : 'ready')"
