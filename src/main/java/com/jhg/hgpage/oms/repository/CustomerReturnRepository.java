@@ -40,4 +40,14 @@ public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, 
     @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
     @Query("select distinct r from CustomerReturn r where r.status in :statuses order by r.id")
     List<CustomerReturn> findDetailedByStatusIn(Collection<CustomerReturnStatus> statuses);
+
+    @EntityGraph(attributePaths = {"order", "order.member", "items", "items.orderItem", "items.orderItem.product"})
+    @Query("""
+            select distinct r from CustomerReturn r
+            where (:status is null or r.status = :status)
+            order by case when r.status = com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus.PENDING_APPROVAL
+                          then 0 else 1 end,
+                     r.requestedAt, r.id
+            """)
+    List<CustomerReturn> findAllDetailedForAdmin(CustomerReturnStatus status);
 }

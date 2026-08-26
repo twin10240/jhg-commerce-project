@@ -10,6 +10,7 @@ import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
+import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,10 @@ class CustomerReturnServiceTest {
         assertThat(saved.getReason()).isEqualTo("상품 불량");
         assertThatThrownBy(() -> customerReturnService.pendingSubmission(returnId))
                 .isInstanceOf(IllegalStateException.class);
+
+        customerReturnService.approveReturn(returnId, "admin@example.com");
+
+        assertThat(customerReturnService.pendingSubmission(returnId).returnId()).isEqualTo(returnId);
     }
 
     @Test
@@ -172,6 +177,35 @@ class CustomerReturnServiceTest {
                 List.of(new CustomerReturnService.ReturnLine(one.item().getId(), 1)));
 
         assertThat(returnId).isNotNull();
+    }
+
+    @Test
+    void 반려된_반품_수량은_새_요청에_사용할_수_있다() {
+        Fixture one = deliveredOrder(1);
+        Long rejectedId = customerReturnService.request(one.order().getId(), one.member().getId(), "불량",
+                List.of(new CustomerReturnService.ReturnLine(one.item().getId(), 1)));
+
+        customerReturnService.rejectReturn(rejectedId, "admin@example.com", "정책상 반품 불가");
+
+        Long retryId = customerReturnService.request(one.order().getId(), one.member().getId(), "상세 사유 보완",
+                List.of(new CustomerReturnService.ReturnLine(one.item().getId(), 1)));
+
+        assertThat(retryId).isNotNull();
+    }
+
+    @Test
+    void 관리자는_승인대기_반품의_고객과_요청수량을_조회한다() {
+        customerReturnService.request(fixture.order().getId(), fixture.member().getId(), "불량",
+                List.of(new CustomerReturnService.ReturnLine(fixture.item().getId(), 2)));
+
+        assertThat(customerReturnService.findAllForAdmin(CustomerReturnStatus.PENDING_APPROVAL))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.customerName()).isEqualTo("테스터");
+                    assertThat(row.statusLabel()).isEqualTo("OMS 승인 대기");
+                    assertThat(row.items()).singleElement()
+                            .extracting(AdminCustomerReturnDto.Item::quantity).isEqualTo(2);
+                });
     }
 
     @Test

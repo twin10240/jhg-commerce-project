@@ -68,11 +68,58 @@ class CustomerReturnConcurrencyTest {
         assertThat(activeQuantity).isEqualTo(1);
     }
 
+    @Test
+    void 동시에_승인과_반려하면_하나만_처리된다() throws Exception {
+        Fixture fixture = transactionTemplate.execute(status -> deliveredOneUnitOrder());
+        Long returnId = customerReturnService.request(fixture.orderId(), fixture.memberId(), "불량",
+                List.of(new CustomerReturnService.ReturnLine(fixture.orderItemId(), 1)));
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<Throwable> approval = executor.submit(() -> approveAfter(start, returnId));
+            Future<Throwable> rejection = executor.submit(() -> rejectAfter(start, returnId));
+            start.countDown();
+
+            List<Throwable> results = Arrays.asList(
+                    approval.get(10, TimeUnit.SECONDS), rejection.get(10, TimeUnit.SECONDS));
+
+            assertThat(results).filteredOn(result -> result == null).hasSize(1);
+            assertThat(results).filteredOn(result -> result != null).singleElement()
+                    .isInstanceOf(IllegalStateException.class);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(customerReturnService.findOwned(returnId, fixture.memberId()).getStatus())
+                .isIn(CustomerReturnStatus.PENDING_SUBMISSION, CustomerReturnStatus.REJECTED);
+    }
+
     private Throwable requestAfter(CountDownLatch start, Fixture fixture) {
         try {
             start.await();
             customerReturnService.request(fixture.orderId(), fixture.memberId(), "불량",
                     List.of(new CustomerReturnService.ReturnLine(fixture.orderItemId(), 1)));
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
+    }
+
+    private Throwable approveAfter(CountDownLatch start, Long returnId) {
+        try {
+            start.await();
+            customerReturnService.approveReturn(returnId, "admin@example.com");
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
+    }
+
+    private Throwable rejectAfter(CountDownLatch start, Long returnId) {
+        try {
+            start.await();
+            customerReturnService.rejectReturn(returnId, "admin@example.com", "반려");
             return null;
         } catch (Throwable failure) {
             return failure;

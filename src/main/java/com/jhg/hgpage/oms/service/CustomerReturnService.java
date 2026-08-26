@@ -7,6 +7,7 @@ import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -89,6 +90,23 @@ public class CustomerReturnService {
         if (customerReturn.getStatus() == CustomerReturnStatus.PENDING_SUBMISSION) {
             customerReturn.failSubmission(failureCode);
         }
+    }
+
+    @Transactional
+    public void approveReturn(Long returnId, String reviewer) {
+        findForUpdate(returnId).approve(reviewer);
+    }
+
+    @Transactional
+    public void rejectReturn(Long returnId, String reviewer, String reason) {
+        findForUpdate(returnId).reject(reviewer, reason);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminCustomerReturnDto> findAllForAdmin(CustomerReturnStatus status) {
+        return customerReturnRepository.findAllDetailedForAdmin(status).stream()
+                .map(AdminCustomerReturnDto::from)
+                .toList();
     }
 
     @Transactional(readOnly = true)

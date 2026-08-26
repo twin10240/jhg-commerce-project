@@ -65,7 +65,39 @@ class CustomerReturnRepositoryTest {
         assertThat(disposition).isEqualTo("RESTOCKED");
     }
 
+    @Test
+    void 관리자_상세조회는_승인대기를_우선하고_상태필터와_연관엔티티를_적용한다() {
+        CustomerReturn olderPending = saveCustomerReturn(false);
+        CustomerReturn newerPending = saveCustomerReturn(false);
+        CustomerReturn submitted = saveCustomerReturn(true);
+        em.getEntityManager().createNativeQuery("update customer_return set requested_at = '2026-01-01 00:00:00' where customer_return_id = :id")
+                .setParameter("id", olderPending.getId()).executeUpdate();
+        em.getEntityManager().createNativeQuery("update customer_return set requested_at = '2026-01-02 00:00:00' where customer_return_id = :id")
+                .setParameter("id", newerPending.getId()).executeUpdate();
+        em.flush();
+        em.clear();
+
+        List<CustomerReturn> all = customerReturnRepository.findAllDetailedForAdmin(null);
+        List<CustomerReturn> pending = customerReturnRepository
+                .findAllDetailedForAdmin(CustomerReturnStatus.PENDING_APPROVAL);
+
+        assertThat(all).extracting(CustomerReturn::getId)
+                .containsExactly(olderPending.getId(), newerPending.getId(), submitted.getId());
+        assertThat(pending).extracting(CustomerReturn::getId)
+                .containsExactly(olderPending.getId(), newerPending.getId());
+        CustomerReturn found = pending.get(0);
+        assertThat(Hibernate.isInitialized(found.getOrder())).isTrue();
+        assertThat(Hibernate.isInitialized(found.getOrder().getMember())).isTrue();
+        assertThat(Hibernate.isInitialized(found.getItems())).isTrue();
+        assertThat(Hibernate.isInitialized(found.getItems().get(0).getOrderItem())).isTrue();
+        assertThat(Hibernate.isInitialized(found.getItems().get(0).getOrderItem().getProduct())).isTrue();
+    }
+
     private CustomerReturn saveCustomerReturn() {
+        return saveCustomerReturn(true);
+    }
+
+    private CustomerReturn saveCustomerReturn(boolean approved) {
         Product product = new Product();
         product.setName("상품");
         product.setPrice(10000);
@@ -83,7 +115,9 @@ class CustomerReturnRepositoryTest {
 
         CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "불량",
                 List.of(new CustomerReturn.RequestItem(orderItem, 2)));
-        customerReturn.approve("admin@example.com");
+        if (approved) {
+            customerReturn.approve("admin@example.com");
+        }
         em.persistAndFlush(customerReturn);
         return customerReturn;
     }
