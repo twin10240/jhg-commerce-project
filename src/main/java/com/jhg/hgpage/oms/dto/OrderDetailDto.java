@@ -17,6 +17,8 @@ public class OrderDetailDto {
     private final OrderStatus status;
     private final LocalDateTime orderDate;
     private final DeliveryStatus deliveryStatus;
+    private final String carrierName;
+    private final String trackingNumber;
     private final String city;
     private final String street;
     private final String zipcode;
@@ -37,6 +39,8 @@ public class OrderDetailDto {
         this.status = order.getStatus();
         this.orderDate = order.getOrderDate();
         this.deliveryStatus = order.getDelivery().getStatus();
+        this.carrierName = order.getDelivery().getCarrierName();
+        this.trackingNumber = order.getDelivery().getTrackingNumber();
         Address address = order.getDelivery().getAddress();
         this.city = address.getCity();
         this.street = address.getStreet();

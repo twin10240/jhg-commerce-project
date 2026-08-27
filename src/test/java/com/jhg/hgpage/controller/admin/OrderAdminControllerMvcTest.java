@@ -21,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -94,6 +95,7 @@ class OrderAdminControllerMvcTest {
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
         order.ship();
+        delivery.recordShipment("MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z"));
         return AdminOrderDto.from(order);
     }
 
@@ -120,6 +122,7 @@ class OrderAdminControllerMvcTest {
         mockMvc.perform(get("/admin/orders").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("/admin/orders/deliver")))
+                .andExpect(content().string(containsString("테스트택배 MOCK-10")))
                 .andExpect(content().string(containsString(">배송 완료</button>")))
                 .andExpect(content().string(not(containsString("/admin/orders/ship\""))));
     }

@@ -1,5 +1,6 @@
 package com.jhg.hgpage.contract;
 
+import java.time.Instant;
 import java.util.Map;
 
 /**
@@ -25,8 +26,12 @@ public interface InventoryPort {
     /**
      * 출고: 전 상품의 실물 재고를 차감한다(예약분도 함께 해소).
      * 출고 시점에 비로소 실물이 빠진다.
+     * 상품/수량은 요청 형식 검증용이며 실제 출고량은 WMS 예약 원장을 따른다.
      */
-    void shipAll(Long orderId, Map<Long, Integer> qtyByProductId);
+    ShipmentResult shipAll(Long orderId, Map<Long, Integer> qtyByProductId);
+
+    record ShipmentResult(Long orderId, String carrierCode, String carrierName,
+                          String trackingNumber, Instant issuedAt) {}
 
     /**
      * 예약 해제: 전 상품의 예약분을 되돌린다(가용분 복구).

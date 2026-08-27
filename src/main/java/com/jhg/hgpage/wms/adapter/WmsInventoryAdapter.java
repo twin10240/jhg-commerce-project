@@ -65,13 +65,19 @@ public class WmsInventoryAdapter implements InventoryPort {
     }
 
     @Override
-    public void shipAll(Long orderId, Map<Long, Integer> qtyByProductId) {
-        restClient.post()
+    public ShipmentResult shipAll(Long orderId, Map<Long, Integer> qtyByProductId) {
+        ShipmentResult result = restClient.post()
                 .uri("/api/inventory/ship")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new WriteRequest(orderId, qtyByProductId))
                 .retrieve()
-                .toBodilessEntity();
+                .body(ShipmentResult.class);
+        if (result == null || !orderId.equals(result.orderId())
+                || result.carrierCode() == null || result.carrierName() == null
+                || result.trackingNumber() == null || result.issuedAt() == null) {
+            throw new RestClientException("WMS 출고 응답이 잘못되었습니다.");
+        }
+        return result;
     }
 
     @Override

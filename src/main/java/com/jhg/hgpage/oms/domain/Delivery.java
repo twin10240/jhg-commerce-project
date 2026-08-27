@@ -6,6 +6,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
+
 import static jakarta.persistence.FetchType.LAZY;
 
 @Entity
@@ -24,4 +26,22 @@ public class Delivery {
 
     @Enumerated(EnumType.STRING) // ORDINAL은 enum 순서 변경 시 기존 데이터가 깨진다 (Order.status와 일관)
     private DeliveryStatus status;
+
+    @Column(length = 30)
+    private String carrierCode;
+
+    @Column(length = 100)
+    private String carrierName;
+
+    @Column(length = 100)
+    private String trackingNumber;
+    private Instant shipmentIssuedAt;
+
+    public void recordShipment(String carrierCode, String carrierName,
+                               String trackingNumber, Instant issuedAt) {
+        this.carrierCode = carrierCode;
+        this.carrierName = carrierName;
+        this.trackingNumber = trackingNumber;
+        this.shipmentIssuedAt = issuedAt;
+    }
 }

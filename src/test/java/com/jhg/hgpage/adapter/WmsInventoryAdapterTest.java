@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
+import java.time.Instant;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,12 +47,46 @@ class WmsInventoryAdapterTest {
     }
 
     @Test
-    void ship_WMS에_POST_요청을_보낸다() {
+    void ship_WMS_응답의_소수점_시각과_송장을_반환한다() {
         server.expect(requestTo("http://wms-test/api/inventory/ship"))
               .andExpect(method(HttpMethod.POST))
-              .andRespond(withSuccess());
+              .andRespond(withSuccess("""
+                      {"orderId":1,"carrierCode":"MOCK","carrierName":"테스트택배",
+                       "trackingNumber":"MOCK-1-20260827063000","issuedAt":"2026-08-27T06:30:00.123456Z"}
+                      """, MediaType.APPLICATION_JSON));
 
-        adapter.shipAll(1L, Map.of(1L, 3));
+        var result = adapter.shipAll(1L, Map.of(1L, 3));
+
+        assertThat(result.orderId()).isEqualTo(1L);
+        assertThat(result.trackingNumber()).isEqualTo("MOCK-1-20260827063000");
+        assertThat(result.issuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
+        server.verify();
+    }
+
+    @Test
+    void ship_409_평문은_JSON으로_파싱하지_않고_상태코드_예외로_반환한다() {
+        server.expect(requestTo("http://wms-test/api/inventory/ship"))
+              .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                      .withStatus(org.springframework.http.HttpStatus.CONFLICT)
+                      .body("주문에 대한 예약이 없어 출고할 수 없습니다.")
+                      .contentType(MediaType.TEXT_PLAIN));
+
+        assertThatThrownBy(() -> adapter.shipAll(1L, Map.of(1L, 999)))
+                .isInstanceOf(HttpClientErrorException.Conflict.class);
+        server.verify();
+    }
+
+    @Test
+    void ship_응답은_trackingNumber가_아니라_orderId로_검증한다() {
+        server.expect(requestTo("http://wms-test/api/inventory/ship"))
+              .andRespond(withSuccess("""
+                      {"orderId":2,"carrierCode":"MOCK","carrierName":"테스트택배",
+                       "trackingNumber":"MOCK-1","issuedAt":"2026-08-27T06:30:00.1Z"}
+                      """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.shipAll(1L, Map.of(1L, 3)))
+                .isInstanceOf(RestClientException.class)
+                .hasMessageContaining("응답이 잘못되었습니다");
         server.verify();
     }
 

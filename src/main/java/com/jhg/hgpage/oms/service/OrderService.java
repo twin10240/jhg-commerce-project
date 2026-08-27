@@ -70,7 +70,10 @@ public class OrderService {
         Order order = findOrder(orderId);
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.ship();
-        inventoryPort.shipAll(order.getId(), order.quantitiesByProductId());
+        InventoryPort.ShipmentResult shipment = inventoryPort.shipAll(
+                order.getId(), order.quantitiesByProductId());
+        order.getDelivery().recordShipment(shipment.carrierCode(), shipment.carrierName(),
+                shipment.trackingNumber(), shipment.issuedAt());
     }
 
     @Transactional

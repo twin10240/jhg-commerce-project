@@ -30,6 +30,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -141,10 +142,14 @@ class OrderServiceAdminTest {
         ReflectionTestUtils.setField(order, "id", 10L);
 
         when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(inventoryPort.shipAll(10L, Map.of(1L, 2))).thenReturn(
+                new InventoryPort.ShipmentResult(10L, "MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z")));
 
         orderService.shipOrder(10L);
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+        assertThat(order.getDelivery().getTrackingNumber()).isEqualTo("MOCK-10");
+        assertThat(order.getDelivery().getShipmentIssuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
         // 실물 차감은 도메인이 아니라 InventoryPort(WMS)에 위임한다
         verify(inventoryPort).shipAll(10L, Map.of(1L, 2));
     }

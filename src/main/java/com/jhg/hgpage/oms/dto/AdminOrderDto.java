@@ -17,6 +17,8 @@ public class AdminOrderDto {
     private final String memberName;
     private final OrderStatus status;
     private final DeliveryStatus deliveryStatus;
+    private final String carrierName;
+    private final String trackingNumber;
     private final int totalPrice;
     private final LocalDateTime orderDate;
     private final List<Item> items;
@@ -35,6 +37,8 @@ public class AdminOrderDto {
         this.memberName = order.getMember().getName();
         this.status = order.getStatus();
         this.deliveryStatus = order.getDelivery().getStatus();
+        this.carrierName = order.getDelivery().getCarrierName();
+        this.trackingNumber = order.getDelivery().getTrackingNumber();
         this.totalPrice = order.getTotalPrice();
         this.orderDate = order.getOrderDate();
         Map<Long, Integer> quantities = order.quantitiesByProductId();

@@ -27,6 +27,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -318,6 +319,7 @@ class OrderControllerMvcTest {
         order.markOrdered(); // ORDER 상태(예약 성공)
         if (shipped) {
             order.ship();
+            delivery.recordShipment("MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z"));
         } else if (canceled) {
             order.cancel();
         }
@@ -536,6 +538,16 @@ class OrderControllerMvcTest {
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(not(containsString("/orders/10/returns"))));
+    }
+
+    @Test
+    void 출고된_주문상세에_택배사와_운송장번호를_표시한다() throws Exception {
+        when(orderService.findOrderDetail(10L, 1L)).thenReturn(detailDto(false, true));
+
+        mockMvc.perform(get("/orders/10").with(user(principal())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("테스트택배")))
+                .andExpect(content().string(containsString("MOCK-10")));
     }
 
     @Test
