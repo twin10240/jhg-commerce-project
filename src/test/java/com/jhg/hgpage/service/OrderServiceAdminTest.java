@@ -18,6 +18,7 @@ import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.catalog.ProductRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,7 @@ class OrderServiceAdminTest {
     @Mock ProductRepository productRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
+    @Mock CustomerReturnRepository customerReturnRepository;
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
     @Mock InventoryQueryPort inventoryQueryPort;

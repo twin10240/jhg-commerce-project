@@ -5,6 +5,7 @@ import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
 import com.jhg.hgpage.oms.domain.Address;
+import com.jhg.hgpage.oms.domain.CustomerReturn;
 import com.jhg.hgpage.oms.domain.Delivery;
 import com.jhg.hgpage.oms.domain.Member;
 import com.jhg.hgpage.oms.domain.Order;
@@ -12,6 +13,8 @@ import com.jhg.hgpage.oms.domain.OrderItem;
 import com.jhg.hgpage.catalog.Product;
 import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
+import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
+import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.catalog.ProductRepository;
@@ -24,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -38,6 +42,7 @@ class OrderServiceTest {
     @Mock ProductRepository productRepository;
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
+    @Mock CustomerReturnRepository customerReturnRepository;
     @Mock CartService cartService;
     @Mock BackorderAllocator backorderAllocator;
     @InjectMocks OrderService orderService;
@@ -82,6 +87,60 @@ class OrderServiceTest {
         when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of());
 
         assertThat(orderService.findOrders(1L)).isEmpty();
+    }
+
+    @Test
+    void 배송완료_주문의_부분반품_완료를_목록_대표상태로_표시한다() {
+        Order order = orderWith(10L, 10_000, 2);
+        order.ship();
+        order.deliver();
+        OrderItem orderItem = order.getOrderItems().get(0);
+        ReflectionTestUtils.setField(orderItem, "id", 20L);
+        CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
+                List.of(new CustomerReturn.RequestItem(orderItem, 1)));
+        customerReturn.approve("admin@example.com");
+        customerReturn.markRequested(2L);
+        customerReturn.complete(List.of(
+                new CustomerReturn.ResultItem(20L, 1, ReturnDisposition.RESTOCKED)));
+        when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of(order));
+        when(customerReturnRepository.findDetailedByOrderIdIn(List.of(10L)))
+                .thenReturn(List.of(customerReturn));
+
+        OrderDto result = orderService.findOrders(1L).get(0);
+
+        assertThat(result.getDeliveryStatus())
+                .isEqualTo(com.jhg.hgpage.oms.domain.enums.DeliveryStatus.DELIVERED);
+        assertThat(result.getOrderStatusLabel()).isEqualTo("일부 반품 완료");
+    }
+
+    @Test
+    void 배송완료_주문의_전체반품_승인대기를_목록_대표상태로_표시한다() {
+        Order order = orderWith(10L, 10_000, 2);
+        order.ship();
+        order.deliver();
+        OrderItem orderItem = order.getOrderItems().get(0);
+        CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
+                List.of(new CustomerReturn.RequestItem(orderItem, 2)));
+        when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of(order));
+        when(customerReturnRepository.findDetailedByOrderIdIn(List.of(10L)))
+                .thenReturn(List.of(customerReturn));
+
+        assertThat(orderService.findOrders(1L).get(0).getOrderStatusLabel()).isEqualTo("반품 승인 대기");
+    }
+
+    @Test
+    void 반품이_반려되면_목록은_다시_배송완료를_표시한다() {
+        Order order = orderWith(10L, 10_000, 1);
+        order.ship();
+        order.deliver();
+        CustomerReturn customerReturn = CustomerReturn.create(order, UUID.randomUUID(), "단순 변심",
+                List.of(new CustomerReturn.RequestItem(order.getOrderItems().get(0), 1)));
+        customerReturn.reject("admin@example.com", "반품 불가");
+        when(orderRepositoryQuery.findOrders(1L)).thenReturn(List.of(order));
+        when(customerReturnRepository.findDetailedByOrderIdIn(List.of(10L)))
+                .thenReturn(List.of(customerReturn));
+
+        assertThat(orderService.findOrders(1L).get(0).getOrderStatusLabel()).isEqualTo("배송 완료");
     }
 
     @Test
