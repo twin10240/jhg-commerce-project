@@ -33,8 +33,6 @@ public class ReturnSyncService {
                 .orElseThrow(ReturnContractMismatchException::new);
         require((customerReturn.getRmaId() == null || customerReturn.getRmaId().equals(result.rmaId()))
                 && customerReturn.getOrder().getId().equals(result.orderId()));
-        require(customerReturnRepository.findByRmaId(result.rmaId())
-                .map(owner -> owner.getId().equals(customerReturn.getId())).orElse(true));
 
         Map<Long, ResultItem> results = validateItems(customerReturn, result.items(), target);
         CustomerReturnStatus current = customerReturn.getStatus();

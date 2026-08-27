@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentMigrationTest {
 
     @Test
-    void V1_V4_V5_V6_V7_V8_V9_V10이_결제와_주문처리_스키마를_만든다() throws Exception {
+    void V1_V4_V5_V6_V7_V8_V9_V10_V11이_결제와_주문처리_스키마를_만든다() throws Exception {
         DataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:payment-migration;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=true;DEFAULT_NULL_ORDERING=HIGH",
                 "sa", "");
@@ -64,6 +64,9 @@ class PaymentMigrationTest {
         new ResourceDatabasePopulator(
                 new ClassPathResource("db/migration/V10__add_return_review.sql"))
                 .execute(dataSource);
+        new ResourceDatabasePopulator(
+                new ClassPathResource("db/migration/V11__allow_reused_wms_rma_ids.sql"))
+                .execute(dataSource);
 
         DatabaseMetaData metadata = dataSource.getConnection().getMetaData();
         assertThat(tableNames(metadata)).contains("payment", "payment_attempt", "refund_request");
@@ -78,6 +81,9 @@ class PaymentMigrationTest {
         assertThat(columnNames(metadata, "refund_request")).contains("gateway_transaction_id");
         assertThat(columnNames(metadata, "customer_return"))
                 .contains("reviewed_by", "reviewed_at", "rejection_reason");
+        assertThat(uniqueIndexColumns(metadata, "customer_return"))
+                .contains("request_key")
+                .doesNotContain("rma_id");
         assertThat(indexColumns(metadata, "payment_attempt")).contains("status,next_attempt_at,payment_attempt_id");
         assertThat(indexColumns(metadata, "refund_request")).contains("status,next_attempt_at,refund_request_id");
         assertThat(indexColumns(metadata, "orders"))

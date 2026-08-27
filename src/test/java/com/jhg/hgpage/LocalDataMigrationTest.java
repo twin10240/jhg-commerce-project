@@ -93,4 +93,39 @@ class LocalDataMigrationTest {
             }
         }
     }
+
+    @Test
+    void 로컬_반품의_RMA번호는_requestKey가_다르면_중복될_수_있다() throws Exception {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                "jdbc:h2:mem:local-return-rma-migration;DB_CLOSE_DELAY=-1", "sa", "");
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("""
+                    create table delivery (
+                        delivery_id bigint primary key,
+                        status varchar(20))
+                    """);
+            connection.createStatement().execute("""
+                    create table customer_return (
+                        customer_return_id bigint primary key,
+                        request_key uuid not null unique,
+                        rma_id bigint,
+                        status varchar(30),
+                        constraint uq_customer_return_rma_id unique (rma_id))
+                    """);
+            connection.createStatement().execute(
+                    "insert into customer_return values (1, random_uuid(), 2, 'COMPLETED')");
+        }
+
+        new ResourceDatabasePopulator(new ClassPathResource("db/local-data-migration.sql")).execute(dataSource);
+
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute(
+                    "insert into customer_return values (2, random_uuid(), 2, 'PENDING_SUBMISSION')");
+            try (ResultSet result = connection.createStatement()
+                    .executeQuery("select count(*) from customer_return where rma_id = 2")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getInt(1)).isEqualTo(2);
+            }
+        }
+    }
 }

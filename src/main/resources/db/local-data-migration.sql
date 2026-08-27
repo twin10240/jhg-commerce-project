@@ -1,3 +1,5 @@
 ALTER TABLE delivery ALTER COLUMN status VARCHAR(20);
 UPDATE delivery SET status = 'SHIPPED' WHERE CAST(status AS VARCHAR) = 'COMP';
 ALTER TABLE IF EXISTS customer_return ALTER COLUMN status VARCHAR(30);
+ALTER TABLE IF EXISTS customer_return DROP CONSTRAINT IF EXISTS uq_customer_return_rma_id;
+ALTER TABLE IF EXISTS customer_return DROP CONSTRAINT IF EXISTS constraint_38;

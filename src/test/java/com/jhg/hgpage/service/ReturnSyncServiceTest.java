@@ -156,18 +156,19 @@ class ReturnSyncServiceTest {
     }
 
     @Test
-    void 다른_반품이_소유한_RMA는_계약불일치로_거절한다() {
-        Fixture owner = pendingReturn();
+    void 과거_반품과_RMA번호가_같아도_requestKey로_현재_반품을_완료한다() {
+        Fixture historical = pendingReturn();
         Fixture target = pendingReturn();
-        returnSyncService.apply(result(owner, "REQUESTED"));
-        ReturnResult targetResult = result(target, "REQUESTED");
-        ReturnResult reused = copy(targetResult, targetResult.requestKey(), owner.rmaId(),
+        returnSyncService.apply(result(historical, "COMPLETED"));
+        ReturnResult targetResult = result(target, "COMPLETED");
+        ReturnResult reused = copy(targetResult, targetResult.requestKey(), historical.rmaId(),
                 targetResult.orderId(), targetResult.status(), targetResult.items());
 
-        assertThatThrownBy(() -> returnSyncService.apply(reused))
-                .isInstanceOf(ReturnSyncService.ReturnContractMismatchException.class);
+        returnSyncService.apply(reused);
 
-        assertThat(saved(target.returnId()).getRmaId()).isNull();
+        assertThat(saved(target.returnId()).getRmaId()).isEqualTo(historical.rmaId());
+        assertThat(saved(target.returnId()).getStatus()).isEqualTo(CustomerReturnStatus.COMPLETED);
+        assertThat(returnRefund(target.returnId()).getAmount()).isEqualTo(10_000);
     }
 
     @ParameterizedTest(name = "{0}")

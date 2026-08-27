@@ -31,8 +31,6 @@ public interface CustomerReturnRepository extends JpaRepository<CustomerReturn, 
     @Query("select r from CustomerReturn r where r.requestKey = :requestKey")
     Optional<CustomerReturn> findDetailedByRequestKeyForUpdate(UUID requestKey);
 
-    Optional<CustomerReturn> findByRmaId(Long rmaId);
-
     @EntityGraph(attributePaths = {"order", "items", "items.orderItem", "items.orderItem.product"})
     @Query("select distinct r from CustomerReturn r where r.order.id = :orderId order by r.id desc")
     List<CustomerReturn> findDetailedByOrderId(Long orderId);

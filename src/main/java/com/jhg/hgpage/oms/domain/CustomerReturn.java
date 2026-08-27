@@ -22,8 +22,7 @@ import static jakarta.persistence.FetchType.LAZY;
 @Entity
 @Getter
 @Table(name = "customer_return", uniqueConstraints = {
-        @UniqueConstraint(name = "uq_customer_return_request_key", columnNames = "request_key"),
-        @UniqueConstraint(name = "uq_customer_return_rma_id", columnNames = "rma_id")
+        @UniqueConstraint(name = "uq_customer_return_request_key", columnNames = "request_key")
 })
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class CustomerReturn {
@@ -39,7 +38,7 @@ public class CustomerReturn {
     @Column(name = "request_key", nullable = false, unique = true)
     private UUID requestKey;
 
-    @Column(name = "rma_id", unique = true)
+    @Column(name = "rma_id")
     private Long rmaId;
 
     @Enumerated(EnumType.STRING)
