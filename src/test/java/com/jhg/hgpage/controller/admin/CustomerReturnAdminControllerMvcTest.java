@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -65,6 +66,23 @@ class CustomerReturnAdminControllerMvcTest {
                 .andExpect(content().string(containsString("OMS 승인 대기")))
                 .andExpect(content().string(containsString("/admin/returns/77/approve")))
                 .andExpect(content().string(containsString("/admin/returns/77/reject")));
+    }
+
+    @Test
+    void 반려_사유는_처리칸이_아닌_모달에서_입력한다() throws Exception {
+        when(customerReturnService.findAllForAdmin(null)).thenReturn(List.of(pendingRow()));
+
+        mockMvc.perform(get("/admin/returns").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(">\uC2B9\uC778</button>")))
+                .andExpect(content().string(containsString(">\uBC18\uB824</button>")))
+                .andExpect(content().string(not(containsString("<input name=\"reason\""))))
+                .andExpect(content().string(containsString(
+                        "data-reject-url=\"/admin/returns/77/reject\"")))
+                .andExpect(content().string(containsString("<dialog id=\"reject-dialog\"")))
+                .andExpect(content().string(containsString(
+                        "<textarea id=\"reject-reason\" name=\"reason\" maxlength=\"500\" required")))
+                .andExpect(content().string(containsString(">\uBC18\uB824 \uD655\uC778</button>")));
     }
 
     @Test
