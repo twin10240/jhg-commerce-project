@@ -57,4 +57,40 @@ class LocalDataMigrationTest {
             assertThat(result.getString(1)).isEqualTo("READY");
         }
     }
+
+    @Test
+    void 로컬_반품_상태_enum에_승인대기와_반려를_추가할_수_있다() throws Exception {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                "jdbc:h2:mem:local-return-enum-migration;DB_CLOSE_DELAY=-1", "sa", "");
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("""
+                    create table delivery (
+                        delivery_id bigint primary key,
+                        status enum ('DELIVERED', 'READY', 'SHIPPED'))
+                    """);
+            connection.createStatement().execute("""
+                    create table customer_return (
+                        customer_return_id bigint primary key,
+                        status enum ('CANCELLED', 'COMPLETED', 'PENDING_SUBMISSION',
+                                     'RECEIVED', 'REQUESTED', 'SUBMISSION_FAILED'))
+                    """);
+            connection.createStatement().execute("insert into customer_return values (1, 'REQUESTED')");
+        }
+
+        new ResourceDatabasePopulator(new ClassPathResource("db/local-data-migration.sql")).execute(dataSource);
+
+        try (Connection connection = dataSource.getConnection()) {
+            connection.createStatement().execute("insert into customer_return values (2, 'PENDING_APPROVAL')");
+            connection.createStatement().execute("insert into customer_return values (3, 'REJECTED')");
+            try (ResultSet result = connection.createStatement().executeQuery(
+                    "select status from customer_return order by customer_return_id")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).isEqualTo("REQUESTED");
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).isEqualTo("PENDING_APPROVAL");
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).isEqualTo("REJECTED");
+            }
+        }
+    }
 }
