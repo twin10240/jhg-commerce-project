@@ -64,8 +64,12 @@ class CustomerReturnAdminControllerMvcTest {
                 .andExpect(view().name("admin/returns"))
                 .andExpect(model().attribute("activeStatus", CustomerReturnStatus.PENDING_APPROVAL))
                 .andExpect(content().string(containsString("OMS 승인 대기")))
+                .andExpect(content().string(containsString("<th class=\"action-column\">처리</th>")))
+                .andExpect(content().string(containsString("<td class=\"action-column\"><div class=\"row-actions\"")))
                 .andExpect(content().string(containsString("/admin/returns/77/approve")))
-                .andExpect(content().string(containsString("/admin/returns/77/reject")));
+                .andExpect(content().string(containsString("/admin/returns/77/reject")))
+                .andExpect(content().string(not(containsString("좌우로 밀어 상세 정보를 확인하세요"))))
+                .andExpect(content().string(not(containsString("data-scroll-direction"))));
     }
 
     @Test

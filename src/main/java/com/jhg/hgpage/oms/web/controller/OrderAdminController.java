@@ -10,6 +10,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.ResourceAccessException;
@@ -17,6 +18,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -27,8 +30,17 @@ public class OrderAdminController {
     private final PaymentAdminService paymentAdminService;
 
     @GetMapping("/admin/orders")
-    public String orders(Model model) {
-        model.addAttribute("orders", orderService.findAllForAdmin());
+    public String orders(@RequestParam(defaultValue = "all") String filter, Model model) {
+        String selectedFilter = List.of("all", "ready", "shipping", "backorder", "completed").contains(filter)
+                ? filter : "all";
+        var allOrders = orderService.findAllForAdmin();
+        Map<String, Long> counts = allOrders.stream()
+                .collect(Collectors.groupingBy(order -> order.getManagementGroup(), Collectors.counting()));
+        model.addAttribute("orders", "all".equals(selectedFilter) ? allOrders : allOrders.stream()
+                .filter(order -> selectedFilter.equals(order.getManagementGroup()))
+                .toList());
+        model.addAttribute("filter", selectedFilter);
+        model.addAttribute("orderCounts", counts);
         return "admin/orders";
     }
 
@@ -86,8 +98,20 @@ public class OrderAdminController {
         return "redirect:/admin/orders";
     }
 
+    @PostMapping("/admin/orders/{orderId}/shipment/sync")
+    public String syncShipment(@PathVariable Long orderId, RedirectAttributes redirectAttributes) {
+        try {
+            orderService.syncShipment(orderId);
+            redirectAttributes.addFlashAttribute("successMessage",
+                    "WMS 송장을 동기화했습니다. (주문 #" + orderId + ")");
+        } catch (IllegalStateException | EntityNotFoundException | RestClientException e) {
+            redirectAttributes.addFlashAttribute("errorMessage", "송장 동기화 실패: " + e.getMessage());
+        }
+        return "redirect:/admin/orders";
+    }
+
     @PostMapping("/admin/orders/{orderId}/allocation/retry")
-    public String retryAllocation(@org.springframework.web.bind.annotation.PathVariable Long orderId,
+    public String retryAllocation(@PathVariable Long orderId,
                                   RedirectAttributes redirectAttributes) {
         paymentAdminService.retryAllocation(orderId);
         redirectAttributes.addFlashAttribute("successMessage", "재고 처리를 다시 요청했습니다.");

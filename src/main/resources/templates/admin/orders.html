@@ -52,7 +52,13 @@
     .btn.small{padding:6px 12px; font-size:13px}
     .btn:disabled{cursor:not-allowed;opacity:.45;box-shadow:none}
     .bulk-actions{display:flex;align-items:center;gap:10px}
+    .order-filters{display:flex;gap:8px;overflow-x:auto;margin:0 0 14px;padding-bottom:2px}
+    .order-filters .active{background:linear-gradient(135deg,var(--accent1),var(--accent2));color:#fff;border:0}
     .shipment-order-checkbox{width:18px;height:18px;accent-color:var(--accent2)}
+    .copy-button{position:relative;display:inline-grid;place-items:center;margin-left:6px;padding:4px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);cursor:pointer}
+    .copy-icon{display:block;width:16px;height:16px}
+    .copy-feedback{position:absolute;bottom:calc(100% + 7px);left:50%;padding:4px 7px;border-radius:6px;background:#443c33;color:#fff;font-size:12px;white-space:nowrap;opacity:0;transform:translate(-50%,2px);transition:opacity .15s,transform .15s;pointer-events:none}
+    .copy-feedback.show{opacity:1;transform:translate(-50%,0)}
 
     .flash{
       margin-bottom:14px; padding:12px 16px; border-radius:10px; font-size:14px;
@@ -98,7 +104,7 @@
   <div class="page-head">
     <div>
       <div class="page-title">배송 관리</div>
-      <div class="page-desc">배송 가능·입고 대기 주문을 우선 표시하며, 진행 중 주문은 오래된 순서로 처리합니다.</div>
+      <div class="page-desc">출고·배송 처리 가능한 주문을 우선 표시하며, 진행 중 주문은 오래된 순서로 처리합니다.</div>
     </div>
     <form id="bulk-shipment-form" class="bulk-actions"
           th:action="@{/admin/orders/ships}" method="post">
@@ -106,6 +112,18 @@
       <button id="bulk-shipment-button" class="btn" type="submit" disabled>선택 출고 처리</button>
     </form>
   </div>
+
+  <nav class="order-filters" aria-label="배송 상태 필터">
+    <a class="btn outline" th:classappend="${filter == 'all'} ? ' active'" th:href="@{/admin/orders}">전체</a>
+    <a class="btn outline" th:classappend="${filter == 'ready'} ? ' active'" th:href="@{/admin/orders(filter='ready')}"
+       th:text="|출고 대기 ${orderCounts.getOrDefault('ready', 0)}|">출고 대기 0</a>
+    <a class="btn outline" th:classappend="${filter == 'shipping'} ? ' active'" th:href="@{/admin/orders(filter='shipping')}"
+       th:text="|배송 중 ${orderCounts.getOrDefault('shipping', 0)}|">배송 중 0</a>
+    <a class="btn outline" th:classappend="${filter == 'backorder'} ? ' active'" th:href="@{/admin/orders(filter='backorder')}"
+       th:text="|입고 대기 ${orderCounts.getOrDefault('backorder', 0)}|">입고 대기 0</a>
+    <a class="btn outline" th:classappend="${filter == 'completed'} ? ' active'" th:href="@{/admin/orders(filter='completed')}"
+       th:text="|완료 ${orderCounts.getOrDefault('completed', 0)}|">완료 0</a>
+  </nav>
 
   <div class="flash success" th:if="${successMessage}" th:text="${successMessage}"></div>
   <div class="flash error" th:if="${errorMessage}" th:text="${errorMessage}"></div>
@@ -166,6 +184,18 @@
         </td>
         <td>
           <span th:if="${o.trackingNumber != null}" th:text="|${o.carrierName} ${o.trackingNumber}|"></span>
+          <button th:if="${o.trackingNumber != null}" class="copy-button" type="button"
+                  th:attr="data-copy-text=${o.trackingNumber}" aria-label="송장번호 복사"
+                  title="송장번호 복사" aria-live="polite">
+            <svg class="copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="8" y="8" width="12" height="12" rx="2"></rect>
+              <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"></path>
+            </svg>
+            <span class="copy-feedback" role="status"></span>
+          </button>
+          <time th:if="${o.shipmentIssuedAt != null}" th:attr="datetime=${o.shipmentIssuedAt}"
+                th:text="|발급 ${#temporals.format(o.shipmentIssuedAt,'yyyy-MM-dd HH:mm')}|" class="hint"></time>
           <span th:unless="${o.trackingNumber != null}" class="hint">-</span>
         </td>
         <td class="right mobile-hide"><span th:text="${#numbers.formatInteger(o.totalPrice,1,'COMMA')}">23,000</span>원</td>
@@ -177,11 +207,18 @@
             <input type="hidden" name="orderId" th:value="${o.id}" />
             <button class="btn small" type="submit">출고 처리</button>
           </form>
+          <form th:if="${o.shippable}" th:action="@{/admin/orders/{orderId}/shipment/sync(orderId=${o.id})}" method="post"
+                onsubmit="return confirm('WMS에서 이미 발급된 송장을 조회해 OMS 상태를 복구하시겠습니까?');">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+            <button class="btn small outline" type="submit" title="WMS 출고는 완료됐지만 OMS 반영이 누락된 경우에 사용합니다.">WMS 송장 동기화</button>
+          </form>
+          <!-- 정상 경로는 WMS(창고)의 배송 완료 기록 → /api/delivery-events 콜백이다.
+               이 버튼은 그 통지가 오지 않았을 때의 수동 복구 경로로만 남긴다. -->
           <form th:if="${o.deliverable}" th:action="@{/admin/orders/deliver}" method="post"
-                onsubmit="return confirm('이 주문을 배송 완료 처리하시겠습니까?');">
+                onsubmit="return confirm('배송 완료는 WMS에서 기록하는 것이 정상 경로입니다. WMS 통지가 오지 않은 경우에만 사용하세요. 계속하시겠습니까?');">
             <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
             <input type="hidden" name="orderId" th:value="${o.id}" />
-            <button class="btn small" type="submit">배송 완료</button>
+            <button class="btn small" type="submit" title="WMS 통지 누락 시의 수동 복구용">배송 완료(수동)</button>
           </form>
           <form th:if="${o.allocationRetryable or o.cancellationAllocationRetryable}"
                 th:action="@{/admin/orders/{orderId}/allocation/retry(orderId=${o.id})}" method="post"
@@ -198,6 +235,7 @@
     </table>
   </div>
 </div>
+<script th:src="@{/js/copy-text.js}"></script>
 <script>
   const shipmentBoxes = [...document.querySelectorAll('.shipment-order-item')];
   const selectAllOrders = document.getElementById('select-all-orders');

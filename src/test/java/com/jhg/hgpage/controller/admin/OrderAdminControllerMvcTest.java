@@ -25,6 +25,9 @@ import java.time.Instant;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.hasProperty;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -73,6 +76,7 @@ class OrderAdminControllerMvcTest {
         delivery.setAddress(new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
         com.jhg.hgpage.oms.domain.Order order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
                 com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
+        ReflectionTestUtils.setField(order, "id", 10L);
         return AdminOrderDto.from(order);
     }
 
@@ -110,9 +114,34 @@ class OrderAdminControllerMvcTest {
                 .andExpect(content().string(containsString("주문자A")))
                 .andExpect(content().string(containsString(">재고 확보</span>")))
                 .andExpect(content().string(containsString("출고 처리")))
+                .andExpect(content().string(containsString("WMS 송장 동기화")))
+                .andExpect(content().string(containsString("/admin/orders/10/shipment/sync")))
                 .andExpect(content().string(containsString("선택 출고 처리")))
                 .andExpect(content().string(containsString("/admin/orders/ships")))
                 .andExpect(content().string(containsString("name=\"orderIds\"")));
+    }
+
+    @Test
+    void 배송중_필터는_출고된_주문만_보여준다() throws Exception {
+        when(orderService.findAllForAdmin()).thenReturn(List.of(adminOrderDto(), shippedAdminOrderDto()));
+
+        mockMvc.perform(get("/admin/orders").param("filter", "shipping").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("filter", "shipping"))
+                .andExpect(model().attribute("orders", everyItem(hasProperty("deliverable", is(true)))))
+                .andExpect(content().string(containsString("배송 중 1")))
+                .andExpect(content().string(not(containsString(">출고 처리</button>"))))
+                .andExpect(content().string(containsString(">배송 완료(수동)</button>")));
+    }
+
+    @Test
+    void 알수없는_배송필터는_전체목록으로_돌아간다() throws Exception {
+        when(orderService.findAllForAdmin()).thenReturn(List.of(adminOrderDto(), shippedAdminOrderDto()));
+
+        mockMvc.perform(get("/admin/orders").param("filter", "unknown").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("filter", "all"))
+                .andExpect(model().attribute("orders", org.hamcrest.Matchers.hasSize(2)));
     }
 
     @Test
@@ -123,7 +152,15 @@ class OrderAdminControllerMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("/admin/orders/deliver")))
                 .andExpect(content().string(containsString("테스트택배 MOCK-10")))
-                .andExpect(content().string(containsString(">배송 완료</button>")))
+                .andExpect(content().string(containsString("datetime=\"2026-08-27T06:30:00.123456Z\"")))
+                .andExpect(content().string(containsString("data-copy-text=\"MOCK-10\"")))
+                .andExpect(content().string(containsString("aria-label=\"송장번호 복사\"")))
+                .andExpect(content().string(containsString("title=\"송장번호 복사\"")))
+                .andExpect(content().string(containsString("class=\"copy-icon\"")))
+                .andExpect(content().string(containsString("class=\"copy-feedback\"")))
+                .andExpect(content().string(containsString("role=\"status\"")))
+                .andExpect(content().string(not(containsString(">복사</button>"))))
+                .andExpect(content().string(containsString(">배송 완료(수동)</button>")))
                 .andExpect(content().string(not(containsString("/admin/orders/ship\""))));
     }
 
@@ -276,6 +313,17 @@ class OrderAdminControllerMvcTest {
                 .andExpect(flash().attribute("successMessage", "배송 완료되었습니다. (주문 #10)"));
 
         verify(orderService).deliverOrder(10L);
+    }
+
+    @Test
+    void WMS_송장을_동기화하고_주문목록으로_돌아간다() throws Exception {
+        mockMvc.perform(post("/admin/orders/10/shipment/sync")
+                        .with(user(admin())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/orders"))
+                .andExpect(flash().attribute("successMessage", "WMS 송장을 동기화했습니다. (주문 #10)"));
+
+        verify(orderService).syncShipment(10L);
     }
 
     @Test

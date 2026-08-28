@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class PaymentMigrationTest {
 
     @Test
-    void V1_V4_V5_V6_V7_V8_V9_V10_V11_V12가_결제와_주문처리_스키마를_만든다() throws Exception {
+    void V1부터_V13까지_결제와_주문처리_스키마를_만든다() throws Exception {
         DataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:payment-migration;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=true;DEFAULT_NULL_ORDERING=HIGH",
                 "sa", "");
@@ -70,6 +70,9 @@ class PaymentMigrationTest {
         new ResourceDatabasePopulator(
                 new ClassPathResource("db/migration/V12__add_delivery_shipment.sql"))
                 .execute(dataSource);
+        new ResourceDatabasePopulator(
+                new ClassPathResource("db/migration/V13__add_delivery_delivered_at.sql"))
+                .execute(dataSource);
 
         DatabaseMetaData metadata = dataSource.getConnection().getMetaData();
         assertThat(tableNames(metadata)).contains("payment", "payment_attempt", "refund_request");
@@ -85,7 +88,7 @@ class PaymentMigrationTest {
         assertThat(columnNames(metadata, "customer_return"))
                 .contains("reviewed_by", "reviewed_at", "rejection_reason");
         assertThat(columnNames(metadata, "delivery"))
-                .contains("carrier_code", "carrier_name", "tracking_number", "shipment_issued_at");
+                .contains("carrier_code", "carrier_name", "tracking_number", "shipment_issued_at", "delivered_at");
         assertThat(uniqueIndexColumns(metadata, "delivery")).doesNotContain("tracking_number");
         assertThat(uniqueIndexColumns(metadata, "customer_return"))
                 .contains("request_key")

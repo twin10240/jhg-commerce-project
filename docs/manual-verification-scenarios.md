@@ -198,14 +198,20 @@ curl -i -u wms:wms http://localhost:8081/api/inventory/rows
 1. 상품 5로 출고 가능한 주문을 3건 생성한다.
 2. 한 건은 `POST /admin/orders/ship` 단건 출고한다.
 3. 나머지 두 건은 `POST /admin/orders/ships` 선택 일괄 출고한다.
-4. 출고된 한 건을 `POST /admin/orders/deliver`로 배송 완료 처리한다.
+4. 출고된 한 건을 **WMS `/admin/reservations`의 `배송 대기` 탭에서 `배송 완료`** 버튼으로 처리한다
+   (V3.2 이후 정상 경로. OMS의 `배송 완료(수동)` 버튼은 통지가 오지 않았을 때의 복구 경로다).
+5. 같은 행의 `OMS 재통지` 버튼을 한 번 더 눌러 재통지가 안전한지 확인한다.
+6. `GET /api/shipments/{orderId}`(서비스 계정 Basic)로 송장·배송 상태를 조회한다.
 
 ### 기대 결과
 
-- 출고 직후 OMS 배송상태는 `SHIPPED`(출고 완료)이고 배송 완료 처리 뒤 `DELIVERED`가 된다.
-- WMS 예약상태는 `SHIPPED`가 된다.
-- 보유수량과 예약수량이 주문수량만큼 함께 감소한다.
+- 출고 직후 OMS 배송상태는 `SHIPPED`(출고 완료)이고, WMS의 배송 완료 기록이 통지되면 `DELIVERED`가 된다.
+- WMS 예약상태는 `SHIPPED`로 **유지**된다 — 배송 완료는 상태 전이가 아니라 `deliveredAt` 기록이다.
+- 보유수량과 예약수량이 주문수량만큼 함께 감소한다. **배송 완료로는 재고가 더 변하지 않고 원장도 생기지 않는다.**
 - `SHIP` 원장과 `주문 #N` 참조가 생성된다.
+- 출고 응답의 송장(`MOCK-{orderId}-{yyyyMMddHHmmss}`)이 OMS 주문상세·관리자 목록과 WMS 예약 화면에 같은 값으로 보인다.
+- 재통지 후에도 배송 완료 시각은 그대로이고 OMS 상태는 `DELIVERED`를 유지한다(플래시는 "다시 통지했습니다").
+- 송장 조회는 배송 전이면 `deliveredAt: null`, 배송 완료 뒤에는 시각을 반환하며, 미발급·없는 주문은 `404`다.
 - 일괄 결과는 `성공 2건 / 실패 0건`이다.
 - 취소·백오더·`SHIPPED`·`DELIVERED` 주문에는 출고 선택 체크박스가 없다.
 

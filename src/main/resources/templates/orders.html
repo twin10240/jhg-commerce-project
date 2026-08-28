@@ -18,7 +18,11 @@
   </div>
 
   <section class="app-grid orders-grid" th:unless="${#lists.isEmpty(orders)}">
-    <article class="order-card" th:each="order : ${orders}">
+    <th:block th:each="order, stat : ${orders}">
+    <h2 class="order-group-title"
+        th:if="${stat.first or order.completed != orders[stat.index - 1].completed}"
+        th:text="${order.completed} ? '지난 주문' : '진행 중 주문'">진행 중 주문</h2>
+    <article class="order-card">
       <div>
         <strong th:text="|주문 #${order.id}|">주문 #1</strong>
         <div class="order-meta">
@@ -38,6 +42,7 @@
         <a class="app-btn secondary" th:href="@{|/orders/${order.id}|}">상세</a>
       </div>
     </article>
+    </th:block>
   </section>
 </main>
 </body>

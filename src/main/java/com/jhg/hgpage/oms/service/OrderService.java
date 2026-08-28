@@ -7,6 +7,7 @@ import com.jhg.hgpage.oms.dto.AdminOrderDto;
 import com.jhg.hgpage.oms.dto.OrderDetailDto;
 import com.jhg.hgpage.oms.dto.OrderDto;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -78,7 +80,35 @@ public class OrderService {
 
     @Transactional
     public void deliverOrder(Long orderId) {
-        findOrder(orderId).deliver();
+        Order order = findOrder(orderId);
+        order.deliver();
+        order.getDelivery().recordDeliveredAt(Instant.now());
+    }
+
+    /**
+     * WMS 배송완료 콜백용. 이미 DELIVERED면 no-op이다 — 통지가 유실된 줄 알고 창고가 다시 눌렀을 때
+     * 409로 튕기지 않게 한다(관리자 화면의 deliverOrder는 사람이 누르는 경로라 그대로 예외를 던진다).
+     */
+    @Transactional
+    public void markDelivered(Long orderId, Instant deliveredAt) {
+        Order order = findOrder(orderId);
+        if (order.getDelivery().getStatus() != DeliveryStatus.DELIVERED) order.deliver();
+        order.getDelivery().recordDeliveredAt(deliveredAt);
+    }
+
+    @Transactional
+    public void syncShipment(Long orderId) {
+        Order order = findOrder(orderId);
+        InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByOrderId(orderId)
+                .orElseThrow(() -> new IllegalStateException("WMS 송장이 없습니다."));
+        Delivery delivery = order.getDelivery();
+        if (delivery.getStatus() == DeliveryStatus.READY) order.ship();
+        delivery.recordShipment(shipment.carrierCode(), shipment.carrierName(),
+                shipment.trackingNumber(), shipment.issuedAt());
+        if (shipment.deliveredAt() != null) {
+            if (delivery.getStatus() == DeliveryStatus.SHIPPED) order.deliver();
+            delivery.recordDeliveredAt(shipment.deliveredAt());
+        }
     }
 
     @Transactional

@@ -1,0 +1,1 @@
+ALTER TABLE delivery ADD COLUMN delivered_at TIMESTAMP WITH TIME ZONE;

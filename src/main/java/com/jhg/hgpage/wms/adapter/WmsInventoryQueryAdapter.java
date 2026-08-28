@@ -8,11 +8,14 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -59,5 +62,23 @@ public class WmsInventoryQueryAdapter implements InventoryQueryPort {
                 .retrieve()
                 .body(new ParameterizedTypeReference<>() {});
         return result != null ? result : List.of();
+    }
+
+    @Override
+    public Optional<ShipmentInfo> shipmentByOrderId(Long orderId) {
+        try {
+            ShipmentInfo result = restClient.get()
+                    .uri("/api/shipments/{orderId}", orderId)
+                    .retrieve()
+                    .body(ShipmentInfo.class);
+            if (result == null || !orderId.equals(result.orderId())
+                    || result.carrierCode() == null || result.carrierName() == null
+                    || result.trackingNumber() == null || result.issuedAt() == null) {
+                throw new RestClientException("WMS 송장 조회 응답이 잘못되었습니다.");
+            }
+            return Optional.of(result);
+        } catch (HttpClientErrorException.NotFound e) {
+            return Optional.empty();
+        }
     }
 }

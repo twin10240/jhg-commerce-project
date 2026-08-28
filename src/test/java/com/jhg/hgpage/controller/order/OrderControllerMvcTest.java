@@ -547,7 +547,16 @@ class OrderControllerMvcTest {
         mockMvc.perform(get("/orders/10").with(user(principal())))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("테스트택배")))
-                .andExpect(content().string(containsString("MOCK-10")));
+                .andExpect(content().string(containsString("MOCK-10")))
+                .andExpect(content().string(containsString("송장 발급일시")))
+                .andExpect(content().string(containsString("datetime=\"2026-08-27T06:30:00.123456Z\"")))
+                .andExpect(content().string(containsString("data-copy-text=\"MOCK-10\"")))
+                .andExpect(content().string(containsString("aria-label=\"송장번호 복사\"")))
+                .andExpect(content().string(containsString("title=\"송장번호 복사\"")))
+                .andExpect(content().string(containsString("class=\"copy-icon\"")))
+                .andExpect(content().string(containsString("class=\"copy-feedback\"")))
+                .andExpect(content().string(containsString("role=\"status\"")))
+                .andExpect(content().string(not(containsString(">복사</button>"))));
     }
 
     @Test
@@ -644,7 +653,7 @@ class OrderControllerMvcTest {
                 new com.jhg.hgpage.oms.dto.OrderDto(
                         11L,
                         com.jhg.hgpage.oms.domain.enums.OrderStatus.ORDER,
-                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.SHIPPED,
+                        com.jhg.hgpage.oms.domain.enums.DeliveryStatus.DELIVERED,
                         10000,
                         java.time.LocalDateTime.of(2026, 7, 24, 12, 0))));
 
@@ -652,8 +661,10 @@ class OrderControllerMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("orders"))
                 .andExpect(model().attributeExists("orders"))
+                .andExpect(content().string(containsString("진행 중 주문")))
+                .andExpect(content().string(containsString("지난 주문")))
                 .andExpect(content().string(containsString("입고 대기")))
-                .andExpect(content().string(containsString("출고 완료")))
+                .andExpect(content().string(containsString("배송 완료")))
                 .andExpect(content().string(containsString("/orders/10")));
     }
 

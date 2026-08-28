@@ -24,7 +24,7 @@ img,svg,video{max-width:100%}
 .status-order{background:#e8f6ee;color:var(--app-ok)}.status-backordered{background:#fff3d9;color:var(--app-warn)}.status-cancel{background:#fdeaea;color:var(--app-danger)}
 .status-ready{background:#eef6fb;color:#1f5f8b}.status-complete{background:#e8f6ee;color:var(--app-ok)}
 .empty-state{text-align:center;padding:52px 20px;color:var(--app-muted)}
-.app-grid{display:grid;gap:18px}.orders-grid{margin-top:22px}
+.app-grid{display:grid;gap:18px}.orders-grid{margin-top:22px}.order-group-title{margin:12px 0 0;font-size:18px}
 .order-card{display:grid;grid-template-columns:1fr auto;gap:14px;padding:20px;border:1px solid var(--app-line);border-radius:14px;background:#fff}
 .order-meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--app-muted);font-size:14px;margin-top:10px}
 .order-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}

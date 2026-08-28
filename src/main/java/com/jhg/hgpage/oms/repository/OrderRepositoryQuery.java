@@ -113,15 +113,16 @@ public class OrderRepositoryQuery {
         var priority = new CaseBuilder()
                 .when(order.status.eq(OrderStatus.ORDER)
                         .and(delivery.status.eq(DeliveryStatus.READY))).then(0)
-                .when(order.status.eq(OrderStatus.BACKORDERED)).then(1)
-                .when(delivery.status.eq(DeliveryStatus.SHIPPED)).then(2)
+                .when(delivery.status.eq(DeliveryStatus.SHIPPED)).then(1)
+                .when(order.status.eq(OrderStatus.BACKORDERED)).then(2)
                 .when(delivery.status.eq(DeliveryStatus.DELIVERED)).then(3)
                 .otherwise(4);
         var activeAge = new CaseBuilder()
                 .when(order.status.eq(OrderStatus.ORDER)
                         .and(delivery.status.eq(DeliveryStatus.READY))
-                        .or(order.status.eq(OrderStatus.BACKORDERED))).then(order.id)
-                .otherwise(Long.MAX_VALUE);
+                        .or(delivery.status.eq(DeliveryStatus.SHIPPED))
+                        .or(order.status.eq(OrderStatus.BACKORDERED))).then(order.orderDate)
+                .otherwise(LocalDateTime.of(9999, 12, 31, 23, 59, 59));
 
         return jpaQueryFactory.selectFrom(order)
                 .join(order.member, member).fetchJoin()

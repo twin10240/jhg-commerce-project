@@ -11,11 +11,13 @@ import org.springframework.test.web.client.MockRestServiceServer;
 
 import java.util.List;
 import java.util.Map;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestToUriTemplate;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withResourceNotFound;
 
 @RestClientTest(WmsInventoryQueryAdapter.class)
 @TestPropertySource(properties = "wms.base-url=http://wms-test")
@@ -55,6 +57,32 @@ class WmsInventoryQueryAdapterTest {
         assertThat(result.get(0).productId()).isEqualTo(1L);
         assertThat(result.get(0).productName()).isEqualTo("상품 1");
         assertThat(result.get(0).onHandQty()).isEqualTo(10);
+        server.verify();
+    }
+
+    @Test
+    void WMS에서_주문의_송장과_배송완료시각을_조회한다() {
+        server.expect(requestTo("http://wms-test/api/shipments/202"))
+              .andRespond(withSuccess("""
+                      {"orderId":202,"carrierCode":"MOCK","carrierName":"테스트택배",
+                       "trackingNumber":"MOCK-202","issuedAt":"2026-08-27T06:30:00.123456Z",
+                       "deliveredAt":"2026-08-28T01:00:00.123456Z"}
+                      """, MediaType.APPLICATION_JSON));
+
+        var shipment = adapter.shipmentByOrderId(202L).orElseThrow();
+
+        assertThat(shipment.trackingNumber()).isEqualTo("MOCK-202");
+        assertThat(shipment.issuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
+        assertThat(shipment.deliveredAt()).isEqualTo(Instant.parse("2026-08-28T01:00:00.123456Z"));
+        server.verify();
+    }
+
+    @Test
+    void WMS에_송장이_없으면_빈_결과다() {
+        server.expect(requestTo("http://wms-test/api/shipments/404"))
+              .andRespond(withResourceNotFound());
+
+        assertThat(adapter.shipmentByOrderId(404L)).isEmpty();
         server.verify();
     }
 }

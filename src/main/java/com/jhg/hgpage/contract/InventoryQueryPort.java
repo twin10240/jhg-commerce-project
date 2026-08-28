@@ -2,6 +2,8 @@ package com.jhg.hgpage.contract;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
+import java.time.Instant;
 
 /**
  * OMS가 WMS 재고의 판매 가용 수량을 조회하는 읽기 포트.
@@ -20,4 +22,9 @@ public interface InventoryQueryPort {
      * 존재하지 않는 id는 결과 맵에 포함되지 않는다(호출 측에서 0으로 기본 처리).
      */
     Map<Long, Integer> availableByProductIds(Collection<Long> productIds);
+
+    Optional<ShipmentInfo> shipmentByOrderId(Long orderId);
+
+    record ShipmentInfo(Long orderId, String carrierCode, String carrierName,
+                        String trackingNumber, Instant issuedAt, Instant deliveredAt) {}
 }

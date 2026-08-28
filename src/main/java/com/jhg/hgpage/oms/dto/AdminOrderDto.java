@@ -6,6 +6,7 @@ import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,7 @@ public class AdminOrderDto {
     private final DeliveryStatus deliveryStatus;
     private final String carrierName;
     private final String trackingNumber;
+    private final Instant shipmentIssuedAt;
     private final int totalPrice;
     private final LocalDateTime orderDate;
     private final List<Item> items;
@@ -39,6 +41,7 @@ public class AdminOrderDto {
         this.deliveryStatus = order.getDelivery().getStatus();
         this.carrierName = order.getDelivery().getCarrierName();
         this.trackingNumber = order.getDelivery().getTrackingNumber();
+        this.shipmentIssuedAt = order.getDelivery().getShipmentIssuedAt();
         this.totalPrice = order.getTotalPrice();
         this.orderDate = order.getOrderDate();
         Map<Long, Integer> quantities = order.quantitiesByProductId();
@@ -72,5 +75,13 @@ public class AdminOrderDto {
     public static AdminOrderDto from(Order order, Map<Long, Integer> availability,
                                      Payment payment, boolean cancellationAllocationRetryable) {
         return new AdminOrderDto(order, availability, payment, cancellationAllocationRetryable);
+    }
+
+    public String getManagementGroup() {
+        if (shippable) return "ready";
+        if (deliverable) return "shipping";
+        if (status == OrderStatus.BACKORDERED) return "backorder";
+        if (deliveryStatus == DeliveryStatus.DELIVERED) return "completed";
+        return "other";
     }
 }

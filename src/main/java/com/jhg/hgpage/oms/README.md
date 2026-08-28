@@ -93,6 +93,19 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 로그인 리다이렉트 없이 `401`이며, 네트워크·5xx·인증 실패 또는 단건 계약 불일치는 현재 상태를 보존해
 다음 주기와 다른 RMA의 복구를 막지 않는다.
 
+## 배송 완료
+
+`DELIVERED` 전이 경로는 둘이고 둘 다 유효하다.
+
+1. **WMS 콜백** — 창고가 배송 완료를 기록하면 Basic 인증 `POST /api/delivery-events`가 온다. `OrderService.markDelivered`는 이미 `DELIVERED`면 상태 전이는 no-op이고 WMS의 `deliveredAt`을 저장하므로 통지가 재발송돼도 안전하다(`409`는 출고되지 않은 주문일 때만).
+2. **관리자 버튼(수동 복구)** — `POST /admin/orders/deliver`는 그대로 남지만 화면에서 **배송 완료(수동)**으로 표기하고 확인창이 정상 경로가 WMS임을 알린다. WMS가 다운돼 통지 자체가 오지 않을 때의 복구 경로이며, 사람이 누르는 경로라 상태가 맞지 않으면 예외를 낸다.
+
+배송 완료를 OMS에서 먼저 눌러도 재고에는 영향이 없다(WMS는 출고 시점에 이미 차감했다). 다만 WMS의 `deliveredAt`은 비어 있게 되므로, 창고 화면에는 여전히 배송 완료 버튼이 남는다 — 눌러도 OMS 쪽은 no-op이다.
+
+배송 완료 시각은 `Delivery.deliveredAt`에 저장한다. WMS가 내려간 동안 OMS 수동 복구를 사용하면 OMS 처리 시각을 먼저 저장하고, 이후 WMS 콜백이나 송장 동기화가 오면 WMS 시각으로 맞춘다.
+
+관리자 `POST /admin/orders/{orderId}/shipment/sync`는 WMS `GET /api/shipments/{orderId}`를 조회해 누락된 송장·`SHIPPED`·`DELIVERED` 상태와 시각을 복구한다. 조회는 WMS 재고나 송장을 변경하지 않는다.
+
 ## 주요 MVC 경로
 
 | 메서드 | 경로 | 역할 |
@@ -111,6 +124,7 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 | POST | `/admin/orders/ship` | 단건 출고 |
 | POST | `/admin/orders/ships` | 선택 일괄 출고 |
 | POST | `/admin/orders/deliver` | 배송 완료 |
+| POST | `/admin/orders/{orderId}/shipment/sync` | WMS 송장·배송 상태 동기화 |
 | GET | `/admin/inventory` | WMS 재고와 백오더 수량 조회 |
 | GET/POST | `/admin/replenishment-requests` | 보충 요청 이력·제출 |
 
@@ -121,6 +135,7 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 | GET/POST/PATCH/DELETE | `/api/cart/**` | 장바구니 조회·변경 |
 | POST | `/api/replenishments` | WMS 재고 증가 콜백, 전용 Basic 인증 |
 | POST | `/api/return-status-events` | WMS RMA 완료·취소 콜백, 전용 Basic 인증 |
+| POST | `/api/delivery-events` | WMS 배송 완료 콜백, 전용 Basic 인증 |
 
 ## 경계 규칙
 

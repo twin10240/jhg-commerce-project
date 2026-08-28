@@ -6,8 +6,8 @@
   <title>반품 관리 · OMS</title>
   <link rel="stylesheet" th:href="@{/css/app.css}">
   <style>
-    .filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:18px 0}.filters label{display:grid;gap:6px;color:var(--app-muted);font-size:13px}.filters select{min-width:180px;padding:10px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card);color:var(--app-ink);font:inherit}.flash{padding:12px 14px;margin:14px 0;border:1px solid #b9dfc8;border-radius:8px;background:#eaf7ef;color:var(--app-ok);font-weight:700}.flash.error{border-color:#e3b4ac;background:#fdeaea;color:var(--app-danger)}.table-wrap{overflow-x:auto}.returns-table{width:100%;min-width:1380px;border-collapse:collapse}.returns-table th,.returns-table td{padding:11px 9px;border-bottom:1px solid var(--app-line);text-align:left;font-size:13px;vertical-align:top}.returns-table th{color:var(--app-muted);white-space:nowrap}.items{margin:0;padding-left:18px;white-space:nowrap}.row-actions{display:flex;gap:8px;align-items:center;white-space:nowrap}.row-actions form{margin:0}.reject-dialog{width:min(440px,calc(100% - 32px));padding:0;border:0;border-radius:14px;background:var(--app-card);color:var(--app-ink);box-shadow:var(--app-shadow)}.reject-dialog::backdrop{background:rgba(0,0,0,.48)}.reject-form{display:grid;gap:16px;padding:22px}.reject-form h2,.reject-form p{margin:0}.reject-form label{display:grid;gap:7px;font-weight:700}.reject-form textarea{min-height:120px;resize:vertical;padding:11px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card);color:var(--app-ink);font:inherit}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}
-    @media(max-width:720px){.filters{align-items:stretch;flex-direction:column}.filters label,.filters select,.filters .app-btn{width:100%}.returns-table{min-width:1220px}.row-actions{align-items:stretch;flex-direction:column}.dialog-actions .app-btn{flex:1}}
+    .filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin:18px 0}.filters label{display:grid;gap:6px;color:var(--app-muted);font-size:13px}.filters select{min-width:180px;padding:10px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card);color:var(--app-ink);font:inherit}.flash{padding:12px 14px;margin:14px 0;border:1px solid #b9dfc8;border-radius:8px;background:#eaf7ef;color:var(--app-ok);font-weight:700}.flash.error{border-color:#e3b4ac;background:#fdeaea;color:var(--app-danger)}.table-wrap{overflow-x:auto}.returns-table{width:100%;min-width:1380px;border-collapse:collapse}.returns-table th,.returns-table td{padding:11px 9px;border-bottom:1px solid var(--app-line);text-align:left;font-size:13px;vertical-align:top}.returns-table th{color:var(--app-muted);white-space:nowrap}.action-column{position:sticky;right:0;z-index:1;min-width:150px;background:var(--app-card);box-shadow:-10px 0 12px -12px rgba(0,0,0,.55)}th.action-column{z-index:2}.items{margin:0;padding-left:18px;white-space:nowrap}.row-actions{display:flex;gap:8px;align-items:center;white-space:nowrap}.row-actions form{margin:0}.reject-dialog{width:min(440px,calc(100% - 32px));padding:0;border:0;border-radius:14px;background:var(--app-card);color:var(--app-ink);box-shadow:var(--app-shadow)}.reject-dialog::backdrop{background:rgba(0,0,0,.48)}.reject-form{display:grid;gap:16px;padding:22px}.reject-form h2,.reject-form p{margin:0}.reject-form label{display:grid;gap:7px;font-weight:700}.reject-form textarea{min-height:120px;resize:vertical;padding:11px;border:1px solid var(--app-line);border-radius:8px;background:var(--app-card);color:var(--app-ink);font:inherit}.dialog-actions{display:flex;justify-content:flex-end;gap:8px}
+    @media(max-width:720px){.filters{align-items:stretch;flex-direction:column}.filters label,.filters select,.filters .app-btn{width:100%}.returns-table{min-width:1220px}.action-column{min-width:110px}.row-actions{align-items:stretch;flex-direction:column}.row-actions form,.row-actions .app-btn{width:100%}.dialog-actions .app-btn{flex:1}}
     @media(prefers-color-scheme:dark){.flash{background:#173528}.flash.error{background:#3c2020}}
   </style>
 </head>
@@ -37,7 +37,7 @@
     <h2 id="returns-table-title" style="margin:0 0 12px">반품 요청</h2>
     <div class="table-wrap">
       <table class="returns-table">
-        <thead><tr><th>반품번호</th><th>주문번호</th><th>고객</th><th>요청 품목</th><th>반품 사유</th><th>상태</th><th>요청일시</th><th>검토자</th><th>검토일시</th><th>반려 사유</th><th>실패 사유</th><th>처리</th></tr></thead>
+        <thead><tr><th>반품번호</th><th>주문번호</th><th>고객</th><th>요청 품목</th><th>반품 사유</th><th>상태</th><th>요청일시</th><th>검토자</th><th>검토일시</th><th>반려 사유</th><th>실패 사유</th><th class="action-column">처리</th></tr></thead>
         <tbody>
         <tr th:each="row : ${returns}">
           <td th:text="${row.id}">77</td>
@@ -51,7 +51,7 @@
           <td th:text="${row.reviewedAt == null ? '-' : #temporals.format(row.reviewedAt,'yyyy-MM-dd HH:mm')}">-</td>
           <td th:text="${row.rejectionReason ?: '-'}">-</td>
           <td th:text="${row.failureReason ?: '-'}">-</td>
-          <td><div class="row-actions" th:if="${row.status.name() == 'PENDING_APPROVAL'}">
+          <td class="action-column"><div class="row-actions" th:if="${row.status.name() == 'PENDING_APPROVAL'}">
             <form th:action="@{/admin/returns/{id}/approve(id=${row.id})}" method="post">
               <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
               <button class="app-btn" type="submit">승인</button>

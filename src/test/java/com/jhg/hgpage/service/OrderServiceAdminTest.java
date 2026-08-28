@@ -164,7 +164,77 @@ class OrderServiceAdminTest {
         orderService.deliverOrder(10L);
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(order.getDelivery().getDeliveredAt()).isNotNull();
         verifyNoInteractions(inventoryPort);
+    }
+
+    @Test
+    void markDelivered_WMS_콜백은_이미_배송완료여도_예외없이_통과한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.ship();
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        Instant deliveredAt = Instant.parse("2026-08-27T06:30:00.123456Z");
+        orderService.markDelivered(10L, deliveredAt);
+        orderService.markDelivered(10L, deliveredAt);   // 통지 재발송 — 사람이 누르는 deliverOrder와 달리 멱등이다
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(order.getDelivery().getDeliveredAt()).isEqualTo(deliveredAt);
+    }
+
+    @Test
+    void markDelivered_출고되지_않은_주문은_거부한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderService.markDelivered(10L, Instant.parse("2026-08-27T06:30:00Z")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void WMS_송장을_동기화하면_OMS_출고상태와_송장을_복구한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
+                        Instant.parse("2026-08-27T06:30:00.123456Z"), null)));
+
+        orderService.syncShipment(10L);
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.SHIPPED);
+        assertThat(order.getDelivery().getTrackingNumber()).isEqualTo("MOCK-10");
+    }
+
+    @Test
+    void WMS_배송완료_송장을_동기화하면_완료시각까지_복구한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        Instant deliveredAt = Instant.parse("2026-08-28T01:00:00.123456Z");
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
+                        Instant.parse("2026-08-27T06:30:00.123456Z"), deliveredAt)));
+
+        orderService.syncShipment(10L);
+
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(order.getDelivery().getDeliveredAt()).isEqualTo(deliveredAt);
+    }
+
+    @Test
+    void WMS에_송장이_없으면_동기화하지_않는다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> orderService.syncShipment(10L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("WMS 송장");
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
     }
 
     @Test

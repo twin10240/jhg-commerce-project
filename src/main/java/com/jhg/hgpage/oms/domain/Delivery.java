@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.util.Objects;
 
 import static jakarta.persistence.FetchType.LAZY;
 
@@ -36,6 +37,7 @@ public class Delivery {
     @Column(length = 100)
     private String trackingNumber;
     private Instant shipmentIssuedAt;
+    private Instant deliveredAt;
 
     public void recordShipment(String carrierCode, String carrierName,
                                String trackingNumber, Instant issuedAt) {
@@ -43,5 +45,9 @@ public class Delivery {
         this.carrierName = carrierName;
         this.trackingNumber = trackingNumber;
         this.shipmentIssuedAt = issuedAt;
+    }
+
+    public void recordDeliveredAt(Instant deliveredAt) {
+        this.deliveredAt = Objects.requireNonNull(deliveredAt);
     }
 }

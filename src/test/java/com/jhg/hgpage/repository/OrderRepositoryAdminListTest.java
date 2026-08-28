@@ -15,6 +15,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,19 +46,23 @@ class OrderRepositoryAdminListTest {
     }
 
     @Test
-    void 미처리_우선으로_그룹화하고_진행중은_오래된순_종료건은_최신순으로_조회한다() {
+    void 처리할_배송을_우선으로_그룹화하고_진행중은_주문일시_오래된순으로_조회한다() {
         Order shippedOld = saveOrderOf("출고A");
         shippedOld.ship();
+        shippedOld.setOrderDate(LocalDateTime.of(2026, 8, 1, 12, 0));
         Order readyOld = saveOrderOf("배송대기A");
+        readyOld.setOrderDate(LocalDateTime.of(2026, 8, 2, 12, 0));
         Order canceledOld = saveOrderOf("취소A");
         canceledOld.cancel();
         Order backorderOld = saveOrderOf("입고대기A");
         backorderOld.markBackordered();
         Order readyNew = saveOrderOf("배송대기B");
+        readyNew.setOrderDate(LocalDateTime.of(2026, 8, 5, 12, 0));
         Order backorderNew = saveOrderOf("입고대기B");
         backorderNew.markBackordered();
         Order shippedNew = saveOrderOf("출고B");
         shippedNew.ship();
+        shippedNew.setOrderDate(LocalDateTime.of(2026, 8, 6, 12, 0));
         Order canceledNew = saveOrderOf("취소B");
         canceledNew.cancel();
         em.flush();
@@ -67,8 +72,8 @@ class OrderRepositoryAdminListTest {
 
         assertThat(orders).extracting(Order::getId).containsExactly(
                 readyOld.getId(), readyNew.getId(),
+                shippedOld.getId(), shippedNew.getId(),
                 backorderOld.getId(), backorderNew.getId(),
-                shippedNew.getId(), shippedOld.getId(),
                 canceledNew.getId(), canceledOld.getId());
         assertThat(Hibernate.isInitialized(orders.get(0).getMember())).isTrue();
         assertThat(Hibernate.isInitialized(orders.get(0).getDelivery())).isTrue();

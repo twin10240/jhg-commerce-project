@@ -64,4 +64,8 @@ public class OrderDto {
                 order.getTotalPrice(), order.getOrderDate(), PaymentViewDto.from(order, payment));
     }
 
+    public boolean isCompleted() {
+        return status == OrderStatus.CANCEL || deliveryStatus == DeliveryStatus.DELIVERED;
+    }
+
 }

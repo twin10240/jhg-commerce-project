@@ -7,6 +7,7 @@ import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import lombok.Getter;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -19,6 +20,8 @@ public class OrderDetailDto {
     private final DeliveryStatus deliveryStatus;
     private final String carrierName;
     private final String trackingNumber;
+    private final Instant shipmentIssuedAt;
+    private final Instant deliveredAt;
     private final String city;
     private final String street;
     private final String zipcode;
@@ -41,6 +44,8 @@ public class OrderDetailDto {
         this.deliveryStatus = order.getDelivery().getStatus();
         this.carrierName = order.getDelivery().getCarrierName();
         this.trackingNumber = order.getDelivery().getTrackingNumber();
+        this.shipmentIssuedAt = order.getDelivery().getShipmentIssuedAt();
+        this.deliveredAt = order.getDelivery().getDeliveredAt();
         Address address = order.getDelivery().getAddress();
         this.city = address.getCity();
         this.street = address.getStreet();
