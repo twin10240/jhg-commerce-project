@@ -96,7 +96,7 @@ public class OrderService {
      */
     @Transactional
     public void markDelivered(Long orderId, Instant deliveredAt) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         DeliveryStatus previous = order.getDelivery().getStatus();
         if (previous != DeliveryStatus.DELIVERED) order.deliver();
         order.getDelivery().recordDeliveredAt(deliveredAt);
@@ -107,7 +107,7 @@ public class OrderService {
 
     @Transactional
     public void syncShipment(Long orderId) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByOrderId(orderId)
                 .orElseThrow(() -> new IllegalStateException("WMS 송장이 없습니다."));
         Delivery delivery = order.getDelivery();
@@ -144,6 +144,11 @@ public class OrderService {
 
     private Order findOrder(Long orderId) {
         return orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+    }
+
+    private Order findOrderForUpdate(Long orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
     }
 

@@ -48,6 +48,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -174,6 +179,30 @@ class BusinessNotificationOutboxIntegrationTest {
                 Map.of("orderId", fixture.orderId()));
         assertEvent(NotificationEventType.DELIVERY_COMPLETED, fixture.memberId(), "ORDER", fixture.orderId(),
                 Map.of("orderId", fixture.orderId()));
+    }
+
+    @Test
+    void concurrent_duplicate_delivery_callbacks_append_one_event() throws Exception {
+        OrderFixture fixture = orderFixture();
+        transactionTemplate.executeWithoutResult(status ->
+                orderRepository.findById(fixture.orderId()).orElseThrow().ship());
+        Instant deliveredAt = Instant.parse("2026-08-30T02:00:00Z");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<?> first = executor.submit(() -> markDelivered(fixture.orderId(), deliveredAt, ready, start));
+            Future<?> second = executor.submit(() -> markDelivered(fixture.orderId(), deliveredAt, ready, start));
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            first.get(5, TimeUnit.SECONDS);
+            second.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(events(NotificationEventType.DELIVERY_COMPLETED)).hasSize(1);
     }
 
     @Test
@@ -391,6 +420,17 @@ class BusinessNotificationOutboxIntegrationTest {
     private DeliveryStatus deliveryStatus(Long orderId) {
         return transactionTemplate.execute(status -> orderRepository.findById(orderId).orElseThrow()
                 .getDelivery().getStatus());
+    }
+
+    private void markDelivered(Long orderId, Instant deliveredAt, CountDownLatch ready, CountDownLatch start) {
+        try {
+            ready.countDown();
+            start.await();
+            orderService.markDelivered(orderId, deliveredAt);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 
     private record OrderFixture(Long memberId, Long orderId) { }

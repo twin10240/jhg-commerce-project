@@ -175,7 +175,7 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         order.ship();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
 
         Instant deliveredAt = Instant.parse("2026-08-27T06:30:00.123456Z");
         orderService.markDelivered(10L, deliveredAt);
@@ -189,7 +189,7 @@ class OrderServiceAdminTest {
     void markDelivered_출고되지_않은_주문은_거부한다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
 
         assertThatThrownBy(() -> orderService.markDelivered(10L, Instant.parse("2026-08-27T06:30:00Z")))
                 .isInstanceOf(IllegalStateException.class);
@@ -199,7 +199,7 @@ class OrderServiceAdminTest {
     void WMS_송장을_동기화하면_OMS_출고상태와_송장을_복구한다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
                 new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
                         Instant.parse("2026-08-27T06:30:00.123456Z"), null)));
@@ -215,7 +215,7 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         Instant deliveredAt = Instant.parse("2026-08-28T01:00:00.123456Z");
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
                 new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
                         Instant.parse("2026-08-27T06:30:00.123456Z"), deliveredAt)));
@@ -230,7 +230,7 @@ class OrderServiceAdminTest {
     void WMS에_송장이_없으면_동기화하지_않는다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.syncShipment(10L))
