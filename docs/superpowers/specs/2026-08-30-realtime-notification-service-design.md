@@ -151,7 +151,7 @@ X-OMS-Signature: v1=<hex HMAC-SHA256>
 | `PAYMENT_FAILED` | 결제 영구 실패 | 주문 결제에 실패했습니다. |
 | `PAYMENT_REVIEW_REQUIRED` | 결제 수동 확인 필요 | 주문 결제 확인이 필요합니다. |
 | `ORDER_BACKORDERED` | 결제 후 재고 부족 확정 | 상품이 입고 대기 중입니다. |
-| `STOCK_ALLOCATED` | 백오더 주문의 재고 확보 | 상품의 재고가 확보되었습니다. |
+| `STOCK_ALLOCATED` | 초기 또는 백오더 재고 할당 성공 | 상품의 재고가 확보되었습니다. |
 | `ORDER_CANCELLED` | 주문 취소 완료 | 주문이 취소되었습니다. |
 | `SHIPMENT_STARTED` | WMS 출고 완료 반영 | 주문이 출고되었습니다. |
 | `DELIVERY_COMPLETED` | WMS 배송 완료 반영 | 배송이 완료되었습니다. |
@@ -222,7 +222,7 @@ notifications
 필수 인덱스는 다음과 같다.
 
 - `(recipient_id, created_at DESC, id DESC)`
-- 미확인 행을 위한 `recipient_id` 부분 인덱스(`read_at IS NULL`)
+- `(recipient_id, read_at)`
 - `(expires_at)`
 
 하나의 알림은 한 명에게만 전달되므로 별도 읽음 테이블을 만들지 않는다. 메신저 메시지는 참여자가 여러 명이므로 이후 별도 읽음 모델을 사용한다.
