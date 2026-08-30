@@ -74,6 +74,13 @@ cancellations:
   sweep-delay: ${CANCELLATION_SWEEP_DELAY:5s}
   processing-timeout: ${CANCELLATION_PROCESSING_TIMEOUT:5m}
 
+realtime:
+  jwt:
+    issuer: ${REALTIME_JWT_ISSUER:oms}
+    audience: ${REALTIME_JWT_AUDIENCE:realtime-service}
+    private-key: ${REALTIME_JWT_PRIVATE_KEY:}
+    ttl: 5m
+
 ---
 # 리셋용 프로파일: 스키마 DROP & 재생성 (시드는 initDb가 빈 DB를 감지해 자동 실행)
 spring:
