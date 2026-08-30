@@ -19,6 +19,8 @@ import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.service.PaymentApprovalProcessor;
 import com.jhg.hgpage.oms.service.PaymentService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +32,7 @@ import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -52,6 +55,7 @@ class PaymentApprovalProcessorTest {
     @Mock OrderRepository orderRepository;
     @Mock RetrySchedule retrySchedule;
     @Mock PaymentGateway gateway;
+    @Mock NotificationEventWriter eventWriter;
 
     PaymentService paymentService;
     PaymentApprovalProcessor processor;
@@ -59,7 +63,8 @@ class PaymentApprovalProcessorTest {
 
     @BeforeEach
     void setUp() {
-        paymentService = new PaymentService(paymentAttemptRepository, paymentRepository, orderRepository, retrySchedule);
+        paymentService = new PaymentService(paymentAttemptRepository, paymentRepository, orderRepository,
+                retrySchedule, eventWriter);
         processor = new PaymentApprovalProcessor(paymentService, gateway);
         fixture = fixture();
     }
@@ -132,6 +137,8 @@ class PaymentApprovalProcessorTest {
         assertThat(fixture.attempt.getStatus()).isEqualTo(PaymentAttemptStatus.SUCCEEDED);
         assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.PAID);
         assertThat(fixture.order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PENDING);
+        verify(eventWriter).append(NotificationEventType.PAYMENT_APPROVED, 1L,
+                "ORDER", "10", Map.of("orderId", 10L));
     }
 
     @Test

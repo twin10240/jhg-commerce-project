@@ -3,6 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.domain.Address;
@@ -49,6 +50,7 @@ class OrderServiceAdminTest {
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
     @Mock InventoryQueryPort inventoryQueryPort;
+    @Mock NotificationEventWriter eventWriter;
     @InjectMocks OrderService orderService;
 
     private Order newOrder(String memberName) {

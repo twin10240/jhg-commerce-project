@@ -21,6 +21,7 @@ import com.jhg.hgpage.oms.repository.RefundRequestRepository;
 import com.jhg.hgpage.oms.service.RefundService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
 import com.jhg.hgpage.oms.service.ReturnSyncService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,6 +30,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -53,6 +55,7 @@ class ReturnSyncServiceTest {
     @Autowired RefundRequestRepository refundRequestRepository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
+    @MockitoBean NotificationEventWriter eventWriter;
 
     @ParameterizedTest
     @MethodSource("inProgressStatuses")

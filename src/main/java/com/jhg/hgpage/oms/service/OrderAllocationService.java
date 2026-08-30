@@ -4,6 +4,8 @@ import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,7 @@ public class OrderAllocationService {
     private final OrderRepository orderRepository;
     private final OrderRepositoryQuery orderRepositoryQuery;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public Optional<AllocationCommand> claim(Long orderId) {
@@ -51,6 +54,10 @@ public class OrderAllocationService {
             clearWork(order);
         } else {
             order.completeAllocation(reserved);
+            eventWriter.append(reserved ? NotificationEventType.STOCK_ALLOCATED
+                            : NotificationEventType.ORDER_BACKORDERED,
+                    order.getMember().getId(), "ORDER", order.getId().toString(),
+                    Map.of("orderId", order.getId()));
         }
     }
 

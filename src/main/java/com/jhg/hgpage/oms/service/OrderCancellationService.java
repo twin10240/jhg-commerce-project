@@ -10,6 +10,8 @@ import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class OrderCancellationService {
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final RefundService refundService;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public CancellationResult request(Long orderId, Long memberId) {
@@ -90,6 +93,9 @@ public class OrderCancellationService {
             case ORDER -> order.requestCancellation(true, LocalDateTime.now());
             default -> throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
         }
+        if (order.getStatus() == OrderStatus.CANCEL) {
+            appendCancelled(order);
+        }
         return result(order, payment);
     }
 
@@ -120,6 +126,7 @@ public class OrderCancellationService {
         if (isPaid(payment)) {
             refundService.requestOrderCancellationRefund(orderId);
         }
+        appendCancelled(order);
         return true;
     }
 
@@ -208,6 +215,11 @@ public class OrderCancellationService {
     private boolean isDefinitiveAllocationRejection(Order order) {
         String failureCode = order.getAllocationFailureCode();
         return failureCode != null && failureCode.matches("WMS_4\\d{2}");
+    }
+
+    private void appendCancelled(Order order) {
+        eventWriter.append(NotificationEventType.ORDER_CANCELLED, order.getMember().getId(),
+                "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
     }
 
     private CancellationResult result(Order order, Payment payment) {

@@ -13,6 +13,8 @@ import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +36,7 @@ public class OrderService {
     private final OrderCancellationService cancellationService;
     private final InventoryPort inventoryPort;
     private final InventoryQueryPort inventoryQueryPort;
+    private final NotificationEventWriter eventWriter;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
@@ -76,6 +79,7 @@ public class OrderService {
                 order.getId(), order.quantitiesByProductId());
         order.getDelivery().recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
+        appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
     }
 
     @Transactional
@@ -83,6 +87,7 @@ public class OrderService {
         Order order = findOrder(orderId);
         order.deliver();
         order.getDelivery().recordDeliveredAt(Instant.now());
+        appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
     }
 
     /**
@@ -92,8 +97,12 @@ public class OrderService {
     @Transactional
     public void markDelivered(Long orderId, Instant deliveredAt) {
         Order order = findOrder(orderId);
-        if (order.getDelivery().getStatus() != DeliveryStatus.DELIVERED) order.deliver();
+        DeliveryStatus previous = order.getDelivery().getStatus();
+        if (previous != DeliveryStatus.DELIVERED) order.deliver();
         order.getDelivery().recordDeliveredAt(deliveredAt);
+        if (previous != DeliveryStatus.DELIVERED) {
+            appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
+        }
     }
 
     @Transactional
@@ -102,12 +111,19 @@ public class OrderService {
         InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByOrderId(orderId)
                 .orElseThrow(() -> new IllegalStateException("WMS 송장이 없습니다."));
         Delivery delivery = order.getDelivery();
+        DeliveryStatus previous = delivery.getStatus();
         if (delivery.getStatus() == DeliveryStatus.READY) order.ship();
         delivery.recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
         if (shipment.deliveredAt() != null) {
             if (delivery.getStatus() == DeliveryStatus.SHIPPED) order.deliver();
             delivery.recordDeliveredAt(shipment.deliveredAt());
+        }
+        if (previous == DeliveryStatus.READY) {
+            appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
+        }
+        if (shipment.deliveredAt() != null && previous != DeliveryStatus.DELIVERED) {
+            appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
         }
     }
 
@@ -129,6 +145,11 @@ public class OrderService {
     private Order findOrder(Long orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+    }
+
+    private void appendOrderEvent(Order order, NotificationEventType type) {
+        eventWriter.append(type, order.getMember().getId(), "ORDER", order.getId().toString(),
+                Map.of("orderId", order.getId()));
     }
 
     public record OrderLine(Long productId, int quantity) {}

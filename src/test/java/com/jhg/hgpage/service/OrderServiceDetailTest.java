@@ -3,6 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import com.jhg.hgpage.oms.service.OrderCancellationService;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.oms.domain.Address;
@@ -47,6 +48,7 @@ class OrderServiceDetailTest {
     @Mock OrderCancellationService cancellationService;
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
+    @Mock NotificationEventWriter eventWriter;
     @InjectMocks OrderService orderService;
 
     private Product product;
