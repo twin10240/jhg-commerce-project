@@ -88,6 +88,17 @@ class RealtimeTokenApiControllerMvcTest {
                 .andExpect(jsonPath("$.status").value(503));
     }
 
+    @Test
+    void unusable_rsa_key_returns_json_503() throws Exception {
+        ReflectionTestUtils.setField(controller, "tokenService", new RealtimeTokenService(
+                new RealtimeJwtProperties("oms", "realtime-service", TestConfig.privateKeyPem(1024), Duration.ofMinutes(5))));
+
+        mockMvc.perform(post("/api/realtime/token").with(user(principal(7L, Role.USER))).with(csrf()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.status").value(503));
+    }
+
     private UserPrincipal principal(long id, Role role) {
         return new UserPrincipal(id, "user@example.com", "User", "010-0000-0000", "password", role);
     }
@@ -96,13 +107,13 @@ class RealtimeTokenApiControllerMvcTest {
     static class TestConfig {
         @Bean
         RealtimeJwtProperties realtimeJwtProperties() {
-            return new RealtimeJwtProperties("oms", "realtime-service", privateKeyPem(), Duration.ofMinutes(5));
+            return new RealtimeJwtProperties("oms", "realtime-service", privateKeyPem(2048), Duration.ofMinutes(5));
         }
 
-        private String privateKeyPem() {
+        private static String privateKeyPem(int keySize) {
             try {
                 KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-                generator.initialize(2048);
+                generator.initialize(keySize);
                 KeyPair keyPair = generator.generateKeyPair();
                 return "-----BEGIN PRIVATE KEY-----\n"
                         + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(keyPair.getPrivate().getEncoded())

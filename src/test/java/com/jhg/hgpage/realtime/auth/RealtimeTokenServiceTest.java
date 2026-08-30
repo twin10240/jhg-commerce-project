@@ -44,6 +44,13 @@ class RealtimeTokenServiceTest {
         assertThrows(NullPointerException.class, () -> service.issue(null, now));
     }
 
+    @Test
+    void unusable_rsa_key_is_reported_as_unavailable() throws Exception {
+        RealtimeTokenService service = new RealtimeTokenService(properties(privateKeyPem(1024)));
+
+        assertThrows(RealtimeTokenService.TokenUnavailableException.class, () -> service.issue(principal(Role.USER), now));
+    }
+
     private UserPrincipal principal(Role role) {
         return new UserPrincipal(7L, "user@example.com", "User", "010-0000-0000", "password", role);
     }
@@ -53,8 +60,12 @@ class RealtimeTokenServiceTest {
     }
 
     private String privateKeyPem() throws Exception {
+        return privateKeyPem(2048);
+    }
+
+    private String privateKeyPem(int keySize) throws Exception {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2048);
+        generator.initialize(keySize);
         KeyPair keyPair = generator.generateKeyPair();
         return "-----BEGIN PRIVATE KEY-----\n"
                 + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(keyPair.getPrivate().getEncoded())

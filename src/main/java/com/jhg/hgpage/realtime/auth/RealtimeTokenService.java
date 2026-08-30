@@ -45,7 +45,13 @@ public class RealtimeTokenService {
                 .id(UUID.randomUUID().toString())
                 .claim("role", principal.getRole().name())
                 .build();
-        return new TokenResponse(encoder().encode(JwtEncoderParameters.from(claims)).getTokenValue(), expiresAt);
+        try {
+            return new TokenResponse(encoder().encode(JwtEncoderParameters.from(claims)).getTokenValue(), expiresAt);
+        } catch (TokenUnavailableException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new TokenUnavailableException(e);
+        }
     }
 
     private JwtEncoder encoder() {
