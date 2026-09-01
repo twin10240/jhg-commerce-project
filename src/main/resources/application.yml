@@ -75,6 +75,7 @@ cancellations:
   processing-timeout: ${CANCELLATION_PROCESSING_TIMEOUT:5m}
 
 realtime:
+  public-url: ${REALTIME_PUBLIC_URL:http://localhost:3000}
   base-url: ${REALTIME_BASE_URL:http://localhost:3000}
   event-hmac-secret: ${REALTIME_EVENT_HMAC_SECRET:}
   outbox:
