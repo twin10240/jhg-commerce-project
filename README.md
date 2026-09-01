@@ -170,11 +170,14 @@ OMS는 업무 상태 변경과 같은 트랜잭션에 알림 Outbox를 저장한
 
 ```bash
 # 안전한 디렉터리에만 생성하고 저장소에 넣지 않는다.
-openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out realtime-jwt-private.pem
-openssl pkey -in realtime-jwt-private.pem -pubout -out realtime-jwt-public.pem
+umask 077
+KEY_DIR="$HOME/.config/jhg-commerce"
+mkdir -p "$KEY_DIR"
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$KEY_DIR/realtime-jwt-private.pem"
+openssl pkey -in "$KEY_DIR/realtime-jwt-private.pem" -pubout -out "$KEY_DIR/realtime-jwt-public.pem"
 
 # PEM은 줄바꿈을 보존한 환경변수로 주입한다. 리터럴 "\\n" 문자열로 바꾸지 않는다.
-export REALTIME_JWT_PRIVATE_KEY="$(cat /secure/path/realtime-jwt-private.pem)"
+export REALTIME_JWT_PRIVATE_KEY="$(cat "$KEY_DIR/realtime-jwt-private.pem")"
 export REALTIME_BASE_URL=http://localhost:3000
 export REALTIME_EVENT_HMAC_SECRET="$(openssl rand -hex 32)"
 export REALTIME_OUTBOX_ENABLED=true

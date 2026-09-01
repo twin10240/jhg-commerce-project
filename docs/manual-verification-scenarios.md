@@ -666,8 +666,11 @@ OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립
 
 #### 절차
 
-1. `PUBLISHED`된 Outbox payload와 동일한 `eventId`를 같은 HMAC headers로 실시간 서비스에 한 번 더 전송한다.
-2. 알림 이력과 사용자 실시간 전달을 확인한다.
+1. `PUBLISHED`된 Outbox의 raw payload와 `eventId`를 그대로 준비한다.
+2. 전송 직전에 현재 Unix seconds로 `X-OMS-Timestamp`를 새로 만들고, 같은 payload에 대해
+   `${timestamp}.${rawRequestBody}`의 HMAC-SHA256을 다시 계산해 `X-OMS-Signature: v1=<hex>`를 만든다.
+3. 새 timestamp와 signature headers로 실시간 서비스에 한 번 더 전송한다.
+4. 알림 이력과 사용자 실시간 전달을 확인한다.
 
 #### 기대 결과
 
