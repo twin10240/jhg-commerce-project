@@ -223,7 +223,7 @@ test('malformed REST responses return unavailable', async () => {
   let apiResponse = { items: [notification({ title: undefined })], nextCursor: null };
   globalThis.fetch = async url => url === '/api/realtime/token'
     ? response(200, token('validation-token'))
-    : response(200, apiResponse);
+    : response('changedCount' in apiResponse ? 201 : 200, apiResponse);
   NotificationClient.start(root());
 
   assert.deepEqual(await NotificationClient.list(), { kind: 'unavailable' });
@@ -239,7 +239,7 @@ test('read methods use the authenticated Node REST endpoints', async () => {
     if (url === '/api/realtime/token') return response(200, token('read-token'));
     calls.push({ url, options });
     return url.endsWith('/read-all')
-      ? response(200, { changedCount: 4 })
+      ? response(201, { changedCount: 4 })
       : response(204);
   };
   NotificationClient.start(root());
@@ -270,4 +270,13 @@ test('read accepts only the Node API 204 response contract', async () => {
   NotificationClient.start(root());
 
   assert.deepEqual(await NotificationClient.read('notification-id'), { kind: 'unavailable' });
+});
+
+test('read-all rejects 200 instead of the Node API 201 response contract', async () => {
+  globalThis.fetch = async url => url === '/api/realtime/token'
+    ? response(200, token('read-all-status-token'))
+    : response(200, { changedCount: 1 });
+  NotificationClient.start(root());
+
+  assert.deepEqual(await NotificationClient.readAll(), { kind: 'unavailable' });
 });

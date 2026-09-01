@@ -145,7 +145,8 @@
   const read = id => request(
     `/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }, () => ({}), 204);
   const readAll = () => request(
-    '/api/v1/notifications/read-all', { method: 'POST' }, value => parseCount(value, 'changedCount'));
+    '/api/v1/notifications/read-all', { method: 'POST' },
+    value => parseCount(value, 'changedCount'), 201);
 
   function stop() {
     generation += 1;
