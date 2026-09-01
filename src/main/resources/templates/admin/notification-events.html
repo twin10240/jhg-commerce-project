@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>알림 이벤트 · OMS</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}">
+  <style>
+    .flash{padding:12px 14px;margin:14px 0;border:1px solid #b9dfc8;border-radius:8px;background:#eaf7ef;color:var(--app-ok);font-weight:700}.flash.error{border-color:#e3b4ac;background:#fdeaea;color:var(--app-danger)}.table-wrap{overflow-x:auto}.events-table{width:100%;min-width:940px;border-collapse:collapse}.events-table th,.events-table td{padding:11px 9px;border-bottom:1px solid var(--app-line);text-align:left;font-size:13px;vertical-align:middle}.events-table th{color:var(--app-muted);white-space:nowrap}.event-id{max-width:260px;overflow-wrap:anywhere}.number{text-align:right!important;font-variant-numeric:tabular-nums}.retry-form{margin:0}.retry-button{display:inline-grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--app-line);border-radius:6px;background:var(--app-card);color:var(--app-ink);font:inherit;font-size:20px;cursor:pointer}.retry-button:hover{background:var(--app-accent-soft)}
+    @media(max-width:720px){.events-table{min-width:900px}}
+    @media(prefers-color-scheme:dark){.flash{background:#173528}.flash.error{background:#3c2020}}
+  </style>
+</head>
+<body style="margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif">
+<div th:replace="~{fragments/layout :: nav('notification-events')}"></div>
+<main class="app-shell">
+  <h1 class="app-title">알림 이벤트</h1>
+
+  <div class="flash" role="status" th:if="${successMessage}" th:text="${successMessage}">알림 이벤트를 재전송 대기 상태로 변경했습니다.</div>
+  <div class="flash error" role="alert" th:if="${errorMessage}" th:text="${errorMessage}">오류 메시지</div>
+
+  <div class="table-wrap">
+    <table class="events-table">
+      <thead><tr><th>이벤트 ID</th><th>이벤트 유형</th><th>집계 유형/ID</th><th class="number">시도</th><th>마지막 오류 코드</th><th>생성 시각</th><th>재전송</th></tr></thead>
+      <tbody>
+      <tr th:each="event : ${failedEvents}">
+        <td class="event-id" th:text="${event.eventId}">e133d8bf-9993-4d59-8b7a-c80fd2d2d37b</td>
+        <td th:text="${event.eventType}">DELIVERY_COMPLETED</td>
+        <td th:text="|${event.aggregateType} #${event.aggregateId}|">ORDER #42</td>
+        <td class="number" th:text="${event.attemptCount}">3</td>
+        <td th:text="${event.lastErrorCode ?: '-'}">HTTP_422</td>
+        <td><time th:attr="datetime=${event.createdAt}" th:text="${#temporals.format(event.createdAt,'yyyy-MM-dd HH:mm')}">2026-08-30 15:30</time></td>
+        <td>
+          <form class="retry-form" th:action="@{/admin/notification-events/{id}/retry(id=${event.id})}" method="post"
+                onsubmit="return confirm('이 알림 이벤트를 다시 전송하시겠습니까?');">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button class="retry-button" type="submit" title="알림 이벤트 재전송" aria-label="알림 이벤트 재전송">&#8635;</button>
+          </form>
+        </td>
+      </tr>
+      <tr th:if="${#lists.isEmpty(failedEvents)}"><td colspan="7" class="empty-state">재전송이 필요한 알림 이벤트가 없습니다.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>
