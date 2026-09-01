@@ -11,6 +11,7 @@
   let retryTimer = null;
   let root = null;
   let generation = 0;
+  let session = null;
   let retryIndex = 0;
   let retryPending = false;
   let trigger = null;
@@ -27,9 +28,7 @@
   let recentLoaded = false;
   let recent = [];
   let unread = 0;
-  let unreadDelta = 0;
-  let countLoaded = false;
-  let seenIds = new Set();
+  let eventIds = new Set();
   let readIds = new Set();
 
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000];
@@ -179,9 +178,27 @@
     badge.setAttribute('aria-label', `읽지 않은 알림 ${unread}개`);
   }
 
-  function adjustUnread(change) {
-    if (!countLoaded) unreadDelta += change;
-    showUnread(unread + change);
+  const isActive = current => session === current && root === current.element &&
+    generation === current.generation;
+
+  function syncUnread(current) {
+    if (!isActive(current)) return Promise.resolve();
+    if (current.countSync) return current.countSync;
+    let pending;
+    pending = (async () => {
+      while (isActive(current)) {
+        const epoch = current.notificationEpoch;
+        const result = await unreadCount();
+        if (!isActive(current) || result.kind === 'unavailable') return;
+        if (epoch !== current.notificationEpoch) continue;
+        showUnread(result.count);
+        return;
+      }
+    })().finally(() => {
+      if (current.countSync === pending) current.countSync = null;
+    });
+    current.countSync = pending;
+    return pending;
   }
 
   function relativeTime(createdAt) {
@@ -224,7 +241,7 @@
         if (item.readAt !== null || readIds.has(item.id)) return;
         readIds.add(item.id);
         link.classList.toggle('unread', false);
-        adjustUnread(-1);
+        showUnread(unread - 1);
         read(item.id);
       };
       link.addEventListener('click', listener);
@@ -235,38 +252,57 @@
     if (emptyState) emptyState.hidden = elements.length !== 0;
   }
 
-  async function loadRecent() {
-    if (recentLoaded) return;
-    recentLoaded = true;
-    const result = await list({ limit: 5 });
-    if (result.kind === 'unavailable') {
-      if (emptyState) {
-        emptyState.textContent = '알림을 불러오지 못했습니다.';
-        emptyState.hidden = false;
+  function syncRecent(current) {
+    if (!isActive(current)) return Promise.resolve();
+    if (current.recentSync) return current.recentSync;
+    let pending;
+    pending = (async () => {
+      while (isActive(current)) {
+        const epoch = current.recentEpoch;
+        const result = await list({ limit: 5 });
+        if (!isActive(current)) return;
+        if (result.kind === 'unavailable') {
+          if (emptyState) {
+            emptyState.textContent = '알림을 불러오지 못했습니다.';
+            emptyState.hidden = recent.length !== 0;
+          }
+          return;
+        }
+        if (epoch !== current.recentEpoch) continue;
+        const pageIds = new Set();
+        recent = result.items.filter(item => {
+          if (pageIds.has(item.id)) return false;
+          pageIds.add(item.id);
+          return true;
+        }).slice(0, 5);
+        recentLoaded = true;
+        if (emptyState) emptyState.textContent = '새 알림이 없습니다.';
+        renderRecent();
+        return;
       }
-      return;
-    }
-    for (const item of result.items) {
-      if (seenIds.has(item.id)) continue;
-      seenIds.add(item.id);
-      recent.push(item);
-    }
-    recent = recent.slice(0, 5);
-    renderRecent();
+    })().finally(() => {
+      if (current.recentSync === pending) current.recentSync = null;
+    });
+    current.recentSync = pending;
+    return pending;
   }
 
-  function acceptNotification(value) {
+  function acceptNotification(current, value) {
+    if (!isActive(current)) return;
     let item;
     try {
       item = parseNotification(value);
     } catch {
       return;
     }
-    if (seenIds.has(item.id)) return;
-    seenIds.add(item.id);
-    recent = [item, ...recent].slice(0, 5);
-    if (item.readAt === null) adjustUnread(1);
+    if (eventIds.has(item.id)) return;
+    eventIds.add(item.id);
+    current.notificationEpoch += 1;
+    current.recentEpoch += 1;
+    recent = [item, ...recent.filter(existing => existing.id !== item.id)].slice(0, 5);
+    if (item.readAt === null) showUnread(unread + 1);
     renderRecent();
+    syncUnread(current);
   }
 
   function detachSocket(disconnect) {
@@ -280,8 +316,8 @@
     if (disconnect && typeof current.disconnect === 'function') current.disconnect();
   }
 
-  function scheduleReconnect() {
-    if (!root || typeof host.io !== 'function' || retryTimer !== null) return;
+  function scheduleReconnect(current) {
+    if (!isActive(current) || typeof host.io !== 'function' || retryTimer !== null) return;
     if (host.document && host.document.hidden) {
       retryPending = true;
       return;
@@ -292,48 +328,50 @@
     retryTimer = host.setTimeout(() => {
       retryTimer = null;
       if (host.document && host.document.hidden) retryPending = true;
-      else connectSocket();
+      else connectSocket(current);
     }, delay);
   }
 
-  async function connectSocket() {
-    if (!root || typeof host.io !== 'function') return;
-    const currentGeneration = generation;
+  async function connectSocket(currentSession) {
+    if (!isActive(currentSession) || typeof host.io !== 'function') return;
     try {
       const bearer = await getToken();
-      if (!root || generation !== currentGeneration) return;
+      if (!isActive(currentSession)) return;
       const config = configuration();
-      const current = host.io(config.realtimeUrl, {
+      const currentSocket = host.io(config.realtimeUrl, {
         auth: { token: bearer },
         transports: ['websocket', 'polling'],
         reconnection: false,
       });
-      socket = current;
-      if (typeof current.on !== 'function') return;
+      socket = currentSocket;
+      if (typeof currentSocket.on !== 'function') return;
       const failed = () => {
-        if (socket !== current) return;
+        if (!isActive(currentSession) || socket !== currentSocket) return;
         detachSocket(true);
         clearToken();
-        scheduleReconnect();
+        scheduleReconnect(currentSession);
       };
       socketListeners = {
         connect: () => {
+          if (!isActive(currentSession)) return;
           retryIndex = 0;
           retryPending = false;
           if (retryTimer !== null) host.clearTimeout(retryTimer);
           retryTimer = null;
+          syncUnread(currentSession);
+          if (recentLoaded) syncRecent(currentSession);
         },
         connect_error: failed,
         disconnect: failed,
-        'notification:new': acceptNotification,
+        'notification:new': value => acceptNotification(currentSession, value),
       };
-      for (const [event, listener] of Object.entries(socketListeners)) current.on(event, listener);
+      for (const [event, listener] of Object.entries(socketListeners)) currentSocket.on(event, listener);
     } catch {
-      if (root && generation === currentGeneration) scheduleReconnect();
+      if (isActive(currentSession)) scheduleReconnect(currentSession);
     }
   }
 
-  function setupUi(element) {
+  function setupUi(element, current) {
     if (typeof element.querySelector !== 'function') return false;
     trigger = element.querySelector('[data-notification-trigger]');
     panel = element.querySelector('[data-notification-panel]');
@@ -345,7 +383,7 @@
       const open = panel.hidden;
       panel.hidden = !open;
       trigger.setAttribute('aria-expanded', String(open));
-      if (open) loadRecent();
+      if (open && !recentLoaded) syncRecent(current);
     };
     trigger.addEventListener('click', triggerListener);
     logoutForm = element.closest('.site-nav')?.querySelector('[data-logout-form]') || null;
@@ -358,6 +396,7 @@
 
   function stop() {
     generation += 1;
+    session = null;
     if (trigger && triggerListener) trigger.removeEventListener('click', triggerListener);
     if (logoutForm && logoutListener) logoutForm.removeEventListener('submit', logoutListener);
     if (host.document && visibilityListener) {
@@ -384,29 +423,31 @@
     recentLoaded = false;
     recent = [];
     unread = 0;
-    unreadDelta = 0;
-    countLoaded = false;
-    seenIds = new Set();
+    eventIds = new Set();
     readIds = new Set();
   }
 
   function start(element) {
     stop();
     root = element;
-    const hasUi = setupUi(element);
+    const current = {
+      generation,
+      element,
+      notificationEpoch: 0,
+      recentEpoch: 0,
+      countSync: null,
+      recentSync: null,
+    };
+    session = current;
+    const hasUi = setupUi(element, current);
     if (host.document) {
       visibilityListener = () => {
-        if (!host.document.hidden && retryPending) scheduleReconnect();
+        if (!host.document.hidden && retryPending) scheduleReconnect(current);
       };
       host.document.addEventListener('visibilitychange', visibilityListener);
     }
-    if (hasUi) unreadCount().then(result => {
-      if (root !== element || result.kind === 'unavailable') return;
-      countLoaded = true;
-      showUnread(result.count + unreadDelta);
-      unreadDelta = 0;
-    });
-    connectSocket();
+    if (hasUi) syncUnread(current);
+    connectSocket(current);
     return client;
   }
 

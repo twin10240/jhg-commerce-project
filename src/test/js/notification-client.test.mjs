@@ -190,6 +190,7 @@ const uiRoot = () => {
   const empty = new FakeElement('p');
   empty.setAttribute('data-notification-empty', '');
   empty.hidden = true;
+  empty.textContent = '새 알림이 없습니다.';
   panel.append(items, empty);
   element.append(trigger, badge, panel);
   const logout = new FakeElement('form');
@@ -537,13 +538,17 @@ test('notification:new prepends once per ID and increments the unread badge once
   const fixture = uiRoot();
   const socket = new FakeSocket();
   let ioCall;
+  let countRequests = 0;
   globalThis.io = (url, options) => {
     ioCall = { url, options };
     return socket;
   };
   globalThis.fetch = async url => {
     if (url === '/api/realtime/token') return response(200, token('socket-token'));
-    if (url.endsWith('/unread-count')) return response(200, { count: 2 });
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: countRequests === 1 ? 2 : 3 });
+    }
     return response(200, { items: [], nextCursor: null });
   };
 
@@ -554,6 +559,7 @@ test('notification:new prepends once per ID and increments the unread badge once
   const incoming = notification({ title: 'New delivery' });
   socket.serverEmit('notification:new', incoming);
   socket.serverEmit('notification:new', incoming);
+  await settle();
 
   assert.deepEqual(ioCall, {
     url: 'https://realtime.example.test',
@@ -566,6 +572,7 @@ test('notification:new prepends once per ID and increments the unread badge once
   assert.equal(fixture.items.children.length, 1);
   assert.equal(fixture.items.children[0].children[0].textContent, 'New delivery');
   assert.equal(fixture.badge.textContent, '3');
+  assert.equal(countRequests, 2);
 });
 
 test('socket retries back off, pause while hidden, reset on connect, and stop on logout', async () => {
@@ -680,4 +687,241 @@ test('stop prevents an in-flight recent request from restoring DOM listeners', a
   assert.equal(fixture.trigger.listeners.get('click')?.size ?? 0, 0);
   assert.equal(fixture.logout.listeners.get('submit')?.size ?? 0, 0);
   assert.equal(fixture.document.listeners.get('visibilitychange')?.size ?? 0, 0);
+});
+
+test('connect resyncs authoritative unread count and an already loaded recent panel', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  const oldItem = notification({ id: 'old', title: 'Old' });
+  const offlineItem = notification({ id: 'offline', title: 'Offline' });
+  let countRequests = 0;
+  let listRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('resync-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: countRequests === 1 ? 1 : 2 });
+    }
+    listRequests += 1;
+    return response(200, {
+      items: listRequests === 1 ? [oldItem] : [offlineItem, oldItem],
+      nextCursor: null,
+    });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+
+  assert.equal(countRequests, 2);
+  assert.equal(listRequests, 2);
+  assert.equal(fixture.badge.textContent, '2');
+  assert.deepEqual(
+    fixture.items.children.map(item => item.children[0].textContent),
+    ['Offline', 'Old'],
+  );
+});
+
+test('an event racing a count response that already includes it is not double counted', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  let releaseFirstCount;
+  let countRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('count-race-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      if (countRequests === 1) {
+        return new Promise(resolve => {
+          releaseFirstCount = () => resolve(response(200, { count: 3 }));
+        });
+      }
+      return response(200, { count: 3 });
+    }
+    return response(200, { items: [], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  socket.serverEmit('notification:new', notification({ id: 'racing-event' }));
+  assert.equal(fixture.badge.textContent, '1');
+  releaseFirstCount();
+  await settle();
+
+  assert.equal(countRequests, 2);
+  assert.equal(fixture.badge.textContent, '3');
+});
+
+test('a failed first recent request retries on reopen and restores the empty message', async () => {
+  const fixture = uiRoot();
+  let listRequests = 0;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('recent-retry-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 0 });
+    listRequests += 1;
+    return listRequests === 1
+      ? response(503)
+      : response(200, { items: [], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  assert.equal(fixture.empty.textContent, '알림을 불러오지 못했습니다.');
+  fixture.trigger.dispatch('click');
+  fixture.trigger.dispatch('click');
+  await settle();
+
+  assert.equal(listRequests, 2);
+  assert.equal(fixture.empty.textContent, '새 알림이 없습니다.');
+  assert.equal(fixture.empty.hidden, false);
+});
+
+test('restarting the same element ignores stale count and recent responses', async () => {
+  const fixture = uiRoot();
+  const staleItem = notification({ id: 'stale', title: 'Stale' });
+  const currentItem = notification({ id: 'current', title: 'Current' });
+  let countRequests = 0;
+  let listRequests = 0;
+  let releaseStaleCount;
+  let releaseStaleList;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token(`restart-token-${countRequests + 1}`));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      if (countRequests === 1) {
+        return new Promise(resolve => {
+          releaseStaleCount = () => resolve(response(200, { count: 99 }));
+        });
+      }
+      return response(200, { count: 7 });
+    }
+    listRequests += 1;
+    if (listRequests === 1) {
+      return new Promise(resolve => {
+        releaseStaleList = () => resolve(response(200, { items: [staleItem], nextCursor: null }));
+      });
+    }
+    return response(200, { items: [currentItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  fixture.panel.hidden = true;
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  releaseStaleCount();
+  releaseStaleList();
+  await settle();
+
+  assert.equal(fixture.badge.textContent, '7');
+  assert.deepEqual(
+    fixture.items.children.map(item => item.children[0].textContent),
+    ['Current'],
+  );
+});
+
+test('recent resync re-reads when a socket event races its response', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  const oldItem = notification({ id: 'race-old', title: 'Old' });
+  const incoming = notification({ id: 'race-new', title: 'New' });
+  let listRequests = 0;
+  let releaseRacingList;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('recent-race-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 2 });
+    listRequests += 1;
+    if (listRequests === 2) {
+      return new Promise(resolve => {
+        releaseRacingList = () => resolve(response(200, { items: [incoming, oldItem], nextCursor: null }));
+      });
+    }
+    return response(200, { items: listRequests === 1 ? [oldItem] : [incoming, oldItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+  assert.equal(typeof releaseRacingList, 'function');
+  socket.serverEmit('notification:new', incoming);
+  releaseRacingList();
+  await settle();
+
+  assert.equal(listRequests, 3);
+  assert.deepEqual(
+    fixture.items.children.map(item => item.children[0].textContent),
+    ['New', 'Old'],
+  );
+});
+
+test('a socket event after the initial count still reconciles with the authoritative count', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  let countRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('event-sync-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: countRequests === 1 ? 2 : 3 });
+    }
+    return response(200, { items: [], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  socket.serverEmit('notification:new', notification({ id: 'event-after-count' }));
+  await settle();
+
+  assert.equal(countRequests, 2);
+  assert.equal(fixture.badge.textContent, '3');
+});
+
+test('a loaded panel keeps resyncing after one reconnect list failure', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  const oldItem = notification({ id: 'loaded-old', title: 'Old' });
+  const offlineItem = notification({ id: 'loaded-offline', title: 'Offline' });
+  let listRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('loaded-retry-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 2 });
+    listRequests += 1;
+    if (listRequests === 2) return response(503);
+    return response(200, {
+      items: listRequests === 1 ? [oldItem] : [offlineItem, oldItem],
+      nextCursor: null,
+    });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+
+  assert.equal(listRequests, 3);
+  assert.deepEqual(
+    fixture.items.children.map(item => item.children[0].textContent),
+    ['Offline', 'Old'],
+  );
 });
