@@ -7,9 +7,32 @@
   let expiresAt = 0;
   let tokenPromise = null;
   let socket = null;
+  let tokenTimer = null;
   let retryTimer = null;
   let root = null;
   let generation = 0;
+  let retryIndex = 0;
+  let retryPending = false;
+  let trigger = null;
+  let panel = null;
+  let badge = null;
+  let itemsRoot = null;
+  let emptyState = null;
+  let logoutForm = null;
+  let triggerListener = null;
+  let logoutListener = null;
+  let visibilityListener = null;
+  let socketListeners = null;
+  let renderedListeners = [];
+  let recentLoaded = false;
+  let recent = [];
+  let unread = 0;
+  let unreadDelta = 0;
+  let countLoaded = false;
+  let seenIds = new Set();
+  let readIds = new Set();
+
+  const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000];
 
   const unavailable = () => ({ kind: 'unavailable' });
   const isObject = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -19,8 +42,8 @@
   function clearToken() {
     token = null;
     expiresAt = 0;
-    if (retryTimer !== null) host.clearTimeout(retryTimer);
-    retryTimer = null;
+    if (tokenTimer !== null) host.clearTimeout(tokenTimer);
+    tokenTimer = null;
   }
 
   function configuration() {
@@ -58,8 +81,8 @@
         if (generation !== currentGeneration) throw new Error('Client stopped');
         token = body.token;
         expiresAt = expiration;
-        if (retryTimer !== null) host.clearTimeout(retryTimer);
-        retryTimer = host.setTimeout(clearToken, expiresAt - Date.now() - 15_000);
+        if (tokenTimer !== null) host.clearTimeout(tokenTimer);
+        tokenTimer = host.setTimeout(clearToken, expiresAt - Date.now() - 15_000);
         return token;
       } finally {
         if (tokenPromise === pending) tokenPromise = null;
@@ -148,29 +171,242 @@
     '/api/v1/notifications/read-all', { method: 'POST' },
     value => parseCount(value, 'changedCount'), 201);
 
+  function showUnread(value) {
+    unread = Math.max(0, value);
+    if (!badge) return;
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.hidden = unread === 0;
+    badge.setAttribute('aria-label', `읽지 않은 알림 ${unread}개`);
+  }
+
+  function adjustUnread(change) {
+    if (!countLoaded) unreadDelta += change;
+    showUnread(unread + change);
+  }
+
+  function relativeTime(createdAt) {
+    const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 1_000));
+    if (seconds < 60) return '방금 전';
+    if (seconds < 3_600) return `${Math.floor(seconds / 60)}분 전`;
+    if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}시간 전`;
+    if (seconds < 604_800) return `${Math.floor(seconds / 86_400)}일 전`;
+    return new Date(createdAt).toLocaleDateString('ko-KR');
+  }
+
+  function clearRenderedListeners() {
+    for (const [element, listener] of renderedListeners) {
+      element.removeEventListener('click', listener);
+    }
+    renderedListeners = [];
+  }
+
+  function renderRecent() {
+    if (!itemsRoot || !host.document) return;
+    clearRenderedListeners();
+    const elements = recent.map(item => {
+      const link = host.document.createElement('a');
+      const title = host.document.createElement('strong');
+      const body = host.document.createElement('span');
+      const time = host.document.createElement('time');
+      link.className = `notification-item${item.readAt === null && !readIds.has(item.id) ? ' unread' : ''}`;
+      link.setAttribute('href', item.linkUrl);
+      link.setAttribute('role', 'listitem');
+      link.setAttribute('data-notification-id', item.id);
+      title.className = 'notification-item-title';
+      title.textContent = item.title;
+      body.className = 'notification-item-body';
+      body.textContent = item.body;
+      time.className = 'notification-item-time';
+      time.dateTime = item.createdAt;
+      time.textContent = relativeTime(item.createdAt);
+      link.append(title, body, time);
+      const listener = () => {
+        if (item.readAt !== null || readIds.has(item.id)) return;
+        readIds.add(item.id);
+        link.classList.toggle('unread', false);
+        adjustUnread(-1);
+        read(item.id);
+      };
+      link.addEventListener('click', listener);
+      renderedListeners.push([link, listener]);
+      return link;
+    });
+    itemsRoot.replaceChildren(...elements);
+    if (emptyState) emptyState.hidden = elements.length !== 0;
+  }
+
+  async function loadRecent() {
+    if (recentLoaded) return;
+    recentLoaded = true;
+    const result = await list({ limit: 5 });
+    if (result.kind === 'unavailable') {
+      if (emptyState) {
+        emptyState.textContent = '알림을 불러오지 못했습니다.';
+        emptyState.hidden = false;
+      }
+      return;
+    }
+    for (const item of result.items) {
+      if (seenIds.has(item.id)) continue;
+      seenIds.add(item.id);
+      recent.push(item);
+    }
+    recent = recent.slice(0, 5);
+    renderRecent();
+  }
+
+  function acceptNotification(value) {
+    let item;
+    try {
+      item = parseNotification(value);
+    } catch {
+      return;
+    }
+    if (seenIds.has(item.id)) return;
+    seenIds.add(item.id);
+    recent = [item, ...recent].slice(0, 5);
+    if (item.readAt === null) adjustUnread(1);
+    renderRecent();
+  }
+
+  function detachSocket(disconnect) {
+    const current = socket;
+    if (!current) return;
+    if (socketListeners && typeof current.off === 'function') {
+      for (const [event, listener] of Object.entries(socketListeners)) current.off(event, listener);
+    }
+    socket = null;
+    socketListeners = null;
+    if (disconnect && typeof current.disconnect === 'function') current.disconnect();
+  }
+
+  function scheduleReconnect() {
+    if (!root || typeof host.io !== 'function' || retryTimer !== null) return;
+    if (host.document && host.document.hidden) {
+      retryPending = true;
+      return;
+    }
+    retryPending = false;
+    const delay = retryDelays[Math.min(retryIndex, retryDelays.length - 1)];
+    retryIndex = Math.min(retryIndex + 1, retryDelays.length - 1);
+    retryTimer = host.setTimeout(() => {
+      retryTimer = null;
+      if (host.document && host.document.hidden) retryPending = true;
+      else connectSocket();
+    }, delay);
+  }
+
+  async function connectSocket() {
+    if (!root || typeof host.io !== 'function') return;
+    const currentGeneration = generation;
+    try {
+      const bearer = await getToken();
+      if (!root || generation !== currentGeneration) return;
+      const config = configuration();
+      const current = host.io(config.realtimeUrl, {
+        auth: { token: bearer },
+        transports: ['websocket', 'polling'],
+        reconnection: false,
+      });
+      socket = current;
+      if (typeof current.on !== 'function') return;
+      const failed = () => {
+        if (socket !== current) return;
+        detachSocket(true);
+        clearToken();
+        scheduleReconnect();
+      };
+      socketListeners = {
+        connect: () => {
+          retryIndex = 0;
+          retryPending = false;
+          if (retryTimer !== null) host.clearTimeout(retryTimer);
+          retryTimer = null;
+        },
+        connect_error: failed,
+        disconnect: failed,
+        'notification:new': acceptNotification,
+      };
+      for (const [event, listener] of Object.entries(socketListeners)) current.on(event, listener);
+    } catch {
+      if (root && generation === currentGeneration) scheduleReconnect();
+    }
+  }
+
+  function setupUi(element) {
+    if (typeof element.querySelector !== 'function') return false;
+    trigger = element.querySelector('[data-notification-trigger]');
+    panel = element.querySelector('[data-notification-panel]');
+    badge = element.querySelector('[data-notification-badge]');
+    itemsRoot = element.querySelector('[data-notification-items]');
+    emptyState = element.querySelector('[data-notification-empty]');
+    if (!trigger || !panel || !badge || !itemsRoot) return false;
+    triggerListener = () => {
+      const open = panel.hidden;
+      panel.hidden = !open;
+      trigger.setAttribute('aria-expanded', String(open));
+      if (open) loadRecent();
+    };
+    trigger.addEventListener('click', triggerListener);
+    logoutForm = element.closest('.site-nav')?.querySelector('[data-logout-form]') || null;
+    if (logoutForm) {
+      logoutListener = () => stop();
+      logoutForm.addEventListener('submit', logoutListener);
+    }
+    return true;
+  }
+
   function stop() {
     generation += 1;
-    root = null;
+    if (trigger && triggerListener) trigger.removeEventListener('click', triggerListener);
+    if (logoutForm && logoutListener) logoutForm.removeEventListener('submit', logoutListener);
+    if (host.document && visibilityListener) {
+      host.document.removeEventListener('visibilitychange', visibilityListener);
+    }
+    clearRenderedListeners();
+    detachSocket(true);
+    if (retryTimer !== null) host.clearTimeout(retryTimer);
+    retryTimer = null;
     clearToken();
     tokenPromise = null;
-    if (socket) socket.disconnect();
-    socket = null;
+    root = null;
+    trigger = null;
+    panel = null;
+    badge = null;
+    itemsRoot = null;
+    emptyState = null;
+    logoutForm = null;
+    triggerListener = null;
+    logoutListener = null;
+    visibilityListener = null;
+    retryIndex = 0;
+    retryPending = false;
+    recentLoaded = false;
+    recent = [];
+    unread = 0;
+    unreadDelta = 0;
+    countLoaded = false;
+    seenIds = new Set();
+    readIds = new Set();
   }
 
   function start(element) {
     stop();
     root = element;
-    if (typeof host.io === 'function') {
-      getToken().then(value => {
-        if (root !== element) return;
-        const config = configuration();
-        socket = host.io(config.realtimeUrl, {
-          auth: { token: value },
-          transports: ['websocket', 'polling'],
-          reconnection: false,
-        });
-      }).catch(() => {});
+    const hasUi = setupUi(element);
+    if (host.document) {
+      visibilityListener = () => {
+        if (!host.document.hidden && retryPending) scheduleReconnect();
+      };
+      host.document.addEventListener('visibilitychange', visibilityListener);
     }
+    if (hasUi) unreadCount().then(result => {
+      if (root !== element || result.kind === 'unavailable') return;
+      countLoaded = true;
+      showUnread(result.count + unreadDelta);
+      unreadDelta = 0;
+    });
+    connectSocket();
     return client;
   }
 
