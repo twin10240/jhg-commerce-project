@@ -121,6 +121,14 @@ public class NotificationOutbox {
         status = NotificationOutboxStatus.FAILED;
     }
 
+    public void requeue(Instant now) {
+        requireStatus(NotificationOutboxStatus.FAILED);
+        nextAttemptAt = Objects.requireNonNull(now);
+        attemptCount = 0;
+        lastErrorCode = null;
+        status = NotificationOutboxStatus.PENDING;
+    }
+
     private void requireStatus(NotificationOutboxStatus expected) {
         if (status != expected) {
             throw new IllegalStateException("Invalid notification outbox transition from " + status);

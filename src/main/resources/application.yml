@@ -75,6 +75,12 @@ cancellations:
   processing-timeout: ${CANCELLATION_PROCESSING_TIMEOUT:5m}
 
 realtime:
+  base-url: ${REALTIME_BASE_URL:http://localhost:3000}
+  event-hmac-secret: ${REALTIME_EVENT_HMAC_SECRET:}
+  outbox:
+    enabled: ${REALTIME_OUTBOX_ENABLED:false}
+    sweep-delay: ${REALTIME_OUTBOX_SWEEP_DELAY:1s}
+    processing-timeout: ${REALTIME_OUTBOX_PROCESSING_TIMEOUT:1m}
   jwt:
     issuer: ${REALTIME_JWT_ISSUER:oms}
     audience: ${REALTIME_JWT_AUDIENCE:realtime-service}
