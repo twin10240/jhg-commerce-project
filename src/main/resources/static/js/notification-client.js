@@ -70,7 +70,9 @@
   }
 
   function safeLink(linkUrl) {
-    return isString(linkUrl) && /^\/(?!\/)[^\u0000-\u001f\u007f\\]*$/.test(linkUrl)
+    const encodedUnsafe = /%(?:2f|5c|0[0-9a-f]|1[0-9a-f]|7f)/i;
+    return isString(linkUrl) && /^\/(?!\/)[^\u0000-\u001f\u007f\\]*$/.test(linkUrl) &&
+        !encodedUnsafe.test(linkUrl)
       ? linkUrl
       : '/notifications';
   }
@@ -108,7 +110,7 @@
     return { [field]: value[field] };
   };
 
-  async function request(path, options, parse, canRetry = true) {
+  async function request(path, options, parse, expectedStatus = 200, canRetry = true) {
     try {
       const config = configuration();
       const bearer = await getToken();
@@ -118,11 +120,13 @@
       });
       if (response.status === 401) {
         if (token === bearer) clearToken();
-        if (canRetry) return request(path, options, parse, false);
+        if (canRetry) return request(path, options, parse, expectedStatus, false);
         throw new Error('Authorization failed');
       }
-      if (!response.ok) throw new Error('Realtime request failed');
-      return response.status === 204 ? {} : parse(await response.json());
+      if (!response.ok || response.status !== expectedStatus) {
+        throw new Error('Realtime request failed');
+      }
+      return expectedStatus === 204 ? {} : parse(await response.json());
     } catch {
       return unavailable();
     }
@@ -139,7 +143,7 @@
   const unreadCount = () => request(
     '/api/v1/notifications/unread-count', {}, value => parseCount(value, 'count'));
   const read = id => request(
-    `/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }, () => ({}));
+    `/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }, () => ({}), 204);
   const readAll = () => request(
     '/api/v1/notifications/read-all', { method: 'POST' }, value => parseCount(value, 'changedCount'));
 

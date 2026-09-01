@@ -187,6 +187,12 @@ test('list validates required fields and normalizes unsafe links', async () => {
     notification({ id: 'not-relative', linkUrl: 'orders/12' }),
     notification({ id: 'backslash', linkUrl: '/\\evil.example/path' }),
     notification({ id: 'control-character', linkUrl: '/\n/evil.example/path' }),
+    notification({ id: 'encoded-slash', linkUrl: '/safe%2f%2fevil.example/path' }),
+    notification({ id: 'encoded-backslash', linkUrl: '/%5C%5cevil.example/path' }),
+    notification({ id: 'encoded-null', linkUrl: '/safe%00/path' }),
+    notification({ id: 'encoded-control', linkUrl: '/safe%1F/path' }),
+    notification({ id: 'encoded-delete', linkUrl: '/safe%7f/path' }),
+    notification({ id: 'normal-encoding', linkUrl: '/orders/12?label=%ED%95%9C%EA%B8%80' }),
   ];
   globalThis.fetch = async url => url === '/api/realtime/token'
     ? response(200, token('list-token'))
@@ -202,6 +208,12 @@ test('list validates required fields and normalizes unsafe links', async () => {
     '/notifications',
     '/notifications',
     '/notifications',
+    '/notifications',
+    '/notifications',
+    '/notifications',
+    '/notifications',
+    '/notifications',
+    '/orders/12?label=%ED%95%9C%EA%B8%80',
   ]);
   assert.equal(result.nextCursor, 'next-page');
   assert.ok(result.items.every(item => Object.getPrototypeOf(item) === Object.prototype));
@@ -238,4 +250,24 @@ test('read methods use the authenticated Node REST endpoints', async () => {
     ['https://realtime.example.test/api/v1/notifications/notification-id/read', 'PATCH'],
     ['https://realtime.example.test/api/v1/notifications/read-all', 'POST'],
   ]);
+});
+
+test('JSON endpoints reject a 204 response with no required body', async () => {
+  globalThis.fetch = async url => url === '/api/realtime/token'
+    ? response(200, token('status-token'))
+    : response(204);
+  NotificationClient.start(root());
+
+  assert.deepEqual(await NotificationClient.list(), { kind: 'unavailable' });
+  assert.deepEqual(await NotificationClient.unreadCount(), { kind: 'unavailable' });
+  assert.deepEqual(await NotificationClient.readAll(), { kind: 'unavailable' });
+});
+
+test('read accepts only the Node API 204 response contract', async () => {
+  globalThis.fetch = async url => url === '/api/realtime/token'
+    ? response(200, token('read-status-token'))
+    : response(200, {});
+  NotificationClient.start(root());
+
+  assert.deepEqual(await NotificationClient.read('notification-id'), { kind: 'unavailable' });
 });
