@@ -16,6 +16,15 @@
     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
     <button type="submit">로그아웃</button>
   </form>
+  <div sec:authorize="hasRole('USER')"
+       id="notification-root"
+       th:attr="data-realtime-url=${realtimePublicUrl},
+                data-csrf-header=${_csrf.headerName},
+                data-csrf-token=${_csrf.token}"></div>
+  <script sec:authorize="hasRole('USER')"
+          th:src="|${realtimePublicUrl}/socket.io/socket.io.js|" defer></script>
+  <script sec:authorize="hasRole('USER')"
+          th:src="@{/js/notification-client.js}" defer></script>
 </nav>
 </body>
 </html>
