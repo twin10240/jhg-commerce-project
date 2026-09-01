@@ -88,6 +88,27 @@ class NotificationOutboxServiceTest {
     }
 
     @Test
+    void 다섯번째_처리제한시간_만료는_최종실패가되어_여섯번째_선점을_막는다() {
+        NotificationOutbox outbox = pending();
+        UUID id = outbox.getId();
+        when(repository.findStaleIds(any(), any())).thenReturn(List.of(id));
+        when(repository.findByIdForUpdate(id)).thenReturn(Optional.of(outbox));
+        NotificationOutboxService service = service();
+
+        for (int attempt = 1; attempt <= 5; attempt++) {
+            outbox.claim(NOW.minusSeconds(61));
+            service.recoverStale(NOW.minusSeconds(60), NOW);
+            if (attempt < 5) {
+                assertThat(outbox.getStatus()).isEqualTo(NotificationOutboxStatus.PENDING);
+            }
+        }
+
+        assertThat(outbox.getStatus()).isEqualTo(NotificationOutboxStatus.FAILED);
+        assertThat(outbox.getLastErrorCode()).isEqualTo("PROCESSING_TIMEOUT");
+        assertThat(service.claim(id, NOW)).isEmpty();
+    }
+
+    @Test
     void 실패한_이벤트는_수동으로_새_대기시도로_되돌릴수있다() {
         NotificationOutbox outbox = pending();
         outbox.claim(NOW);

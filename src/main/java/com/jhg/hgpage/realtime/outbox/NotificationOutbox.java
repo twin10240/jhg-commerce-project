@@ -121,6 +121,12 @@ public class NotificationOutbox {
         status = NotificationOutboxStatus.FAILED;
     }
 
+    public void markExhausted(String errorCode) {
+        requireStatus(NotificationOutboxStatus.PENDING);
+        lastErrorCode = Objects.requireNonNull(errorCode);
+        status = NotificationOutboxStatus.FAILED;
+    }
+
     public void requeue(Instant now) {
         requireStatus(NotificationOutboxStatus.FAILED);
         nextAttemptAt = Objects.requireNonNull(now);

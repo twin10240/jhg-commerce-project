@@ -37,6 +37,10 @@ public class NotificationOutboxService {
                 || outbox.getNextAttemptAt().isAfter(now)) {
             return Optional.empty();
         }
+        if (retryExhausted(outbox, now)) {
+            outbox.markExhausted("PROCESSING_TIMEOUT");
+            return Optional.empty();
+        }
         outbox.claim(now);
         return Optional.of(new DeliveryCommand(outbox.getEventId(), outbox.getPayload(), outbox.getAttemptCount()));
     }
@@ -65,7 +69,11 @@ public class NotificationOutboxService {
             NotificationOutbox outbox = repository.findByIdForUpdate(id).orElse(null);
             if (outbox != null && outbox.getStatus() == NotificationOutboxStatus.PROCESSING
                     && !outbox.getProcessingAt().isAfter(staleBefore)) {
-                outbox.recoverStale(now);
+                if (retryExhausted(outbox, now)) {
+                    outbox.markFailed("PROCESSING_TIMEOUT");
+                } else {
+                    outbox.recoverStale(now);
+                }
             }
         }
     }
@@ -92,6 +100,12 @@ public class NotificationOutboxService {
         }
         outbox.requeue(now);
         return true;
+    }
+
+    private boolean retryExhausted(NotificationOutbox outbox, Instant now) {
+        return outbox.getAttemptCount() > 0
+                && retrySchedule.nextAttemptAt(outbox.getAttemptCount(), LocalDateTime.ofInstant(now, ZoneOffset.UTC))
+                .isEmpty();
     }
 
     public record DeliveryCommand(UUID eventId, String payload, int attempt) { }
