@@ -15,7 +15,7 @@
 | 주문 정책 | 모의 카드 승인 후 재고 확보 또는 `BACKORDERED`, 입고 시 FIFO 자동 할당 |
 | 시스템 경계 | OMS는 주문·고객 반품 요청, WMS는 재고 정본·RMA 처리를 소유하고 REST로 통신 |
 | 장애 복구 | 결제·할당·취소·환불의 타임아웃·멱등 작업과 백오더/RMA 보상 스윕 |
-| 테스트 | 512개 통과 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
+| 테스트 | 618개 통과 (도메인·서비스·MVC·HTTP 통합·반응형 계약) |
 
 ## 프로젝트 비전 — 미니 OMS + 별도 WMS
 
@@ -35,7 +35,7 @@
 
 ## OMS V2 — 배송 완료와 RMA (현재 상태)
 
-OMS 자동 테스트 512개가 통과했고, 정상 재입고·부분 승인·폐기·취소·장애 복구·보안 계약을 포함한
+OMS 자동 테스트 618개가 통과했고, 정상 재입고·부분 승인·폐기·취소·장애 복구·보안 계약을 포함한
 통합 수동 시나리오 9개도 모두 완료했습니다. 실행 절차와 증거는
 [수동 검증 시나리오](docs/manual-verification-scenarios.md#oms-v2-rma--현재-수동-검증-대상-2026-08-12)에 기록합니다.
 
@@ -163,6 +163,34 @@ Phase 3에서 WMS를 물리적으로 분리한 뒤, 재고의 정본(source of t
 `WMS_BASIC_PASSWORD=wms`, `OMS_CALLBACK_USER=wms`, `OMS_CALLBACK_PASSWORD=wms`입니다.
 OMS는 JDK 17 이상, WMS는 JDK 21이 필요합니다. 테스트는 임베디드 H2를 사용합니다.
 
+### 실시간 알림 연동
+
+OMS는 업무 상태 변경과 같은 트랜잭션에 알림 Outbox를 저장한다. 기본값에서는 전송기가 꺼져 있으므로
+로컬 또는 운영에서 별도 실시간 서비스를 기동한 뒤 다음 값을 주입해 전송을 켠다.
+
+```bash
+# 안전한 디렉터리에만 생성하고 저장소에 넣지 않는다.
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out realtime-jwt-private.pem
+openssl pkey -in realtime-jwt-private.pem -pubout -out realtime-jwt-public.pem
+
+# PEM은 줄바꿈을 보존한 환경변수로 주입한다. 리터럴 "\\n" 문자열로 바꾸지 않는다.
+export REALTIME_JWT_PRIVATE_KEY="$(cat /secure/path/realtime-jwt-private.pem)"
+export REALTIME_BASE_URL=http://localhost:3000
+export REALTIME_EVENT_HMAC_SECRET="$(openssl rand -hex 32)"
+export REALTIME_OUTBOX_ENABLED=true
+./gradlew bootRun
+```
+
+`REALTIME_JWT_PRIVATE_KEY`는 OMS의 RS256 개인키이며 실시간 서비스에는 위 명령으로 만든 공개키만 배포한다.
+배포 플랫폼의 secret 입력란에는 PEM 원문을 multiline 값으로 등록한다. shell, CI, `.env` 도구가 줄바꿈을
+지원하지 않으면 파일 내용을 환경변수로 읽어 주입하는 해당 플랫폼의 secret 기능을 사용한다. 개인키와
+`REALTIME_EVENT_HMAC_SECRET`은 로그, 예제 파일, Git에 남기지 않는다.
+
+`REALTIME_BASE_URL`은 실시간 서비스의 origin만 지정한다(OMS가 `/internal/v1/events`를 붙인다). 운영은
+HTTPS URL을 사용하고, HMAC secret은 OMS와 실시간 서비스에 같은 값으로 주입한다. `REALTIME_OUTBOX_ENABLED`
+를 켜고 secret이 비어 있으면 OMS는 기동하지 않는다. 전송기가 꺼져 있어도 Outbox 이벤트는 저장되며, 켠 뒤
+대기 이벤트를 발행한다.
+
 ### 초기 계정 (자동 시드)
 
 | 구분 | 이메일 | 비밀번호 |
@@ -190,6 +218,11 @@ Railway 배포 설정은 보존돼 있지만 **현재 서비스는 중단 상태
   ALLOCATION_SWEEP_DELAY / ALLOCATION_PROCESSING_TIMEOUT
   REFUND_SWEEP_DELAY / REFUND_PROCESSING_TIMEOUT
   CANCELLATION_SWEEP_DELAY / CANCELLATION_PROCESSING_TIMEOUT
+  REALTIME_JWT_PRIVATE_KEY                    # multiline PEM secret
+  REALTIME_BASE_URL=https://<realtime-service>
+  REALTIME_EVENT_HMAC_SECRET                  # OMS/실시간 서비스가 공유하는 secret
+  REALTIME_OUTBOX_ENABLED=true
+  REALTIME_OUTBOX_SWEEP_DELAY / REALTIME_OUTBOX_PROCESSING_TIMEOUT
   ```
 - **포트**: `server.port=${PORT:8080}` 로 Railway가 주입하는 포트에 바인딩.
 - **스키마**: Flyway로 버전 관리(`prod` 프로파일). 첫 기동 시 `V1__init_schema.sql`이 적용돼 스키마를 생성하고 `initDb`가 빈 DB를 시드. `ddl-auto: validate`로 엔티티-스키마 불일치를 기동 시 감지.

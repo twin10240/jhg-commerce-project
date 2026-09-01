@@ -641,3 +641,88 @@ OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립
 | 환불 일시 실패 자동 재시도 | 자동 검증 | `RefundServiceTest.성공은_pending을_refunded로_이동하고_일시실패는_같은키로_재시도한다`와 `RefundSweeperTest`로 확인 |
 
 강제 전체 재실행: `./gradlew test --rerun-tasks` → **512개, 실패 0, 오류 0, 제외 0**.
+
+## 실시간 알림 Outbox 수동 검증 (2026-08-30)
+
+공통 준비: OMS와 실시간 서비스를 기동하고 `REALTIME_OUTBOX_ENABLED=true` 및 같은
+`REALTIME_EVENT_HMAC_SECRET`을 양쪽에 주입한다. OMS의 `REALTIME_BASE_URL`은 실시간 서비스 origin으로
+설정한다. 각 시나리오에서 Outbox의 `eventId`, 상태, 시도 횟수와 수신 서비스의 알림 행을 기록한다.
+
+### R1. 실시간 서비스 중단 후 복구
+
+#### 절차
+
+1. 실시간 서비스를 중단한 뒤 고객에게 `DELIVERY_COMPLETED` 이벤트를 만드는 배송 완료를 처리한다.
+2. OMS Outbox가 `PENDING` 또는 재시도 대기 상태이며 주문 업무 트랜잭션은 성공했는지 확인한다.
+3. 실시간 서비스를 다시 기동하고 Outbox sweep 한 주기 이상 기다린다.
+
+#### 기대 결과
+
+- OMS 주문 상태는 서비스 중단 때문에 되돌아가지 않는다.
+- 같은 `eventId`가 실시간 서비스에 한 번 저장되고 Outbox는 `PUBLISHED`가 된다.
+- `PUBLISHED` 시각과 시도 횟수를 기록할 수 있으며 payload나 HMAC secret은 화면과 로그에 표시되지 않는다.
+
+### R2. 중복 전달 멱등성
+
+#### 절차
+
+1. `PUBLISHED`된 Outbox payload와 동일한 `eventId`를 같은 HMAC headers로 실시간 서비스에 한 번 더 전송한다.
+2. 알림 이력과 사용자 실시간 전달을 확인한다.
+
+#### 기대 결과
+
+- 수신 서비스는 기존 성공 결과를 반환하고 알림 행은 한 건만 유지한다.
+- 같은 이벤트의 실시간 전달이 반복되어도 알림 이력이 중복 생성되지 않는다.
+
+### R3. 잘못된 HMAC 거부
+
+#### 절차
+
+1. 유효한 이벤트 본문과 event ID를 준비한다.
+2. timestamp 또는 `X-OMS-Signature`를 변경해 실시간 서비스 `/internal/v1/events`로 전송한다.
+3. 수신 서비스의 응답과 알림 이력을 확인한다.
+
+#### 기대 결과
+
+- 요청은 인증 오류로 거부되고 알림 행이 생성되지 않는다.
+- OMS 발행기에서 같은 영구 `4xx` 응답이 발생하면 해당 Outbox는 `FAILED`가 되어 재시도가 멈춘다.
+
+### R4. JWT 만료와 재연결
+
+#### 절차
+
+1. 로그인한 고객이 `POST /api/realtime/token`으로 받은 JWT로 실시간 서비스에 연결한다.
+2. 5분 만료 시각까지 기다리거나 만료된 JWT를 사용해 다시 연결한다.
+3. OMS 세션으로 새 토큰을 발급받아 다시 연결한다.
+
+#### 기대 결과
+
+- 만료된 JWT 연결은 거부되거나 기존 소켓이 종료되며 다른 회원 채널에 연결되지 않는다.
+- 새 JWT는 같은 회원의 `member:{sub}` 채널에만 연결된다.
+
+### R5. `FAILED` Outbox 관리자 재전송
+
+#### 절차
+
+1. 잘못된 HMAC secret 또는 지원하지 않는 계약으로 Outbox 하나를 `FAILED`로 만든다.
+2. 원인을 수정하고 관리자 계정으로 `/admin/notification-events`를 연다.
+3. 해당 행의 재전송을 CSRF 토큰과 함께 요청한 뒤 Outbox sweep 한 주기 이상 기다린다.
+
+#### 기대 결과
+
+- 관리자만 실패 행을 보고 재전송할 수 있으며 payload와 HMAC 정보는 노출되지 않는다.
+- 대상 행은 `PENDING`으로 재등록되고, 수신 성공 뒤 `PUBLISHED`가 된다.
+- `FAILED`가 아닌 행 또는 없는 ID의 재전송은 상태를 바꾸지 않는다.
+
+### R6. `PUBLISHED` 7일 cleanup 경계
+
+#### 절차
+
+1. `publishedAt`이 현재 시각보다 정확히 7일 전인 `PUBLISHED` 행과, 그보다 1초 오래된 `PUBLISHED` 행을 준비한다.
+2. `PENDING` 또는 `FAILED` 행도 같은 생성 시각으로 준비한다.
+3. Outbox sweep을 한 번 실행하고 남은 행을 조회한다.
+
+#### 기대 결과
+
+- 7일보다 오래된 `PUBLISHED` 행만 삭제된다.
+- 정확히 7일 전인 `PUBLISHED` 행과 미발행 행은 삭제되지 않는다.

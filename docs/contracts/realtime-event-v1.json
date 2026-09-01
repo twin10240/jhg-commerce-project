@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "eventId": "e133d8bf-9993-4d59-8b7a-c80fd2d2d37b",
+  "type": "DELIVERY_COMPLETED",
+  "occurredAt": "2026-08-30T06:30:00Z",
+  "recipientId": 7,
+  "aggregate": {
+    "type": "ORDER",
+    "id": "12"
+  },
+  "data": {
+    "orderId": 12
+  }
+}
