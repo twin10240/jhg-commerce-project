@@ -72,7 +72,7 @@ public class OrderService {
 
     @Transactional
     public void shipOrder(Long orderId) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.ship();
         InventoryPort.ShipmentResult shipment = inventoryPort.shipAll(
@@ -84,7 +84,7 @@ public class OrderService {
 
     @Transactional
     public void deliverOrder(Long orderId) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         order.deliver();
         order.getDelivery().recordDeliveredAt(Instant.now());
         appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);

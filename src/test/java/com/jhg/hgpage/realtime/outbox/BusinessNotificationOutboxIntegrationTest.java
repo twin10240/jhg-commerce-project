@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jhg.hgpage.catalog.Product;
+import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.contract.PaymentGateway;
 import com.jhg.hgpage.contract.ReturnPort.ResultItem;
@@ -44,6 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -58,8 +60,12 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = {
@@ -79,16 +85,17 @@ class BusinessNotificationOutboxIntegrationTest {
     @Autowired RefundService refundService;
     @Autowired NotificationEventWriter eventWriter;
     @Autowired NotificationOutboxRepository outboxRepository;
-    @Autowired OrderRepository orderRepository;
+    @MockitoSpyBean OrderRepository orderRepository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
 
     @MockitoBean WmsInventoryQueryAdapter inventoryQueryPort;
+    @MockitoBean InventoryPort inventoryPort;
     @MockitoSpyBean ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-        reset(objectMapper, inventoryQueryPort);
+        reset(objectMapper, inventoryQueryPort, inventoryPort);
         outboxRepository.deleteAll();
     }
 
@@ -201,6 +208,38 @@ class BusinessNotificationOutboxIntegrationTest {
             executor.shutdownNow();
         }
 
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(events(NotificationEventType.DELIVERY_COMPLETED)).hasSize(1);
+    }
+
+    @Test
+    void concurrent_ship_commands_append_one_event() throws Exception {
+        OrderFixture fixture = orderFixture();
+        holdConcurrentUnlockedReads(fixture.orderId());
+        when(inventoryPort.shipAll(eq(fixture.orderId()), any())).thenReturn(
+                new InventoryPort.ShipmentResult(fixture.orderId(), "CJ", "CJ",
+                        "TRACK", Instant.parse("2026-08-30T01:00:00Z")));
+
+        List<Throwable> results = runConcurrently(() -> orderService.shipOrder(fixture.orderId()));
+        reset(orderRepository);
+
+        assertSingleSuccessfulTransition(results);
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.SHIPPED);
+        assertThat(events(NotificationEventType.SHIPMENT_STARTED)).hasSize(1);
+        verify(inventoryPort, times(1)).shipAll(eq(fixture.orderId()), any());
+    }
+
+    @Test
+    void concurrent_deliver_commands_append_one_event() throws Exception {
+        OrderFixture fixture = orderFixture();
+        transactionTemplate.executeWithoutResult(status ->
+                orderRepository.findById(fixture.orderId()).orElseThrow().ship());
+        holdConcurrentUnlockedReads(fixture.orderId());
+
+        List<Throwable> results = runConcurrently(() -> orderService.deliverOrder(fixture.orderId()));
+        reset(orderRepository);
+
+        assertSingleSuccessfulTransition(results);
         assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(events(NotificationEventType.DELIVERY_COMPLETED)).hasSize(1);
     }
@@ -431,6 +470,52 @@ class BusinessNotificationOutboxIntegrationTest {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
         }
+    }
+
+    private void holdConcurrentUnlockedReads(Long orderId) {
+        CountDownLatch loaded = new CountDownLatch(2);
+        doAnswer(invocation -> {
+            Optional<Order> result = Optional.ofNullable(em.find(Order.class, orderId));
+            loaded.countDown();
+            assertThat(loaded.await(5, TimeUnit.SECONDS)).isTrue();
+            return result;
+        }).when(orderRepository).findById(orderId);
+    }
+
+    private List<Throwable> runConcurrently(Runnable command) throws Exception {
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Throwable> first = executor.submit(() -> runAfterStart(command, ready, start));
+            Future<Throwable> second = executor.submit(() -> runAfterStart(command, ready, start));
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            return Arrays.asList(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS));
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Order command workers did not terminate");
+            }
+        }
+    }
+
+    private Throwable runAfterStart(Runnable command, CountDownLatch ready, CountDownLatch start) {
+        try {
+            ready.countDown();
+            assertThat(start.await(5, TimeUnit.SECONDS)).isTrue();
+            command.run();
+            return null;
+        } catch (Throwable failure) {
+            return failure;
+        }
+    }
+
+    private void assertSingleSuccessfulTransition(List<Throwable> results) {
+        assertThat(results).filteredOn(result -> result == null).hasSize(1);
+        assertThat(results).filteredOn(result -> result != null).singleElement()
+                .isInstanceOf(IllegalStateException.class);
     }
 
     private record OrderFixture(Long memberId, Long orderId) { }

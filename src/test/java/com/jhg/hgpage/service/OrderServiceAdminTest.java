@@ -143,7 +143,7 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A"); // 상품1, 수량 2
         ReflectionTestUtils.setField(order, "id", 10L);
 
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
         when(inventoryPort.shipAll(10L, Map.of(1L, 2))).thenReturn(
                 new InventoryPort.ShipmentResult(10L, "MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z")));
 
@@ -161,7 +161,7 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         order.ship();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
 
         orderService.deliverOrder(10L);
 
@@ -241,7 +241,7 @@ class OrderServiceAdminTest {
 
     @Test
     void 없는_주문의_출고처리는_EntityNotFoundException을_던진다() {
-        when(orderRepository.findById(99L)).thenReturn(Optional.empty());
+        when(orderRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.shipOrder(99L))
                 .isInstanceOf(EntityNotFoundException.class);
