@@ -190,6 +190,7 @@
         const epoch = current.notificationEpoch;
         const result = await unreadCount();
         if (!isActive(current) || result.kind === 'unavailable') return;
+        if (current.pendingReads !== 0) return;
         if (epoch !== current.notificationEpoch) continue;
         showUnread(result.count);
         return;
@@ -217,8 +218,8 @@
     renderedListeners = [];
   }
 
-  function renderRecent() {
-    if (!itemsRoot || !host.document) return;
+  function renderRecent(current) {
+    if (!isActive(current) || !itemsRoot || !host.document) return;
     clearRenderedListeners();
     const elements = recent.map(item => {
       const link = host.document.createElement('a');
@@ -238,11 +239,18 @@
       time.textContent = relativeTime(item.createdAt);
       link.append(title, body, time);
       const listener = () => {
-        if (item.readAt !== null || readIds.has(item.id)) return;
+        if (!isActive(current) || item.readAt !== null || readIds.has(item.id)) return;
         readIds.add(item.id);
+        current.notificationEpoch += 1;
+        current.pendingReads += 1;
         link.classList.toggle('unread', false);
         showUnread(unread - 1);
-        read(item.id);
+        read(item.id).then(() => {
+          if (!isActive(current)) return;
+          current.notificationEpoch += 1;
+          current.pendingReads -= 1;
+          if (current.pendingReads === 0) syncUnread(current);
+        });
       };
       link.addEventListener('click', listener);
       renderedListeners.push([link, listener]);
@@ -277,7 +285,7 @@
         }).slice(0, 5);
         recentLoaded = true;
         if (emptyState) emptyState.textContent = '새 알림이 없습니다.';
-        renderRecent();
+        renderRecent(current);
         return;
       }
     })().finally(() => {
@@ -301,7 +309,7 @@
     current.recentEpoch += 1;
     recent = [item, ...recent.filter(existing => existing.id !== item.id)].slice(0, 5);
     if (item.readAt === null) showUnread(unread + 1);
-    renderRecent();
+    renderRecent(current);
     syncUnread(current);
   }
 
@@ -354,12 +362,14 @@
       socketListeners = {
         connect: () => {
           if (!isActive(currentSession)) return;
+          currentSession.notificationEpoch += 1;
+          currentSession.recentEpoch += 1;
           retryIndex = 0;
           retryPending = false;
           if (retryTimer !== null) host.clearTimeout(retryTimer);
           retryTimer = null;
           syncUnread(currentSession);
-          if (recentLoaded) syncRecent(currentSession);
+          if (currentSession.recentSync || recentLoaded) syncRecent(currentSession);
         },
         connect_error: failed,
         disconnect: failed,
@@ -435,6 +445,7 @@
       element,
       notificationEpoch: 0,
       recentEpoch: 0,
+      pendingReads: 0,
       countSync: null,
       recentSync: null,
     };

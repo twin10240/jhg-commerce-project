@@ -497,7 +497,7 @@ test('the recent panel fetches five items only on first open and renders text sa
   let readRequests = 0;
   globalThis.fetch = async (url, options = {}) => {
     if (url === '/api/realtime/token') return response(200, token('panel-token'));
-    if (url.endsWith('/unread-count')) return response(200, { count: 1 });
+    if (url.endsWith('/unread-count')) return response(200, { count: readRequests === 0 ? 1 : 0 });
     if (url.includes('/api/v1/notifications?')) {
       listRequests += 1;
       assert.match(url, /[?&]limit=5(?:&|$)/);
@@ -924,4 +924,97 @@ test('a loaded panel keeps resyncing after one reconnect list failure', async ()
     fixture.items.children.map(item => item.children[0].textContent),
     ['Offline', 'Old'],
   );
+});
+
+test('connect invalidates count and recent snapshots started before the socket joined', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  const oldItem = notification({ id: 'pre-connect-old', title: 'Old' });
+  const missedItem = notification({ id: 'pre-connect-missed', title: 'Missed' });
+  let countRequests = 0;
+  let listRequests = 0;
+  let releaseFirstCount;
+  let releaseFirstList;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('connect-snapshot-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      if (countRequests === 1) {
+        return new Promise(resolve => {
+          releaseFirstCount = () => resolve(response(200, { count: 1 }));
+        });
+      }
+      return response(200, { count: 2 });
+    }
+    listRequests += 1;
+    if (listRequests === 1) {
+      return new Promise(resolve => {
+        releaseFirstList = () => resolve(response(200, { items: [oldItem], nextCursor: null }));
+      });
+    }
+    return response(200, { items: [missedItem, oldItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('connect');
+  releaseFirstCount();
+  releaseFirstList();
+  await settle();
+
+  assert.equal(countRequests, 2);
+  assert.equal(listRequests, 2);
+  assert.equal(fixture.badge.textContent, '2');
+  assert.deepEqual(
+    fixture.items.children.map(item => item.children[0].textContent),
+    ['Missed', 'Old'],
+  );
+});
+
+test('a read click keeps its local decrement until the post-204 count sync completes', async () => {
+  const fixture = uiRoot();
+  const socket = new FakeSocket();
+  const unreadItem = notification({ id: 'read-race', title: 'Read race' });
+  let countRequests = 0;
+  let releaseStaleCount;
+  let releaseRead;
+  globalThis.io = () => socket;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('read-race-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      if (countRequests === 2) {
+        return new Promise(resolve => {
+          releaseStaleCount = () => resolve(response(200, { count: 2 }));
+        });
+      }
+      return response(200, { count: countRequests === 1 ? 2 : 1 });
+    }
+    if (options.method === 'PATCH') {
+      return new Promise(resolve => {
+        releaseRead = () => resolve(response(204));
+      });
+    }
+    return response(200, { items: [unreadItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+  fixture.items.children[0].dispatch('click');
+  assert.equal(fixture.badge.textContent, '1');
+  releaseStaleCount();
+  await settle();
+  assert.equal(fixture.badge.textContent, '1');
+  releaseRead();
+  await settle();
+
+  assert.equal(countRequests, 3);
+  assert.equal(fixture.badge.textContent, '1');
 });
