@@ -55,6 +55,9 @@ class NotificationOutboxServiceIntegrationTest {
             assertThat(results.stream().filter(Optional::isPresent)).hasSize(1);
         } finally {
             executor.shutdownNow();
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                throw new AssertionError("Outbox claim workers did not terminate");
+            }
         }
 
         NotificationOutbox firstClaim = repository.findById(id).orElseThrow();
