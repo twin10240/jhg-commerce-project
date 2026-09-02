@@ -165,8 +165,10 @@ OMS는 JDK 17 이상, WMS는 JDK 21이 필요합니다. 테스트는 임베디�
 
 ### 실시간 알림 연동
 
-OMS는 업무 상태 변경과 같은 트랜잭션에 알림 Outbox를 저장한다. 기본값에서는 전송기가 꺼져 있으므로
-로컬 또는 운영에서 별도 실시간 서비스를 기동한 뒤 다음 값을 주입해 전송을 켠다.
+OMS는 업무 상태 변경과 같은 트랜잭션에 알림 Outbox를 저장하고, 별도 Node.js 실시간 서비스가 알림
+이력과 Socket.IO 전달을 소유한다. 로컬 기동 순서는 **PostgreSQL -> Node(:3000) -> WMS(:8081) ->
+OMS(:8080)** 이다. Node가 내려가도 주문·결제·배송·반품의 핵심 트랜잭션은 막지 않는다. OMS는 Outbox를
+저장하고 Node 복구 뒤 재전송해 회복한다.
 
 ```bash
 # 안전한 디렉터리에만 생성하고 저장소에 넣지 않는다.
@@ -176,15 +178,38 @@ mkdir -p "$KEY_DIR"
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$KEY_DIR/realtime-jwt-private.pem"
 openssl pkey -in "$KEY_DIR/realtime-jwt-private.pem" -pubout -out "$KEY_DIR/realtime-jwt-public.pem"
 
+# 1. PostgreSQL을 기동한다.
+brew services start postgresql@17
+
+# 2. jhg-realtime-service에서 Node(:3000)를 실행한다.
+cd ../jhg-realtime-service
+export DATABASE_URL='postgresql://notification:password@localhost:5432/notification'
+export OMS_ALLOWED_ORIGIN=http://localhost:8080
+export OMS_JWT_PUBLIC_KEY="$(cat "$KEY_DIR/realtime-jwt-public.pem")"
+export OMS_JWT_ISSUER=oms
+export OMS_JWT_AUDIENCE=realtime-service
+export OMS_EVENT_HMAC_SECRET='<OMS와 같은 공유 secret>'
+export NOTIFICATION_RETENTION_DAYS=90
+npm run start:dev
+
+# 3. 별도 터미널에서 jhg-wms-project의 WMS(:8081)를 기동한다.
+cd ../jhg-wms-project && ./gradlew bootRun
+
+# 4. 별도 터미널에서 이 저장소의 OMS(:8080)를 기동한다.
+# (시작 전 공유 secret을 안전한 secret 저장소에서 한 번 생성해 두 터미널에 같은 값으로 주입한다.)
 # PEM은 줄바꿈을 보존한 환경변수로 주입한다. 리터럴 "\\n" 문자열로 바꾸지 않는다.
 export REALTIME_JWT_PRIVATE_KEY="$(cat "$KEY_DIR/realtime-jwt-private.pem")"
 export REALTIME_BASE_URL=http://localhost:3000
-export REALTIME_EVENT_HMAC_SECRET="$(openssl rand -hex 32)"
+export REALTIME_PUBLIC_URL=http://localhost:3000
+export REALTIME_EVENT_HMAC_SECRET='<Node OMS_EVENT_HMAC_SECRET과 같은 값>'
 export REALTIME_OUTBOX_ENABLED=true
 ./gradlew bootRun
 ```
 
-`REALTIME_JWT_PRIVATE_KEY`는 OMS의 RS256 개인키이며 실시간 서비스에는 위 명령으로 만든 공개키만 배포한다.
+Node에는 `DATABASE_URL`, 정확한 브라우저 origin인 `OMS_ALLOWED_ORIGIN`, OMS 공개키, `OMS_JWT_ISSUER=oms`,
+`OMS_JWT_AUDIENCE=realtime-service`, 공유 `OMS_EVENT_HMAC_SECRET`, 보존 기간 `NOTIFICATION_RETENTION_DAYS=90`이
+필요하다. OMS에는 개인키와 `REALTIME_BASE_URL`, 브라우저용 `REALTIME_PUBLIC_URL`, 공유 HMAC secret,
+`REALTIME_OUTBOX_ENABLED=true`가 필요하다. `REALTIME_JWT_PRIVATE_KEY`는 OMS의 RS256 개인키이며 실시간 서비스에는 위 명령으로 만든 공개키만 배포한다.
 배포 플랫폼의 secret 입력란에는 PEM 원문을 multiline 값으로 등록한다. shell, CI, `.env` 도구가 줄바꿈을
 지원하지 않으면 파일 내용을 환경변수로 읽어 주입하는 해당 플랫폼의 secret 기능을 사용한다. 개인키와
 `REALTIME_EVENT_HMAC_SECRET`은 로그, 예제 파일, Git에 남기지 않는다.
