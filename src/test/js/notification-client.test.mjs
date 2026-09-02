@@ -492,6 +492,24 @@ test('list validates required fields and normalizes unsafe links', async () => {
   assert.ok(result.items.every(item => Object.getPrototypeOf(item) === Object.prototype));
 });
 
+test('getNotification reads one authoritative notification from the authenticated Node endpoint', async () => {
+  const item = notification({ id: 'authoritative-id', readAt: '2026-08-30T07:00:00.000Z' });
+  const calls = [];
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('notification-token'));
+    calls.push({ url, options });
+    return response(200, item);
+  };
+  NotificationClient.start(root());
+
+  assert.equal(typeof NotificationClient.getNotification, 'function');
+  assert.deepEqual(await NotificationClient.getNotification(item.id), item);
+  assert.deepEqual(calls, [{
+    url: 'https://realtime.example.test/api/v1/notifications/authoritative-id',
+    options: { headers: { Authorization: 'Bearer notification-token' } },
+  }]);
+});
+
 test('malformed REST responses return unavailable', async () => {
   let apiResponse = { items: [notification({ title: undefined })], nextCursor: null };
   globalThis.fetch = async url => url === '/api/realtime/token'
@@ -618,6 +636,7 @@ test('the recent panel fetches five items only on first open and renders text sa
 test('notification:new prepends once per ID and increments the unread badge once', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
+  const incoming = notification({ title: 'New delivery' });
   let ioCall;
   let countRequests = 0;
   globalThis.io = (url, options) => {
@@ -630,6 +649,7 @@ test('notification:new prepends once per ID and increments the unread badge once
       countRequests += 1;
       return response(200, { count: countRequests === 1 ? 2 : 3 });
     }
+    if (url.endsWith(`/${incoming.id}`)) return response(200, incoming);
     return response(200, { items: [], nextCursor: null });
   };
 
@@ -637,7 +657,6 @@ test('notification:new prepends once per ID and increments the unread badge once
   await settle();
   fixture.trigger.dispatch('click');
   await settle();
-  const incoming = notification({ title: 'New delivery' });
   socket.serverEmit('notification:new', incoming);
   socket.serverEmit('notification:new', incoming);
   await settle();
@@ -810,6 +829,7 @@ test('connect resyncs authoritative unread count and an already loaded recent pa
 test('an event racing a count response that already includes it is not double counted', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
+  const incoming = notification({ id: 'racing-event' });
   let releaseFirstCount;
   let countRequests = 0;
   globalThis.io = () => socket;
@@ -824,12 +844,14 @@ test('an event racing a count response that already includes it is not double co
       }
       return response(200, { count: 3 });
     }
+    if (url.endsWith(`/${incoming.id}`)) return response(200, incoming);
     return response(200, { items: [], nextCursor: null });
   };
 
   NotificationClient.start(fixture.element);
   await settle();
-  socket.serverEmit('notification:new', notification({ id: 'racing-event' }));
+  socket.serverEmit('notification:new', incoming);
+  await settle();
   assert.equal(fixture.badge.textContent, '1');
   releaseFirstCount();
   await settle();
@@ -923,6 +945,7 @@ test('recent resync re-reads when a socket event races its response', async () =
   globalThis.fetch = async url => {
     if (url === '/api/realtime/token') return response(200, token('recent-race-token'));
     if (url.endsWith('/unread-count')) return response(200, { count: 2 });
+    if (url.endsWith(`/${incoming.id}`)) return response(200, incoming);
     listRequests += 1;
     if (listRequests === 2) {
       return new Promise(resolve => {
@@ -953,6 +976,7 @@ test('recent resync re-reads when a socket event races its response', async () =
 test('a socket event after the initial count still reconciles with the authoritative count', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
+  const incoming = notification({ id: 'event-after-count' });
   let countRequests = 0;
   globalThis.io = () => socket;
   globalThis.fetch = async url => {
@@ -961,12 +985,13 @@ test('a socket event after the initial count still reconciles with the authorita
       countRequests += 1;
       return response(200, { count: countRequests === 1 ? 2 : 3 });
     }
+    if (url.endsWith(`/${incoming.id}`)) return response(200, incoming);
     return response(200, { items: [], nextCursor: null });
   };
 
   NotificationClient.start(fixture.element);
   await settle();
-  socket.serverEmit('notification:new', notification({ id: 'event-after-count' }));
+  socket.serverEmit('notification:new', incoming);
   await settle();
 
   assert.equal(countRequests, 2);
@@ -1269,6 +1294,7 @@ test('read-all applies only after 201 and leaves a socket notification arriving 
         };
       });
     }
+    if (!new URL(url).searchParams.has('limit')) return response(200, incoming);
     return response(200, {
       items: readAllSucceeded
         ? [incoming, { ...first, readAt: '2026-08-30T07:00:00.000Z' },
@@ -1288,7 +1314,7 @@ test('read-all applies only after 201 and leaves a socket notification arriving 
   socket.serverEmit('notification:new', incoming);
   assert.deepEqual(
     fixture.inboxItems.children.map(row => row.dataset.notificationId),
-    ['after-cutoff', 'read-all-1', 'read-all-2'],
+    ['read-all-1', 'read-all-2'],
   );
 
   releaseReadAll();
@@ -1529,15 +1555,30 @@ test('read-all also clears a loaded header item when the inbox page failed', asy
 test('read-all reconciles the server cutoff and ignores a delayed pre-update socket payload', async () => {
   const fixture = inboxRoot();
   const socket = new FakeSocket();
-  const unreadItem = notification({ id: 'cutoff-item', title: 'Cutoff item' });
-  const readItem = { ...unreadItem, readAt: '2026-08-30T07:00:00.000Z' };
+  const unreadItem = notification({
+    id: 'cutoff-item',
+    title: 'Cutoff item',
+    createdAt: '2026-08-30T08:00:00.000Z',
+  });
+  const topItems = [unreadItem, ...Array.from({ length: 19 }, (_, index) => notification({
+    id: `cutoff-top-${String(index + 1).padStart(2, '0')}`,
+    createdAt: new Date(Date.parse('2026-08-30T07:59:00.000Z') - index * 60_000).toISOString(),
+  }))];
+  const readTopItems = topItems.map(item => ({ ...item, readAt: '2026-08-30T08:30:00.000Z' }));
+  const staleOutside = notification({
+    id: 'outside-server-cutoff',
+    title: 'Outside cutoff page',
+    createdAt: '2026-08-30T06:00:00.000Z',
+  });
+  const readOutside = { ...staleOutside, readAt: '2026-08-30T08:30:00.000Z' };
   const afterCutoff = notification({
     id: 'after-server-cutoff',
     title: 'After server cutoff',
-    createdAt: '2026-08-30T08:00:00.000Z',
+    createdAt: '2026-08-30T09:00:00.000Z',
   });
   let readAllReturned = false;
   let synchronized = false;
+  let serverUnread = 0;
   let releaseCount;
   let releaseInbox;
   let releaseRecent;
@@ -1545,8 +1586,8 @@ test('read-all reconciles the server cutoff and ignores a delayed pre-update soc
   globalThis.fetch = async (url, options = {}) => {
     if (url === '/api/realtime/token') return response(200, token('cutoff-token'));
     if (url.endsWith('/unread-count')) {
-      if (!readAllReturned) return response(200, { count: 1 });
-      if (synchronized) return response(200, { count: 1 });
+      if (!readAllReturned) return response(200, { count: 21 });
+      if (synchronized) return response(200, { count: serverUnread });
       return new Promise(resolve => {
         releaseCount = () => {
           synchronized = true;
@@ -1556,12 +1597,20 @@ test('read-all reconciles the server cutoff and ignores a delayed pre-update soc
     }
     if (options.method === 'POST') {
       readAllReturned = true;
-      return response(201, { changedCount: 1 });
+      return response(201, { changedCount: 21 });
     }
-    const limit = new URL(url).searchParams.get('limit');
-    if (!readAllReturned) return response(200, { items: [unreadItem], nextCursor: null });
+    const parsedUrl = new URL(url);
+    const limit = parsedUrl.searchParams.get('limit');
+    if (limit === null) {
+      if (url.endsWith(`/${staleOutside.id}`)) return response(200, readOutside);
+      if (url.endsWith(`/${afterCutoff.id}`)) return response(200, afterCutoff);
+      return response(200, readTopItems.find(item => url.endsWith(`/${item.id}`)));
+    }
+    const items = limit === '20' ? topItems : topItems.slice(0, 5);
+    if (!readAllReturned) return response(200, { items, nextCursor: null });
     return new Promise(resolve => {
-      const release = () => resolve(response(200, { items: [readItem], nextCursor: null }));
+      const readItems = limit === '20' ? readTopItems : readTopItems.slice(0, 5);
+      const release = () => resolve(response(200, { items: readItems, nextCursor: null }));
       if (limit === '20') releaseInbox = release;
       else releaseRecent = release;
     });
@@ -1587,10 +1636,184 @@ test('read-all reconciles the server cutoff and ignores a delayed pre-update soc
   assert.equal(fixture.items.children[0].classList.contains('unread'), false);
   assert.equal(fixture.badge.hidden, true);
 
+  socket.serverEmit('notification:new', staleOutside);
+  await settle();
+  assert.equal(inboxRow(fixture, staleOutside.id).classList.contains('unread'), false);
+  assert.equal(
+    fixture.items.children.some(item => item.dataset.notificationId === staleOutside.id),
+    false,
+  );
+  assert.equal(fixture.badge.hidden, true);
+
+  serverUnread = 1;
   socket.serverEmit('notification:new', afterCutoff);
   await settle();
   assert.equal(inboxRow(fixture, afterCutoff.id).classList.contains('unread'), true);
   assert.equal(fixture.badge.textContent, '1');
+});
+
+test('read-all merges split HTTP snapshots and a delayed socket reconciles the badge', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const beforeCutoff = notification({ id: 'split-before', createdAt: '2026-08-30T07:00:00.000Z' });
+  const readBeforeCutoff = { ...beforeCutoff, readAt: '2026-08-30T08:00:00.000Z' };
+  const splitItem = notification({ id: 'split-item', createdAt: '2026-08-30T09:00:00.000Z' });
+  let readAllReturned = false;
+  let detailRequests = 0;
+  let postReadCountRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('split-token'));
+    if (url.endsWith('/unread-count')) {
+      if (!readAllReturned) return response(200, { count: 1 });
+      postReadCountRequests += 1;
+      return response(200, { count: postReadCountRequests === 1 ? 0 : 1 });
+    }
+    if (options.method === 'POST') {
+      readAllReturned = true;
+      return response(201, { changedCount: 1 });
+    }
+    const parsedUrl = new URL(url);
+    const limit = parsedUrl.searchParams.get('limit');
+    if (limit === null) {
+      detailRequests += 1;
+      return response(200, splitItem);
+    }
+    if (!readAllReturned) return response(200, { items: [beforeCutoff], nextCursor: null });
+    return response(200, {
+      items: limit === '20' ? [readBeforeCutoff] : [splitItem, beforeCutoff],
+      nextCursor: null,
+    });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  fixture.readAll.dispatch('click');
+  await settle();
+  socket.serverEmit('notification:new', splitItem);
+  await settle();
+  await settle();
+
+  assert.equal(detailRequests, 1);
+  assert.equal(inboxRow(fixture, splitItem.id).classList.contains('unread'), true);
+  assert.deepEqual(
+    fixture.items.children.map(item => item.dataset.notificationId),
+    ['split-item', 'split-before'],
+  );
+  assert.equal(fixture.items.children[1].classList.contains('unread'), false);
+  assert.equal(fixture.badge.textContent, '1');
+});
+
+test('an unavailable socket detail invalidates stale list and count syncs for recovery', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const item = notification({ id: 'detail-recovery' });
+  let countRequests = 0;
+  let inboxRequests = 0;
+  let recentRequests = 0;
+  let releaseStaleCount;
+  let releaseStaleInbox;
+  let releaseStaleRecent;
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('detail-recovery-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      if (countRequests === 1) {
+        return new Promise(resolve => {
+          releaseStaleCount = () => resolve(response(200, { count: 0 }));
+        });
+      }
+      return response(200, { count: 1 });
+    }
+    const parsedUrl = new URL(url);
+    const limit = parsedUrl.searchParams.get('limit');
+    if (limit === null) return response(503);
+    if (limit === '20') {
+      inboxRequests += 1;
+      if (inboxRequests === 1) {
+        return new Promise(resolve => {
+          releaseStaleInbox = () => resolve(response(200, { items: [], nextCursor: null }));
+        });
+      }
+      return response(200, { items: [item], nextCursor: null });
+    }
+    recentRequests += 1;
+    if (recentRequests === 1) {
+      return new Promise(resolve => {
+        releaseStaleRecent = () => resolve(response(200, { items: [], nextCursor: null }));
+      });
+    }
+    return response(200, { items: [item], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('notification:new', item);
+  await settle();
+  releaseStaleCount();
+  releaseStaleInbox();
+  releaseStaleRecent();
+  await settle();
+  await settle();
+
+  assert.equal(countRequests, 2);
+  assert.equal(recentRequests, 2);
+  assert.equal(fixture.badge.textContent, '1');
+  assert.deepEqual(
+    fixture.items.children.map(row => row.dataset.notificationId),
+    ['detail-recovery'],
+  );
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), true);
+});
+
+test('a socket detail response crossing read-all is discarded and fetched again', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const item = notification({ id: 'detail-read-all-race' });
+  const readItem = { ...item, readAt: '2026-08-30T08:00:00.000Z' };
+  let readAllReturned = false;
+  let detailRequests = 0;
+  let releaseStaleDetail;
+  globalThis.io = () => socket;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('detail-race-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: readAllReturned ? 0 : 1 });
+    if (options.method === 'POST') {
+      readAllReturned = true;
+      return response(201, { changedCount: 1 });
+    }
+    const parsedUrl = new URL(url);
+    if (parsedUrl.searchParams.has('limit')) {
+      return response(200, { items: [], nextCursor: null });
+    }
+    detailRequests += 1;
+    if (detailRequests === 1) {
+      return new Promise(resolve => {
+        releaseStaleDetail = () => resolve(response(200, item));
+      });
+    }
+    return response(200, readItem);
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  socket.serverEmit('notification:new', item);
+  await settle();
+  assert.equal(typeof releaseStaleDetail, 'function');
+  fixture.readAll.dispatch('click');
+  await settle();
+  releaseStaleDetail();
+  await settle();
+  await settle();
+
+  assert.equal(detailRequests, 2);
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), false);
+  assert.equal(fixture.badge.hidden, true);
 });
 
 test('recent and inbox rows stay newest-first with descending IDs as the timestamp tie-breaker', async () => {
@@ -1600,10 +1823,13 @@ test('recent and inbox rows stay newest-first with descending IDs as the timesta
   const older = notification({ id: 'late-older', createdAt: '2026-08-30T06:00:00.000Z' });
   const tieA = notification({ id: 'tie-a', createdAt: '2026-08-30T08:00:00.000Z' });
   const tieB = notification({ id: 'tie-b', createdAt: '2026-08-30T08:00:00.000Z' });
+  const byId = new Map([newer, older, tieA, tieB].map(item => [item.id, item]));
   globalThis.io = () => socket;
   globalThis.fetch = async url => {
     if (url === '/api/realtime/token') return response(200, token('ordering-token'));
     if (url.endsWith('/unread-count')) return response(200, { count: 4 });
+    const detail = byId.get(url.split('/').at(-1));
+    if (detail) return response(200, detail);
     return response(200, { items: [newer], nextCursor: null });
   };
 

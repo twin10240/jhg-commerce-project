@@ -28,8 +28,9 @@
   let recentLoaded = false;
   let recent = [];
   let unread = 0;
-  let eventIds = new Set();
+  let socketIds = new Set();
   let readIds = new Set();
+  let authoritativeReadAt = new Map();
   let inbox = null;
 
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000];
@@ -165,6 +166,15 @@
 
   const unreadCount = () => request(
     '/api/v1/notifications/unread-count', {}, value => parseCount(value, 'count'));
+  const getNotification = id => request(
+    `/api/v1/notifications/${encodeURIComponent(id)}`,
+    {},
+    value => {
+      const item = parseNotification(value);
+      if (item.id !== id) throw new Error('Mismatched notification response');
+      return item;
+    },
+  );
   const read = id => request(
     `/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: 'PATCH' }, () => ({}), 204);
   const readAll = () => request(
@@ -235,8 +245,20 @@
     return [...unique.values()].sort(compareNotifications);
   }
 
-  function rememberNotifications(items) {
-    for (const item of items) eventIds.add(item.id);
+  function mergeNotifications(existing, observed) {
+    const preserveReadState = item => {
+      if (item.readAt !== null) {
+        authoritativeReadAt.set(item.id, item.readAt);
+        return item;
+      }
+      const readAt = authoritativeReadAt.get(item.id);
+      return readAt ? { ...item, readAt } : item;
+    };
+    const merged = new Map(existing.map(item => [item.id, preserveReadState(item)]));
+    for (const item of observed) {
+      merged.set(item.id, preserveReadState(item));
+    }
+    return orderedNotifications([...merged.values()]);
   }
 
   function renderRecent(current) {
@@ -388,21 +410,13 @@
       state.loading || state.refreshPromise !== null || current.pendingReads !== 0;
   }
 
-  function addInboxItems(state, items) {
-    const added = [];
-    for (const item of items) {
-      if (state.ids.has(item.id)) continue;
-      state.ids.add(item.id);
-      added.push(item);
-    }
-    state.rows = orderedNotifications([...state.rows, ...added]);
+  function mergeInboxItems(state, items) {
+    state.rows = mergeNotifications(state.rows, items);
   }
 
   function replaceInboxPage(state, page) {
-    rememberNotifications(page.items);
     for (const item of page.items) readIds.delete(item.id);
-    state.rows = orderedNotifications(page.items);
-    state.ids = new Set(state.rows.map(item => item.id));
+    state.rows = mergeNotifications([], page.items);
     state.cursor = page.nextCursor;
     state.loaded = true;
     state.readFailures = new Set();
@@ -426,8 +440,7 @@
       renderInbox(current);
       return;
     }
-    rememberNotifications(result.items);
-    addInboxItems(state, result.items);
+    mergeInboxItems(state, result.items);
     state.cursor = result.nextCursor;
     state.loaded = true;
     clearInboxError(state);
@@ -455,7 +468,6 @@
           showInboxError(state, '알림을 불러오지 못했습니다.', () => refreshInbox(current));
           return;
         }
-        rememberNotifications(result.items);
         if (eventEpoch !== state.eventEpoch) continue;
         replaceInboxPage(state, result);
         return;
@@ -502,9 +514,8 @@
   }
 
   function replaceRecentPage(page) {
-    rememberNotifications(page.items);
     for (const item of page.items) readIds.delete(item.id);
-    recent = orderedNotifications(page.items).slice(0, 5);
+    recent = mergeNotifications([], page.items).slice(0, 5);
     recentLoaded = true;
     if (emptyState) emptyState.textContent = '새 알림이 없습니다.';
   }
@@ -520,7 +531,6 @@
       if (!isActive(current) || inbox !== state || pageEpoch !== state.pageEpoch) return null;
       if (count.kind === 'unavailable' || inboxPage.kind === 'unavailable' ||
           recentPage.kind === 'unavailable') return false;
-      rememberNotifications([...inboxPage.items, ...recentPage.items]);
       if (eventEpoch !== state.eventEpoch) continue;
       replaceInboxPage(state, inboxPage);
       replaceRecentPage(recentPage);
@@ -538,6 +548,7 @@
     if (!state || !isActive(current) || state.readAllPromise !== null ||
         state.readInFlight.size !== 0 || state.loading || state.refreshPromise !== null) return;
     const pageEpoch = ++state.pageEpoch;
+    current.authorityEpoch += 1;
     current.notificationEpoch += 1;
     current.recentEpoch += 1;
     current.pendingReads += 1;
@@ -546,6 +557,7 @@
       const synchronized = await synchronizeReadAllState(current, state, pageEpoch);
       if (!isActive(current) || inbox !== state || synchronized === null) return;
       current.notificationEpoch += 1;
+      current.authorityEpoch += 1;
       current.pendingReads -= 1;
       state.readAllPromise = null;
       state.refreshPending = false;
@@ -571,6 +583,7 @@
     state.loading = false;
     current.notificationEpoch += 1;
     current.recentEpoch += 1;
+    current.authorityEpoch += 1;
     current.pendingReads += 1;
     let pending;
     pending = (async () => {
@@ -578,6 +591,7 @@
       if (!isActive(current) || inbox !== state) return;
       if (result.kind === 'unavailable') {
         current.notificationEpoch += 1;
+        current.authorityEpoch += 1;
         current.pendingReads -= 1;
         state.readAllPromise = null;
         showInboxStatus(
@@ -593,6 +607,7 @@
       const synchronized = await synchronizeReadAllState(current, state, pageEpoch);
       if (!isActive(current) || inbox !== state || synchronized === null) return;
       current.notificationEpoch += 1;
+      current.authorityEpoch += 1;
       current.pendingReads -= 1;
       state.readAllPromise = null;
       state.refreshPending = false;
@@ -630,7 +645,6 @@
       statusRetry: element.querySelector('[data-notification-inbox-status-retry]'),
       loadMore: element.querySelector('[data-notification-load-more]'),
       rows: [],
-      ids: new Set(),
       cursor: undefined,
       loaded: false,
       loading: false,
@@ -690,7 +704,6 @@
           }
           return;
         }
-        rememberNotifications(result.items);
         if (epoch !== current.recentEpoch) continue;
         replaceRecentPage(result);
         renderRecent(current);
@@ -703,25 +716,52 @@
     return pending;
   }
 
-  function acceptNotification(current, value) {
+  async function acceptNotification(current, value) {
     if (!isActive(current)) return;
-    let item;
+    let payload;
     try {
-      item = parseNotification(value);
+      payload = parseNotification(value);
     } catch {
       return;
     }
-    if (eventIds.has(item.id)) return;
-    eventIds.add(item.id);
+    if (socketIds.has(payload.id)) return;
+    socketIds.add(payload.id);
+    let item;
+    while (isActive(current)) {
+      if (inbox?.readAllPromise) await inbox.readAllPromise;
+      if (!isActive(current)) return;
+      const authorityEpoch = current.authorityEpoch;
+      const result = await getNotification(payload.id);
+      if (!isActive(current)) return;
+      if (authorityEpoch !== current.authorityEpoch || inbox?.readAllPromise) continue;
+      if (result.kind === 'unavailable') {
+        socketIds.delete(payload.id);
+        current.notificationEpoch += 1;
+        current.recentEpoch += 1;
+        if (inbox) inbox.eventEpoch += 1;
+        syncUnread(current);
+        if (recentLoaded) syncRecent(current);
+        if (inbox) refreshInbox(current);
+        return;
+      }
+      item = result;
+      break;
+    }
+    if (!item) return;
+    const existing = recent.find(row => row.id === item.id) ||
+      inbox?.rows.find(row => row.id === item.id);
+    const wasUnread = existing ? isUnread(existing) : false;
     current.notificationEpoch += 1;
     current.recentEpoch += 1;
-    recent = orderedNotifications([item, ...recent]).slice(0, 5);
+    recent = mergeNotifications(recent, [item]).slice(0, 5);
     if (inbox) {
       inbox.eventEpoch += 1;
-      addInboxItems(inbox, [item]);
+      mergeInboxItems(inbox, [item]);
       renderInbox(current);
     }
-    if (item.readAt === null) showUnread(unread + 1);
+    const accepted = recent.find(row => row.id === item.id) ||
+      inbox?.rows.find(row => row.id === item.id);
+    if (!wasUnread && accepted && isUnread(accepted)) showUnread(unread + 1);
     renderRecent(current);
     syncUnread(current);
   }
@@ -848,8 +888,9 @@
     recentLoaded = false;
     recent = [];
     unread = 0;
-    eventIds = new Set();
+    socketIds = new Set();
     readIds = new Set();
+    authoritativeReadAt = new Map();
   }
 
   function start(element) {
@@ -861,6 +902,7 @@
       notificationEpoch: 0,
       recentEpoch: 0,
       pendingReads: 0,
+      authorityEpoch: 0,
       countSync: null,
       recentSync: null,
     };
@@ -878,7 +920,7 @@
     return client;
   }
 
-  const client = { start, stop, list, unreadCount, read, readAll };
+  const client = { start, stop, list, unreadCount, getNotification, read, readAll };
   if (host.document) {
     const element = host.document.getElementById('notification-root');
     if (element) start(element);
