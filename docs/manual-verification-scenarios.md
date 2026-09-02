@@ -778,9 +778,9 @@ OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립
 
 | 구분 | 결과 | 실제 증거 |
 |---|---|---|
-| 서비스 헬스 | 통과 | OMS와 Node `/health` 모두 `200` |
+| 서비스 기동 | 통과 | OMS `/login` `200`, Node `/health/ready` `200` |
 | OMS 로그인 JWT | 통과 | 로그인 세션 발급 토큰 `sub=2`, `role=USER` |
-| HMAC 이벤트 저장 | 통과 | 유효 `STOCK_ALLOCATED` event create `201`; 같은 event ID 재전송 `200`; 잘못된 HMAC `401` |
+| HMAC 이벤트 저장 | 통과 | 유효 event create `201`, 같은 event ID 재전송 `200`, 잘못된 HMAC `401` |
 | 알림 REST | 통과 | 목록 `200`, 본인 상세 `200`, 인증 없음 `401`, 개별 읽음 `204`, 모두 읽음 `201`, 최종 unread `0` |
 | Socket.IO | 통과 | 허용 Origin 연결, `STOCK_ALLOCATED`의 `notification:new` 수신, 권위 있는 상세 조회 `200` |
 | 브라우저 화면 | 미검증/환경 복구 후 수행 | 브라우저 백엔드 목록이 비어 있어 `1440x900`·`390x844` 스크린샷과 시각적 겹침 검증을 수행하지 못함 |
