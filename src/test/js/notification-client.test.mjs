@@ -773,8 +773,8 @@ test('stop prevents an in-flight recent request from restoring DOM listeners', a
 test('connect resyncs authoritative unread count and an already loaded recent panel', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
-  const oldItem = notification({ id: 'old', title: 'Old' });
-  const offlineItem = notification({ id: 'offline', title: 'Offline' });
+  const oldItem = notification({ id: 'old', title: 'Old', createdAt: '2026-08-30T06:00:00.000Z' });
+  const offlineItem = notification({ id: 'offline', title: 'Offline', createdAt: '2026-08-30T07:00:00.000Z' });
   let countRequests = 0;
   let listRequests = 0;
   globalThis.io = () => socket;
@@ -915,8 +915,8 @@ test('restarting the same element ignores stale count and recent responses', asy
 test('recent resync re-reads when a socket event races its response', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
-  const oldItem = notification({ id: 'race-old', title: 'Old' });
-  const incoming = notification({ id: 'race-new', title: 'New' });
+  const oldItem = notification({ id: 'race-old', title: 'Old', createdAt: '2026-08-30T06:00:00.000Z' });
+  const incoming = notification({ id: 'race-new', title: 'New', createdAt: '2026-08-30T07:00:00.000Z' });
   let listRequests = 0;
   let releaseRacingList;
   globalThis.io = () => socket;
@@ -976,8 +976,8 @@ test('a socket event after the initial count still reconciles with the authorita
 test('a loaded panel keeps resyncing after one reconnect list failure', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
-  const oldItem = notification({ id: 'loaded-old', title: 'Old' });
-  const offlineItem = notification({ id: 'loaded-offline', title: 'Offline' });
+  const oldItem = notification({ id: 'loaded-old', title: 'Old', createdAt: '2026-08-30T06:00:00.000Z' });
+  const offlineItem = notification({ id: 'loaded-offline', title: 'Offline', createdAt: '2026-08-30T07:00:00.000Z' });
   let listRequests = 0;
   globalThis.io = () => socket;
   globalThis.fetch = async url => {
@@ -1010,8 +1010,8 @@ test('a loaded panel keeps resyncing after one reconnect list failure', async ()
 test('connect invalidates count and recent snapshots started before the socket joined', async () => {
   const fixture = uiRoot();
   const socket = new FakeSocket();
-  const oldItem = notification({ id: 'pre-connect-old', title: 'Old' });
-  const missedItem = notification({ id: 'pre-connect-missed', title: 'Missed' });
+  const oldItem = notification({ id: 'pre-connect-old', title: 'Old', createdAt: '2026-08-30T06:00:00.000Z' });
+  const missedItem = notification({ id: 'pre-connect-missed', title: 'Missed', createdAt: '2026-08-30T07:00:00.000Z' });
   let countRequests = 0;
   let listRequests = 0;
   let releaseFirstCount;
@@ -1102,9 +1102,9 @@ test('a read click keeps its local decrement until the post-204 count sync compl
 
 test('the inbox loads 20 newest notifications and deduplicates cursor pages without concurrent loads', async () => {
   const fixture = inboxRoot();
-  const first = notification({ id: 'first', title: 'First' });
-  const second = notification({ id: 'second', title: 'Second' });
-  const third = notification({ id: 'third', title: 'Third' });
+  const first = notification({ id: 'first', title: 'First', createdAt: '2026-08-30T08:00:00.000Z' });
+  const second = notification({ id: 'second', title: 'Second', createdAt: '2026-08-30T07:00:00.000Z' });
+  const third = notification({ id: 'third', title: 'Third', createdAt: '2026-08-30T06:00:00.000Z' });
   let releaseMore;
   const listUrls = [];
   globalThis.fetch = async url => {
@@ -1244,11 +1244,16 @@ test('a failed inbox read keeps unread state and exposes an inline retry', async
 test('read-all applies only after 201 and leaves a socket notification arriving during the request unread', async () => {
   const fixture = inboxRoot();
   const socket = new FakeSocket();
-  const first = notification({ id: 'read-all-1' });
-  const second = notification({ id: 'read-all-2' });
-  const incoming = notification({ id: 'after-cutoff', title: 'After cutoff' });
+  const first = notification({ id: 'read-all-1', createdAt: '2026-08-30T06:02:00.000Z' });
+  const second = notification({ id: 'read-all-2', createdAt: '2026-08-30T06:01:00.000Z' });
+  const incoming = notification({
+    id: 'after-cutoff',
+    title: 'After cutoff',
+    createdAt: '2026-08-30T07:00:00.000Z',
+  });
   let releaseReadAll;
   let countRequests = 0;
+  let readAllSucceeded = false;
   globalThis.io = () => socket;
   globalThis.fetch = async (url, options = {}) => {
     if (url === '/api/realtime/token') return response(200, token('read-all-token'));
@@ -1258,10 +1263,19 @@ test('read-all applies only after 201 and leaves a socket notification arriving 
     }
     if (options.method === 'POST') {
       return new Promise(resolve => {
-        releaseReadAll = () => resolve(response(201, { changedCount: 2 }));
+        releaseReadAll = () => {
+          readAllSucceeded = true;
+          resolve(response(201, { changedCount: 2 }));
+        };
       });
     }
-    return response(200, { items: [first, second], nextCursor: null });
+    return response(200, {
+      items: readAllSucceeded
+        ? [incoming, { ...first, readAt: '2026-08-30T07:00:00.000Z' },
+          { ...second, readAt: '2026-08-30T07:00:00.000Z' }]
+        : [first, second],
+      nextCursor: null,
+    });
   };
 
   NotificationClient.start(fixture.element);
@@ -1278,6 +1292,7 @@ test('read-all applies only after 201 and leaves a socket notification arriving 
   );
 
   releaseReadAll();
+  await settle();
   await settle();
 
   assert.equal(inboxRow(fixture, first.id).classList.contains('unread'), false);
@@ -1300,7 +1315,10 @@ test('a failed read-all preserves state and can be retried inline', async () => 
         ? response(503)
         : response(201, { changedCount: 1 });
     }
-    return response(200, { items: [item], nextCursor: null });
+    return response(200, {
+      items: [{ ...item, readAt: attempts >= 2 ? '2026-08-30T07:00:00.000Z' : null }],
+      nextCursor: null,
+    });
   };
 
   NotificationClient.start(fixture.element);
@@ -1413,50 +1431,69 @@ test('a successful empty inbox shows its empty state', async () => {
   assert.equal(fixture.error.hidden, true);
 });
 
-test('socket connect merges a missed first page without replacing the current load-more cursor', async () => {
+test('socket connect resets pagination so more than 20 missed notifications remain reachable', async () => {
   const fixture = inboxRoot();
   const socket = new FakeSocket();
-  const oldItem = notification({ id: 'inbox-old', title: 'Old' });
-  const refreshedOldItem = { ...oldItem, readAt: '2026-08-30T07:00:00.000Z' };
-  const missedItem = notification({ id: 'inbox-missed', title: 'Missed' });
-  const olderItem = notification({ id: 'inbox-older', title: 'Older' });
+  const createdAt = minute => new Date(Date.parse('2026-08-30T06:00:00.000Z') + minute * 60_000).toISOString();
+  const oldItems = Array.from({ length: 20 }, (_, index) => notification({
+    id: `old-${String(index + 1).padStart(2, '0')}`,
+    createdAt: createdAt(100 - index),
+  }));
+  const missedItems = Array.from({ length: 30 }, (_, index) => notification({
+    id: `new-${String(index + 1).padStart(2, '0')}`,
+    createdAt: createdAt(200 - index),
+  }));
+  const staleItems = [notification({ id: 'stale-old-page', createdAt: createdAt(50) })];
   const listUrls = [];
+  let releaseStalePage;
   globalThis.io = () => socket;
   globalThis.fetch = async url => {
     if (url === '/api/realtime/token') return response(200, token('inbox-connect-token'));
-    if (url.endsWith('/unread-count')) return response(200, { count: 3 });
+    if (url.endsWith('/unread-count')) return response(200, { count: 50 });
     listUrls.push(url);
     if (listUrls.length === 1) {
-      return response(200, { items: [oldItem], nextCursor: 'older-cursor' });
+      return response(200, { items: oldItems, nextCursor: 'old-cursor' });
     }
     if (listUrls.length === 2) {
-      return response(200, { items: [missedItem, refreshedOldItem], nextCursor: 'ignored-head-cursor' });
+      return new Promise(resolve => {
+        releaseStalePage = () => resolve(response(200, {
+          items: staleItems,
+          nextCursor: 'stale-cursor',
+        }));
+      });
     }
-    return response(200, { items: [olderItem], nextCursor: null });
+    if (listUrls.length === 3) {
+      return response(200, { items: missedItems.slice(0, 20), nextCursor: 'fresh-cursor' });
+    }
+    return response(200, { items: missedItems.slice(20), nextCursor: null });
   };
 
   NotificationClient.start(fixture.element);
   await settle();
+  fixture.loadMore.dispatch('click');
+  await settle();
   socket.serverEmit('connect');
+  await settle();
+  releaseStalePage();
   await settle();
 
   assert.deepEqual(
-    fixture.inboxItems.children.map(row => row.dataset.notificationId),
-    ['inbox-missed', 'inbox-old'],
+    fixture.inboxItems.children.map(row => row.dataset.notificationId).slice(0, 3),
+    ['new-01', 'new-02', 'new-03'],
   );
-  assert.equal(inboxRow(fixture, oldItem.id).classList.contains('unread'), false);
   fixture.loadMore.dispatch('click');
   await settle();
-  assert.equal(new URL(listUrls[2]).searchParams.get('cursor'), 'older-cursor');
+  assert.equal(new URL(listUrls[3]).searchParams.get('cursor'), 'fresh-cursor');
   assert.deepEqual(
     fixture.inboxItems.children.map(row => row.dataset.notificationId),
-    ['inbox-missed', 'inbox-old', 'inbox-older'],
+    missedItems.map(item => item.id),
   );
 });
 
 test('read-all also clears a loaded header item when the inbox page failed', async () => {
   const fixture = inboxRoot();
   const recentOnly = notification({ id: 'recent-only', title: 'Recent only' });
+  const readRecentOnly = { ...recentOnly, readAt: '2026-08-30T07:00:00.000Z' };
   let readAllDone = false;
   globalThis.fetch = async (url, options = {}) => {
     if (url === '/api/realtime/token') return response(200, token('recent-read-all-token'));
@@ -1466,9 +1503,15 @@ test('read-all also clears a loaded header item when the inbox page failed', asy
       return response(201, { changedCount: 1 });
     }
     const limit = new URL(url).searchParams.get('limit');
-    return limit === '20'
-      ? response(503)
-      : response(200, { items: [recentOnly], nextCursor: null });
+    if (!readAllDone) {
+      return limit === '20'
+        ? response(503)
+        : response(200, { items: [recentOnly], nextCursor: null });
+    }
+    return response(200, {
+      items: limit === '20' ? [] : [readRecentOnly],
+      nextCursor: null,
+    });
   };
 
   NotificationClient.start(fixture.element);
@@ -1481,4 +1524,105 @@ test('read-all also clears a loaded header item when the inbox page failed', asy
 
   assert.equal(fixture.items.children[0].classList.contains('unread'), false);
   assert.equal(fixture.badge.hidden, true);
+});
+
+test('read-all reconciles the server cutoff and ignores a delayed pre-update socket payload', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const unreadItem = notification({ id: 'cutoff-item', title: 'Cutoff item' });
+  const readItem = { ...unreadItem, readAt: '2026-08-30T07:00:00.000Z' };
+  const afterCutoff = notification({
+    id: 'after-server-cutoff',
+    title: 'After server cutoff',
+    createdAt: '2026-08-30T08:00:00.000Z',
+  });
+  let readAllReturned = false;
+  let synchronized = false;
+  let releaseCount;
+  let releaseInbox;
+  let releaseRecent;
+  globalThis.io = () => socket;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('cutoff-token'));
+    if (url.endsWith('/unread-count')) {
+      if (!readAllReturned) return response(200, { count: 1 });
+      if (synchronized) return response(200, { count: 1 });
+      return new Promise(resolve => {
+        releaseCount = () => {
+          synchronized = true;
+          resolve(response(200, { count: 0 }));
+        };
+      });
+    }
+    if (options.method === 'POST') {
+      readAllReturned = true;
+      return response(201, { changedCount: 1 });
+    }
+    const limit = new URL(url).searchParams.get('limit');
+    if (!readAllReturned) return response(200, { items: [unreadItem], nextCursor: null });
+    return new Promise(resolve => {
+      const release = () => resolve(response(200, { items: [readItem], nextCursor: null }));
+      if (limit === '20') releaseInbox = release;
+      else releaseRecent = release;
+    });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  fixture.readAll.dispatch('click');
+  await settle();
+  socket.serverEmit('notification:new', unreadItem);
+
+  assert.equal(typeof releaseCount, 'function');
+  assert.equal(typeof releaseInbox, 'function');
+  assert.equal(typeof releaseRecent, 'function');
+  releaseCount();
+  releaseInbox();
+  releaseRecent();
+  await settle();
+
+  assert.equal(inboxRow(fixture, unreadItem.id).classList.contains('unread'), false);
+  assert.equal(fixture.items.children[0].classList.contains('unread'), false);
+  assert.equal(fixture.badge.hidden, true);
+
+  socket.serverEmit('notification:new', afterCutoff);
+  await settle();
+  assert.equal(inboxRow(fixture, afterCutoff.id).classList.contains('unread'), true);
+  assert.equal(fixture.badge.textContent, '1');
+});
+
+test('recent and inbox rows stay newest-first with descending IDs as the timestamp tie-breaker', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const newer = notification({ id: 'existing', createdAt: '2026-08-30T07:00:00.000Z' });
+  const older = notification({ id: 'late-older', createdAt: '2026-08-30T06:00:00.000Z' });
+  const tieA = notification({ id: 'tie-a', createdAt: '2026-08-30T08:00:00.000Z' });
+  const tieB = notification({ id: 'tie-b', createdAt: '2026-08-30T08:00:00.000Z' });
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('ordering-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 4 });
+    return response(200, { items: [newer], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  socket.serverEmit('notification:new', tieA);
+  socket.serverEmit('notification:new', older);
+  socket.serverEmit('notification:new', tieB);
+  await settle();
+
+  const expected = ['tie-b', 'tie-a', 'existing', 'late-older'];
+  assert.deepEqual(
+    fixture.inboxItems.children.map(row => row.dataset.notificationId),
+    expected,
+  );
+  assert.deepEqual(
+    fixture.items.children.map(row => row.dataset.notificationId),
+    expected,
+  );
 });

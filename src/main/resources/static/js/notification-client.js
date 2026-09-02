@@ -221,6 +221,24 @@
 
   const isUnread = item => item.readAt === null && !readIds.has(item.id);
 
+  function compareNotifications(left, right) {
+    const createdAt = Date.parse(right.createdAt) - Date.parse(left.createdAt);
+    if (createdAt !== 0) return createdAt;
+    return left.id < right.id ? 1 : left.id > right.id ? -1 : 0;
+  }
+
+  function orderedNotifications(items) {
+    const unique = new Map();
+    for (const item of items) {
+      if (!unique.has(item.id)) unique.set(item.id, item);
+    }
+    return [...unique.values()].sort(compareNotifications);
+  }
+
+  function rememberNotifications(items) {
+    for (const item of items) eventIds.add(item.id);
+  }
+
   function renderRecent(current) {
     if (!isActive(current) || !itemsRoot || !host.document) return;
     clearRenderedListeners();
@@ -242,7 +260,8 @@
       time.textContent = relativeTime(item.createdAt);
       link.append(title, body, time);
       const listener = () => {
-        if (!isActive(current) || item.readAt !== null || readIds.has(item.id)) return;
+        if (!isActive(current) || item.readAt !== null || readIds.has(item.id) ||
+            (inbox && inbox.readAllPromise !== null)) return;
         readIds.add(item.id);
         current.notificationEpoch += 1;
         current.pendingReads += 1;
@@ -337,7 +356,7 @@
         action.setAttribute('type', 'button');
         action.setAttribute('data-notification-mark-read', '');
         action.textContent = failed ? '다시 시도' : pending ? '처리 중' : '읽음으로 표시';
-        action.disabled = pending || state.readAllPromise !== null;
+        action.disabled = pending || state.readAllPromise !== null || state.refreshPromise !== null;
         const listener = () => markInboxRead(current, item.id);
         action.addEventListener('click', listener);
         state.renderedListeners.push([action, listener]);
@@ -357,70 +376,98 @@
     state.empty.textContent = state.filter.checked
       ? '읽지 않은 알림이 없습니다.'
       : '알림이 없습니다.';
-    state.empty.hidden = !state.loaded || state.loading || elements.length !== 0;
-    state.loadingMessage.hidden = state.loaded || !state.loading;
+    const busy = state.loading || state.refreshPromise !== null;
+    state.empty.hidden = !state.loaded || busy || elements.length !== 0;
+    state.loadingMessage.hidden = state.loaded || !busy;
     state.loadMore.hidden = !state.loaded || state.cursor === null;
-    state.loadMore.disabled = state.loading;
-    state.loadMore.textContent = state.loading && state.loaded ? '불러오는 중' : '더 보기';
-    state.loadMore.setAttribute('aria-busy', String(state.loading && state.loaded));
-    state.list.setAttribute('aria-busy', String(state.loading));
-    state.readAll.disabled = state.readAllPromise !== null || state.readInFlight.size !== 0;
+    state.loadMore.disabled = busy || state.readAllPromise !== null;
+    state.loadMore.textContent = busy && state.loaded ? '불러오는 중' : '더 보기';
+    state.loadMore.setAttribute('aria-busy', String(busy && state.loaded));
+    state.list.setAttribute('aria-busy', String(busy));
+    state.readAll.disabled = state.readAllPromise !== null || state.readInFlight.size !== 0 ||
+      state.loading || state.refreshPromise !== null || current.pendingReads !== 0;
   }
 
-  function addInboxItems(state, items, prepend = false) {
+  function addInboxItems(state, items) {
     const added = [];
     for (const item of items) {
       if (state.ids.has(item.id)) continue;
       state.ids.add(item.id);
       added.push(item);
     }
-    state.rows = prepend ? [...added, ...state.rows] : [...state.rows, ...added];
+    state.rows = orderedNotifications([...state.rows, ...added]);
+  }
+
+  function replaceInboxPage(state, page) {
+    rememberNotifications(page.items);
+    for (const item of page.items) readIds.delete(item.id);
+    state.rows = orderedNotifications(page.items);
+    state.ids = new Set(state.rows.map(item => item.id));
+    state.cursor = page.nextCursor;
+    state.loaded = true;
+    state.readFailures = new Set();
+    clearInboxError(state);
   }
 
   async function loadInbox(current) {
     const state = inbox;
-    if (!state || !isActive(current) || state.loading || state.cursor === null) return;
+    if (!state || !isActive(current) || state.loading || state.cursor === null ||
+        state.refreshPromise !== null || state.readAllPromise !== null) return;
     const cursor = state.loaded ? state.cursor : undefined;
+    const pageEpoch = state.pageEpoch;
     state.loading = true;
     clearInboxError(state);
     renderInbox(current);
     const result = await list({ limit: 20, ...(cursor === undefined ? {} : { cursor }) });
-    if (!isActive(current) || inbox !== state) return;
+    if (!isActive(current) || inbox !== state || pageEpoch !== state.pageEpoch) return;
     state.loading = false;
     if (result.kind === 'unavailable') {
       showInboxError(state, '알림을 불러오지 못했습니다.', () => loadInbox(current));
       renderInbox(current);
       return;
     }
+    rememberNotifications(result.items);
     addInboxItems(state, result.items);
     state.cursor = result.nextCursor;
     state.loaded = true;
     clearInboxError(state);
     renderInbox(current);
-    if (state.headRefreshPending) syncInboxHead(current);
   }
 
-  function syncInboxHead(current) {
+  function refreshInbox(current) {
     const state = inbox;
     if (!state || !isActive(current)) return Promise.resolve();
-    if (!state.loaded) {
-      state.headRefreshPending = true;
+    if (state.readAllPromise !== null) {
+      state.refreshPending = true;
       return Promise.resolve();
     }
-    if (state.headSync) return state.headSync;
-    state.headRefreshPending = false;
+    if (state.refreshPromise) return state.refreshPromise;
+    state.refreshPending = false;
+    const pageEpoch = ++state.pageEpoch;
+    state.loading = false;
     let pending;
     pending = (async () => {
-      const result = await list({ limit: 20 });
-      if (!isActive(current) || inbox !== state || result.kind === 'unavailable') return;
-      const refreshed = new Map(result.items.map(item => [item.id, item]));
-      state.rows = state.rows.map(item => refreshed.get(item.id) || item);
-      addInboxItems(state, result.items, true);
-      renderInbox(current);
+      while (isActive(current) && inbox === state && pageEpoch === state.pageEpoch) {
+        const eventEpoch = state.eventEpoch;
+        const result = await list({ limit: 20 });
+        if (!isActive(current) || inbox !== state || pageEpoch !== state.pageEpoch) return;
+        if (result.kind === 'unavailable') {
+          showInboxError(state, '알림을 불러오지 못했습니다.', () => refreshInbox(current));
+          return;
+        }
+        rememberNotifications(result.items);
+        if (eventEpoch !== state.eventEpoch) continue;
+        replaceInboxPage(state, result);
+        return;
+      }
     })().finally(() => {
-      if (state.headSync === pending) state.headSync = null;
+      if (state.refreshPromise !== pending) return;
+      state.refreshPromise = null;
+      renderInbox(current);
+      if (state.refreshPending) refreshInbox(current);
     });
-    state.headSync = pending;
+    state.refreshPromise = pending;
+    renderInbox(current);
     return pending;
   }
 
@@ -428,7 +475,8 @@
     const state = inbox;
     const item = state?.rows.find(row => row.id === id);
     if (!state || !item || !isActive(current) || !isUnread(item) ||
-        state.readInFlight.has(id) || state.readAllPromise !== null) return;
+        state.readInFlight.has(id) || state.readAllPromise !== null ||
+        state.refreshPromise !== null) return;
     state.readInFlight.add(id);
     state.readFailures.delete(id);
     current.notificationEpoch += 1;
@@ -453,37 +501,109 @@
     if (current.pendingReads === 0) syncUnread(current);
   }
 
+  function replaceRecentPage(page) {
+    rememberNotifications(page.items);
+    for (const item of page.items) readIds.delete(item.id);
+    recent = orderedNotifications(page.items).slice(0, 5);
+    recentLoaded = true;
+    if (emptyState) emptyState.textContent = '새 알림이 없습니다.';
+  }
+
+  async function synchronizeReadAllState(current, state, pageEpoch) {
+    while (isActive(current) && inbox === state && pageEpoch === state.pageEpoch) {
+      const eventEpoch = state.eventEpoch;
+      const [count, inboxPage, recentPage] = await Promise.all([
+        unreadCount(),
+        list({ limit: 20 }),
+        list({ limit: 5 }),
+      ]);
+      if (!isActive(current) || inbox !== state || pageEpoch !== state.pageEpoch) return null;
+      if (count.kind === 'unavailable' || inboxPage.kind === 'unavailable' ||
+          recentPage.kind === 'unavailable') return false;
+      rememberNotifications([...inboxPage.items, ...recentPage.items]);
+      if (eventEpoch !== state.eventEpoch) continue;
+      replaceInboxPage(state, inboxPage);
+      replaceRecentPage(recentPage);
+      showUnread(count.count);
+      clearInboxStatus(state);
+      renderRecent(current);
+      renderInbox(current);
+      return true;
+    }
+    return null;
+  }
+
+  function retryReadAllSynchronization(current) {
+    const state = inbox;
+    if (!state || !isActive(current) || state.readAllPromise !== null ||
+        state.readInFlight.size !== 0 || state.loading || state.refreshPromise !== null) return;
+    const pageEpoch = ++state.pageEpoch;
+    current.notificationEpoch += 1;
+    current.recentEpoch += 1;
+    current.pendingReads += 1;
+    let pending;
+    pending = (async () => {
+      const synchronized = await synchronizeReadAllState(current, state, pageEpoch);
+      if (!isActive(current) || inbox !== state || synchronized === null) return;
+      current.notificationEpoch += 1;
+      current.pendingReads -= 1;
+      state.readAllPromise = null;
+      state.refreshPending = false;
+      if (!synchronized) {
+        showInboxStatus(
+          state,
+          '알림 상태를 동기화하지 못했습니다.',
+          () => retryReadAllSynchronization(current),
+        );
+      }
+      renderInbox(current);
+    })();
+    state.readAllPromise = pending;
+    clearInboxStatus(state);
+    renderInbox(current);
+  }
+
   function markInboxAllRead(current) {
     const state = inbox;
-    if (!state || !isActive(current) || state.readAllPromise || state.readInFlight.size !== 0) return;
-    const cutoffIds = new Set([...state.rows, ...recent].filter(isUnread).map(item => item.id));
+    if (!state || !isActive(current) || state.readAllPromise || state.readInFlight.size !== 0 ||
+        state.loading || state.refreshPromise !== null || current.pendingReads !== 0) return;
+    const pageEpoch = ++state.pageEpoch;
+    state.loading = false;
     current.notificationEpoch += 1;
+    current.recentEpoch += 1;
     current.pendingReads += 1;
     let pending;
     pending = (async () => {
       const result = await readAll();
       if (!isActive(current) || inbox !== state) return;
-      current.notificationEpoch += 1;
-      current.pendingReads -= 1;
-      state.readAllPromise = null;
       if (result.kind === 'unavailable') {
+        current.notificationEpoch += 1;
+        current.pendingReads -= 1;
+        state.readAllPromise = null;
         showInboxStatus(
           state,
           '모두 읽음 처리하지 못했습니다.',
           () => markInboxAllRead(current),
         );
-      } else {
-        const readAt = new Date().toISOString();
-        for (const id of cutoffIds) readIds.add(id);
-        state.rows = state.rows.map(item => cutoffIds.has(item.id)
-          ? { ...item, readAt }
-          : item);
-        showUnread(unread - result.changedCount);
-        clearInboxStatus(state);
-        renderRecent(current);
+        renderInbox(current);
+        if (current.pendingReads === 0) syncUnread(current);
+        if (state.refreshPending) refreshInbox(current);
+        return;
+      }
+      const synchronized = await synchronizeReadAllState(current, state, pageEpoch);
+      if (!isActive(current) || inbox !== state || synchronized === null) return;
+      current.notificationEpoch += 1;
+      current.pendingReads -= 1;
+      state.readAllPromise = null;
+      state.refreshPending = false;
+      if (!synchronized) {
+        showInboxStatus(
+          state,
+          '알림 상태를 동기화하지 못했습니다.',
+          () => retryReadAllSynchronization(current),
+        );
       }
       renderInbox(current);
-      if (current.pendingReads === 0) syncUnread(current);
     })();
     state.readAllPromise = pending;
     clearInboxStatus(state);
@@ -519,8 +639,10 @@
       readInFlight: new Set(),
       readFailures: new Set(),
       readAllPromise: null,
-      headSync: null,
-      headRefreshPending: false,
+      pageEpoch: 0,
+      eventEpoch: 0,
+      refreshPromise: null,
+      refreshPending: false,
       renderedListeners: [],
       listeners: [],
     };
@@ -552,6 +674,7 @@
 
   function syncRecent(current) {
     if (!isActive(current)) return Promise.resolve();
+    if (inbox?.readAllPromise) return Promise.resolve();
     if (current.recentSync) return current.recentSync;
     let pending;
     pending = (async () => {
@@ -559,6 +682,7 @@
         const epoch = current.recentEpoch;
         const result = await list({ limit: 5 });
         if (!isActive(current)) return;
+        if (inbox?.readAllPromise) return;
         if (result.kind === 'unavailable') {
           if (emptyState) {
             emptyState.textContent = '알림을 불러오지 못했습니다.';
@@ -566,15 +690,9 @@
           }
           return;
         }
+        rememberNotifications(result.items);
         if (epoch !== current.recentEpoch) continue;
-        const pageIds = new Set();
-        recent = result.items.filter(item => {
-          if (pageIds.has(item.id)) return false;
-          pageIds.add(item.id);
-          return true;
-        }).slice(0, 5);
-        recentLoaded = true;
-        if (emptyState) emptyState.textContent = '새 알림이 없습니다.';
+        replaceRecentPage(result);
         renderRecent(current);
         return;
       }
@@ -597,9 +715,10 @@
     eventIds.add(item.id);
     current.notificationEpoch += 1;
     current.recentEpoch += 1;
-    recent = [item, ...recent.filter(existing => existing.id !== item.id)].slice(0, 5);
+    recent = orderedNotifications([item, ...recent]).slice(0, 5);
     if (inbox) {
-      addInboxItems(inbox, [item], true);
+      inbox.eventEpoch += 1;
+      addInboxItems(inbox, [item]);
       renderInbox(current);
     }
     if (item.readAt === null) showUnread(unread + 1);
@@ -664,7 +783,7 @@
           retryTimer = null;
           syncUnread(currentSession);
           if (currentSession.recentSync || recentLoaded) syncRecent(currentSession);
-          syncInboxHead(currentSession);
+          refreshInbox(currentSession);
         },
         connect_error: failed,
         disconnect: failed,
