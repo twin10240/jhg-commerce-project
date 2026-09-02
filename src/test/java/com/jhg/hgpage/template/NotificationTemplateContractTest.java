@@ -56,4 +56,40 @@ class NotificationTemplateContractTest {
                 "@media(max-width:720px)",
                 "width:calc(100vw - 32px)");
     }
+
+    @Test
+    void notificationInboxHasCompleteSemanticControlsWithoutSampleRows() throws Exception {
+        String page = read("src/main/resources/templates/notifications.html");
+
+        assertThat(page).contains(
+                "data-notification-inbox",
+                "data-notification-unread-filter",
+                "data-notification-read-all",
+                "data-notification-inbox-list",
+                "aria-live=\"polite\"",
+                "aria-busy=\"true\"",
+                "data-notification-inbox-loading",
+                "data-notification-inbox-empty",
+                "data-notification-inbox-items",
+                "data-notification-inbox-error",
+                "data-notification-inbox-retry",
+                "data-notification-inbox-status",
+                "data-notification-load-more");
+        assertThat(page).doesNotContain("data-notification-id", "app-card");
+    }
+
+    @Test
+    void notificationInboxRowsAndControlsStayUnframedStableAndResponsive() throws Exception {
+        String css = read("src/main/resources/static/css/notifications.css");
+
+        assertThat(css).contains(
+                ".notification-inbox",
+                ".notification-inbox-row",
+                "border-bottom:1px solid var(--app-line)",
+                "overflow-wrap:anywhere",
+                "min-width:7.5rem",
+                "min-height:44px",
+                "grid-template-columns:minmax(0,1fr)",
+                "@media(max-width:720px)");
+    }
 }

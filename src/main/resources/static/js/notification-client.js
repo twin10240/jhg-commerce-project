@@ -30,6 +30,7 @@
   let unread = 0;
   let eventIds = new Set();
   let readIds = new Set();
+  let inbox = null;
 
   const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000];
 
@@ -218,6 +219,8 @@
     renderedListeners = [];
   }
 
+  const isUnread = item => item.readAt === null && !readIds.has(item.id);
+
   function renderRecent(current) {
     if (!isActive(current) || !itemsRoot || !host.document) return;
     clearRenderedListeners();
@@ -226,7 +229,7 @@
       const title = host.document.createElement('strong');
       const body = host.document.createElement('span');
       const time = host.document.createElement('time');
-      link.className = `notification-item${item.readAt === null && !readIds.has(item.id) ? ' unread' : ''}`;
+      link.className = `notification-item${isUnread(item) ? ' unread' : ''}`;
       link.setAttribute('href', item.linkUrl);
       link.setAttribute('role', 'listitem');
       link.setAttribute('data-notification-id', item.id);
@@ -258,6 +261,293 @@
     });
     itemsRoot.replaceChildren(...elements);
     if (emptyState) emptyState.hidden = elements.length !== 0;
+  }
+
+  function clearInboxRenderedListeners(state = inbox) {
+    if (!state) return;
+    for (const [element, listener] of state.renderedListeners) {
+      element.removeEventListener('click', listener);
+    }
+    state.renderedListeners = [];
+  }
+
+  function showInboxError(state, message, retry) {
+    state.errorMessage.textContent = message;
+    state.error.hidden = false;
+    state.retryAction = retry;
+  }
+
+  function clearInboxError(state) {
+    state.error.hidden = true;
+    state.retryAction = null;
+  }
+
+  function showInboxStatus(state, message, retry) {
+    state.statusMessage.textContent = message;
+    state.status.hidden = false;
+    state.statusRetry.hidden = !retry;
+    state.statusRetryAction = retry;
+  }
+
+  function clearInboxStatus(state) {
+    state.status.hidden = true;
+    state.statusRetryAction = null;
+  }
+
+  function renderInbox(current) {
+    const state = inbox;
+    if (!state || !isActive(current) || !host.document) return;
+    clearInboxRenderedListeners(state);
+    const visible = state.filter.checked
+      ? state.rows.filter(isUnread)
+      : state.rows;
+    const elements = visible.map(item => {
+      const unreadItem = isUnread(item);
+      const row = host.document.createElement('article');
+      const indicator = host.document.createElement('span');
+      const content = host.document.createElement('div');
+      const link = host.document.createElement('a');
+      const body = host.document.createElement('p');
+      const time = host.document.createElement('time');
+      row.className = `notification-inbox-row${unreadItem ? ' unread' : ''}`;
+      row.setAttribute('role', 'listitem');
+      row.setAttribute('data-notification-id', item.id);
+      indicator.className = 'notification-inbox-indicator';
+      indicator.setAttribute('data-notification-unread-indicator', '');
+      indicator.setAttribute('aria-label', '읽지 않음');
+      indicator.hidden = !unreadItem;
+      content.className = 'notification-inbox-content';
+      link.className = 'notification-inbox-link';
+      link.setAttribute('data-notification-link', '');
+      link.setAttribute('href', item.linkUrl);
+      link.textContent = item.title;
+      body.className = 'notification-inbox-body';
+      body.setAttribute('data-notification-body', '');
+      body.textContent = item.body;
+      time.className = 'notification-inbox-time';
+      time.dateTime = item.createdAt;
+      time.textContent = relativeTime(item.createdAt);
+      content.append(link, body, time);
+      row.append(indicator, content);
+      if (unreadItem) {
+        const action = host.document.createElement('button');
+        const failed = state.readFailures.has(item.id);
+        const pending = state.readInFlight.has(item.id);
+        action.className = 'app-btn secondary notification-inbox-read';
+        action.setAttribute('type', 'button');
+        action.setAttribute('data-notification-mark-read', '');
+        action.textContent = failed ? '다시 시도' : pending ? '처리 중' : '읽음으로 표시';
+        action.disabled = pending || state.readAllPromise !== null;
+        const listener = () => markInboxRead(current, item.id);
+        action.addEventListener('click', listener);
+        state.renderedListeners.push([action, listener]);
+        row.append(action);
+        if (failed) {
+          const status = host.document.createElement('p');
+          status.className = 'notification-inbox-row-status';
+          status.setAttribute('data-notification-row-status', '');
+          status.setAttribute('role', 'status');
+          status.textContent = '읽음 처리하지 못했습니다.';
+          row.append(status);
+        }
+      }
+      return row;
+    });
+    state.items.replaceChildren(...elements);
+    state.empty.textContent = state.filter.checked
+      ? '읽지 않은 알림이 없습니다.'
+      : '알림이 없습니다.';
+    state.empty.hidden = !state.loaded || state.loading || elements.length !== 0;
+    state.loadingMessage.hidden = state.loaded || !state.loading;
+    state.loadMore.hidden = !state.loaded || state.cursor === null;
+    state.loadMore.disabled = state.loading;
+    state.loadMore.textContent = state.loading && state.loaded ? '불러오는 중' : '더 보기';
+    state.loadMore.setAttribute('aria-busy', String(state.loading && state.loaded));
+    state.list.setAttribute('aria-busy', String(state.loading));
+    state.readAll.disabled = state.readAllPromise !== null || state.readInFlight.size !== 0;
+  }
+
+  function addInboxItems(state, items, prepend = false) {
+    const added = [];
+    for (const item of items) {
+      if (state.ids.has(item.id)) continue;
+      state.ids.add(item.id);
+      added.push(item);
+    }
+    state.rows = prepend ? [...added, ...state.rows] : [...state.rows, ...added];
+  }
+
+  async function loadInbox(current) {
+    const state = inbox;
+    if (!state || !isActive(current) || state.loading || state.cursor === null) return;
+    const cursor = state.loaded ? state.cursor : undefined;
+    state.loading = true;
+    clearInboxError(state);
+    renderInbox(current);
+    const result = await list({ limit: 20, ...(cursor === undefined ? {} : { cursor }) });
+    if (!isActive(current) || inbox !== state) return;
+    state.loading = false;
+    if (result.kind === 'unavailable') {
+      showInboxError(state, '알림을 불러오지 못했습니다.', () => loadInbox(current));
+      renderInbox(current);
+      return;
+    }
+    addInboxItems(state, result.items);
+    state.cursor = result.nextCursor;
+    state.loaded = true;
+    clearInboxError(state);
+    renderInbox(current);
+    if (state.headRefreshPending) syncInboxHead(current);
+  }
+
+  function syncInboxHead(current) {
+    const state = inbox;
+    if (!state || !isActive(current)) return Promise.resolve();
+    if (!state.loaded) {
+      state.headRefreshPending = true;
+      return Promise.resolve();
+    }
+    if (state.headSync) return state.headSync;
+    state.headRefreshPending = false;
+    let pending;
+    pending = (async () => {
+      const result = await list({ limit: 20 });
+      if (!isActive(current) || inbox !== state || result.kind === 'unavailable') return;
+      const refreshed = new Map(result.items.map(item => [item.id, item]));
+      state.rows = state.rows.map(item => refreshed.get(item.id) || item);
+      addInboxItems(state, result.items, true);
+      renderInbox(current);
+    })().finally(() => {
+      if (state.headSync === pending) state.headSync = null;
+    });
+    state.headSync = pending;
+    return pending;
+  }
+
+  async function markInboxRead(current, id) {
+    const state = inbox;
+    const item = state?.rows.find(row => row.id === id);
+    if (!state || !item || !isActive(current) || !isUnread(item) ||
+        state.readInFlight.has(id) || state.readAllPromise !== null) return;
+    state.readInFlight.add(id);
+    state.readFailures.delete(id);
+    current.notificationEpoch += 1;
+    current.pendingReads += 1;
+    renderInbox(current);
+    const result = await read(id);
+    if (!isActive(current) || inbox !== state) return;
+    current.notificationEpoch += 1;
+    current.pendingReads -= 1;
+    state.readInFlight.delete(id);
+    if (result.kind === 'unavailable') {
+      state.readFailures.add(id);
+    } else {
+      readIds.add(id);
+      state.rows = state.rows.map(row => row.id === id
+        ? { ...row, readAt: new Date().toISOString() }
+        : row);
+      showUnread(unread - 1);
+      renderRecent(current);
+    }
+    renderInbox(current);
+    if (current.pendingReads === 0) syncUnread(current);
+  }
+
+  function markInboxAllRead(current) {
+    const state = inbox;
+    if (!state || !isActive(current) || state.readAllPromise || state.readInFlight.size !== 0) return;
+    const cutoffIds = new Set([...state.rows, ...recent].filter(isUnread).map(item => item.id));
+    current.notificationEpoch += 1;
+    current.pendingReads += 1;
+    let pending;
+    pending = (async () => {
+      const result = await readAll();
+      if (!isActive(current) || inbox !== state) return;
+      current.notificationEpoch += 1;
+      current.pendingReads -= 1;
+      state.readAllPromise = null;
+      if (result.kind === 'unavailable') {
+        showInboxStatus(
+          state,
+          '모두 읽음 처리하지 못했습니다.',
+          () => markInboxAllRead(current),
+        );
+      } else {
+        const readAt = new Date().toISOString();
+        for (const id of cutoffIds) readIds.add(id);
+        state.rows = state.rows.map(item => cutoffIds.has(item.id)
+          ? { ...item, readAt }
+          : item);
+        showUnread(unread - result.changedCount);
+        clearInboxStatus(state);
+        renderRecent(current);
+      }
+      renderInbox(current);
+      if (current.pendingReads === 0) syncUnread(current);
+    })();
+    state.readAllPromise = pending;
+    clearInboxStatus(state);
+    renderInbox(current);
+  }
+
+  function setupInbox(current) {
+    if (!host.document || typeof host.document.querySelector !== 'function') return false;
+    const element = host.document.querySelector('[data-notification-inbox]');
+    if (!element) return false;
+    const state = {
+      element,
+      filter: element.querySelector('[data-notification-unread-filter]'),
+      readAll: element.querySelector('[data-notification-read-all]'),
+      list: element.querySelector('[data-notification-inbox-list]'),
+      loadingMessage: element.querySelector('[data-notification-inbox-loading]'),
+      empty: element.querySelector('[data-notification-inbox-empty]'),
+      items: element.querySelector('[data-notification-inbox-items]'),
+      error: element.querySelector('[data-notification-inbox-error]'),
+      errorMessage: element.querySelector('[data-notification-inbox-error-message]'),
+      retry: element.querySelector('[data-notification-inbox-retry]'),
+      status: element.querySelector('[data-notification-inbox-status]'),
+      statusMessage: element.querySelector('[data-notification-inbox-status-message]'),
+      statusRetry: element.querySelector('[data-notification-inbox-status-retry]'),
+      loadMore: element.querySelector('[data-notification-load-more]'),
+      rows: [],
+      ids: new Set(),
+      cursor: undefined,
+      loaded: false,
+      loading: false,
+      retryAction: null,
+      statusRetryAction: null,
+      readInFlight: new Set(),
+      readFailures: new Set(),
+      readAllPromise: null,
+      headSync: null,
+      headRefreshPending: false,
+      renderedListeners: [],
+      listeners: [],
+    };
+    if ([state.filter, state.readAll, state.list, state.loadingMessage, state.empty,
+      state.items, state.error, state.errorMessage, state.retry, state.status,
+      state.statusMessage, state.statusRetry, state.loadMore].some(value => !value)) return false;
+    inbox = state;
+    const on = (elementToBind, type, listener) => {
+      elementToBind.addEventListener(type, listener);
+      state.listeners.push([elementToBind, type, listener]);
+    };
+    on(state.filter, 'change', () => renderInbox(current));
+    on(state.readAll, 'click', () => markInboxAllRead(current));
+    on(state.retry, 'click', () => state.retryAction?.());
+    on(state.statusRetry, 'click', () => state.statusRetryAction?.());
+    on(state.loadMore, 'click', () => loadInbox(current));
+    loadInbox(current);
+    return true;
+  }
+
+  function stopInbox() {
+    if (!inbox) return;
+    clearInboxRenderedListeners(inbox);
+    for (const [element, type, listener] of inbox.listeners) {
+      element.removeEventListener(type, listener);
+    }
+    inbox = null;
   }
 
   function syncRecent(current) {
@@ -308,6 +598,10 @@
     current.notificationEpoch += 1;
     current.recentEpoch += 1;
     recent = [item, ...recent.filter(existing => existing.id !== item.id)].slice(0, 5);
+    if (inbox) {
+      addInboxItems(inbox, [item], true);
+      renderInbox(current);
+    }
     if (item.readAt === null) showUnread(unread + 1);
     renderRecent(current);
     syncUnread(current);
@@ -370,6 +664,7 @@
           retryTimer = null;
           syncUnread(currentSession);
           if (currentSession.recentSync || recentLoaded) syncRecent(currentSession);
+          syncInboxHead(currentSession);
         },
         connect_error: failed,
         disconnect: failed,
@@ -413,6 +708,7 @@
       host.document.removeEventListener('visibilitychange', visibilityListener);
     }
     clearRenderedListeners();
+    stopInbox();
     detachSocket(true);
     if (retryTimer !== null) host.clearTimeout(retryTimer);
     retryTimer = null;
@@ -451,6 +747,7 @@
     };
     session = current;
     const hasUi = setupUi(element, current);
+    setupInbox(current);
     if (host.document) {
       visibilityListener = () => {
         if (!host.document.hidden && retryPending) scheduleReconnect(current);

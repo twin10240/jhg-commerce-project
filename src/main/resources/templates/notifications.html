@@ -8,22 +8,40 @@
 </head>
 <body style="margin:0;padding:24px;background:var(--app-bg);color:var(--app-ink);font-family:system-ui,-apple-system,'Noto Sans KR',sans-serif">
 <div th:replace="~{fragments/layout :: nav('notifications')}"></div>
-<main class="app-shell">
-  <h1 class="app-title">알림</h1>
-  <div class="order-actions">
-    <label><input type="checkbox" data-notification-unread-filter> 읽지 않은 알림만 보기</label>
-    <button class="app-btn secondary" type="button" data-notification-read-all>모두 읽음</button>
-  </div>
-
-  <section aria-live="polite" aria-busy="true" data-notification-list>
-    <p role="status" data-notification-loading>알림을 불러오는 중입니다.</p>
-    <div class="empty-state" data-notification-empty hidden>
-      <p>새 알림이 없습니다.</p>
+<main class="app-shell notification-inbox" data-notification-inbox>
+  <header class="notification-inbox-header">
+    <h1 class="app-title">알림</h1>
+    <div class="notification-inbox-controls">
+      <label class="notification-inbox-filter">
+        <input type="checkbox" data-notification-unread-filter>
+        <span>읽지 않은 알림만 보기</span>
+      </label>
+      <button class="app-btn secondary notification-read-all" type="button"
+              data-notification-read-all>모두 읽음</button>
     </div>
-    <div data-notification-items></div>
-    <div data-notification-retry hidden>
-      <p>알림을 불러오지 못했습니다.</p>
-      <button class="app-btn secondary" type="button">다시 시도</button>
+  </header>
+
+  <section class="notification-inbox-list" role="region" aria-label="전체 알림"
+           aria-live="polite" aria-busy="true" data-notification-inbox-list>
+    <p class="notification-inbox-message" role="status"
+       data-notification-inbox-loading>알림을 불러오는 중입니다.</p>
+    <p class="notification-inbox-message" data-notification-inbox-empty hidden>알림이 없습니다.</p>
+    <div role="list" data-notification-inbox-items></div>
+    <div class="notification-inbox-message notification-inbox-error"
+         data-notification-inbox-error hidden>
+      <p data-notification-inbox-error-message>알림을 불러오지 못했습니다.</p>
+      <button class="app-btn secondary" type="button"
+              data-notification-inbox-retry>다시 시도</button>
+    </div>
+    <div class="notification-inbox-message notification-inbox-error" role="status"
+         data-notification-inbox-status hidden>
+      <p data-notification-inbox-status-message></p>
+      <button class="app-btn secondary" type="button"
+              data-notification-inbox-status-retry>다시 시도</button>
+    </div>
+    <div class="notification-load-more-wrap">
+      <button class="app-btn secondary notification-load-more" type="button"
+              data-notification-load-more hidden>더 보기</button>
     </div>
   </section>
 </main>

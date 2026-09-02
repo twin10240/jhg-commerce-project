@@ -123,6 +123,7 @@ class FakeDocument {
   constructor() {
     this.hidden = false;
     this.listeners = new Map();
+    this.children = [];
   }
 
   createElement(tagName) {
@@ -140,6 +141,19 @@ class FakeDocument {
 
   dispatch(type) {
     for (const listener of [...(this.listeners.get(type) || [])]) listener({ type });
+  }
+
+  append(...children) {
+    this.children.push(...children);
+  }
+
+  querySelector(selector) {
+    for (const child of this.children) {
+      if (child.matches(selector)) return child;
+      const nested = child.querySelector(selector);
+      if (nested) return nested;
+    }
+    return null;
   }
 }
 
@@ -199,6 +213,73 @@ const uiRoot = () => {
   globalThis.document = document;
   return { document, element, trigger, badge, panel, items, empty, logout };
 };
+
+const inboxRoot = () => {
+  const fixture = uiRoot();
+  const inbox = new FakeElement('main');
+  inbox.setAttribute('data-notification-inbox', '');
+  const filter = new FakeElement('input');
+  filter.setAttribute('data-notification-unread-filter', '');
+  filter.checked = false;
+  const readAll = new FakeElement('button');
+  readAll.setAttribute('data-notification-read-all', '');
+  const list = new FakeElement('section');
+  list.setAttribute('data-notification-inbox-list', '');
+  list.setAttribute('aria-busy', 'true');
+  const loading = new FakeElement('p');
+  loading.setAttribute('data-notification-inbox-loading', '');
+  const empty = new FakeElement('p');
+  empty.setAttribute('data-notification-inbox-empty', '');
+  empty.hidden = true;
+  const items = new FakeElement('div');
+  items.setAttribute('data-notification-inbox-items', '');
+  const error = new FakeElement('div');
+  error.setAttribute('data-notification-inbox-error', '');
+  error.hidden = true;
+  const errorMessage = new FakeElement('p');
+  errorMessage.setAttribute('data-notification-inbox-error-message', '');
+  const retry = new FakeElement('button');
+  retry.setAttribute('data-notification-inbox-retry', '');
+  error.append(errorMessage, retry);
+  const status = new FakeElement('div');
+  status.setAttribute('data-notification-inbox-status', '');
+  status.hidden = true;
+  const statusMessage = new FakeElement('p');
+  statusMessage.setAttribute('data-notification-inbox-status-message', '');
+  const statusRetry = new FakeElement('button');
+  statusRetry.setAttribute('data-notification-inbox-status-retry', '');
+  status.append(statusMessage, statusRetry);
+  const loadMore = new FakeElement('button');
+  loadMore.setAttribute('data-notification-load-more', '');
+  loadMore.textContent = '더 보기';
+  loadMore.hidden = true;
+  list.append(loading, empty, items, error, status, loadMore);
+  inbox.append(filter, readAll, list);
+  fixture.document.append(inbox);
+  return {
+    ...fixture,
+    inbox,
+    filter,
+    readAll,
+    list,
+    loading,
+    inboxEmpty: empty,
+    inboxItems: items,
+    error,
+    errorMessage,
+    retry,
+    status,
+    statusMessage,
+    statusRetry,
+    loadMore,
+  };
+};
+
+const inboxRow = (fixture, id) => fixture.inboxItems.children.find(
+  row => row.dataset.notificationId === id,
+);
+
+const readButton = row => row.querySelector('[data-notification-mark-read]');
 
 const settle = async () => {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
@@ -1017,4 +1098,387 @@ test('a read click keeps its local decrement until the post-204 count sync compl
 
   assert.equal(countRequests, 3);
   assert.equal(fixture.badge.textContent, '1');
+});
+
+test('the inbox loads 20 newest notifications and deduplicates cursor pages without concurrent loads', async () => {
+  const fixture = inboxRoot();
+  const first = notification({ id: 'first', title: 'First' });
+  const second = notification({ id: 'second', title: 'Second' });
+  const third = notification({ id: 'third', title: 'Third' });
+  let releaseMore;
+  const listUrls = [];
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('inbox-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 3 });
+    listUrls.push(url);
+    if (listUrls.length === 1) {
+      return response(200, { items: [first, first, second], nextCursor: 'next page' });
+    }
+    return new Promise(resolve => {
+      releaseMore = () => resolve(response(200, { items: [second, third], nextCursor: null }));
+    });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+
+  assert.match(listUrls[0], /[?&]limit=20(?:&|$)/);
+  assert.deepEqual(fixture.inboxItems.children.map(row => row.dataset.notificationId), ['first', 'second']);
+  assert.equal(fixture.loadMore.hidden, false);
+  fixture.loadMore.dispatch('click');
+  fixture.loadMore.dispatch('click');
+  await settle();
+  assert.equal(listUrls.length, 2);
+  assert.match(listUrls[1], /[?&]cursor=next\+page(?:&|$)/);
+  assert.equal(fixture.loadMore.disabled, true);
+  assert.equal(fixture.loadMore.getAttribute('aria-busy'), 'true');
+
+  releaseMore();
+  await settle();
+
+  assert.deepEqual(
+    fixture.inboxItems.children.map(row => row.dataset.notificationId),
+    ['first', 'second', 'third'],
+  );
+  assert.equal(fixture.loadMore.hidden, true);
+  assert.equal(fixture.list.getAttribute('aria-busy'), 'false');
+});
+
+test('the unread-only checkbox immediately filters loaded inbox rows', async () => {
+  const fixture = inboxRoot();
+  const unreadItem = notification({ id: 'unread' });
+  const readItem = notification({ id: 'read', readAt: '2026-08-30T07:00:00.000Z' });
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('filter-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 1 });
+    return response(200, { items: [unreadItem, readItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.filter.checked = true;
+  fixture.filter.dispatch('change');
+
+  assert.deepEqual(fixture.inboxItems.children.map(row => row.dataset.notificationId), ['unread']);
+  assert.equal(fixture.inboxEmpty.hidden, true);
+});
+
+test('an inbox read waits for 204, ignores duplicate clicks, and then updates the row and badge', async () => {
+  const fixture = inboxRoot();
+  const item = notification({ id: 'read-once' });
+  let releaseRead;
+  let readRequests = 0;
+  let countRequests = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('read-once-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: countRequests === 1 ? 1 : 0 });
+    }
+    if (options.method === 'PATCH') {
+      readRequests += 1;
+      return new Promise(resolve => {
+        releaseRead = () => resolve(response(204));
+      });
+    }
+    return response(200, { items: [item], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  const action = readButton(inboxRow(fixture, item.id));
+  action.dispatch('click');
+  action.dispatch('click');
+  await settle();
+
+  assert.equal(readRequests, 1);
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), true);
+  assert.equal(fixture.badge.textContent, '1');
+  assert.equal(readButton(inboxRow(fixture, item.id)).disabled, true);
+
+  releaseRead();
+  await settle();
+
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), false);
+  assert.equal(fixture.badge.hidden, true);
+  assert.equal(readButton(inboxRow(fixture, item.id)), null);
+});
+
+test('a failed inbox read keeps unread state and exposes an inline retry', async () => {
+  const fixture = inboxRoot();
+  const item = notification({ id: 'read-retry' });
+  let readRequests = 0;
+  let countRequests = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('read-retry-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: readRequests < 2 ? 1 : 0 });
+    }
+    if (options.method === 'PATCH') {
+      readRequests += 1;
+      return response(readRequests === 1 ? 503 : 204);
+    }
+    return response(200, { items: [item], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  readButton(inboxRow(fixture, item.id)).dispatch('click');
+  await settle();
+
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), true);
+  const retry = readButton(inboxRow(fixture, item.id));
+  assert.equal(retry.textContent, '다시 시도');
+  assert.equal(
+    inboxRow(fixture, item.id).querySelector('[data-notification-row-status]').textContent,
+    '읽음 처리하지 못했습니다.',
+  );
+  retry.dispatch('click');
+  await settle();
+
+  assert.equal(readRequests, 2);
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), false);
+});
+
+test('read-all applies only after 201 and leaves a socket notification arriving during the request unread', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const first = notification({ id: 'read-all-1' });
+  const second = notification({ id: 'read-all-2' });
+  const incoming = notification({ id: 'after-cutoff', title: 'After cutoff' });
+  let releaseReadAll;
+  let countRequests = 0;
+  globalThis.io = () => socket;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('read-all-token'));
+    if (url.endsWith('/unread-count')) {
+      countRequests += 1;
+      return response(200, { count: countRequests === 1 ? 2 : 1 });
+    }
+    if (options.method === 'POST') {
+      return new Promise(resolve => {
+        releaseReadAll = () => resolve(response(201, { changedCount: 2 }));
+      });
+    }
+    return response(200, { items: [first, second], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.readAll.dispatch('click');
+  await settle();
+  assert.equal(fixture.readAll.disabled, true);
+  assert.equal(inboxRow(fixture, first.id).classList.contains('unread'), true);
+  socket.serverEmit('notification:new', incoming);
+  socket.serverEmit('notification:new', incoming);
+  assert.deepEqual(
+    fixture.inboxItems.children.map(row => row.dataset.notificationId),
+    ['after-cutoff', 'read-all-1', 'read-all-2'],
+  );
+
+  releaseReadAll();
+  await settle();
+
+  assert.equal(inboxRow(fixture, first.id).classList.contains('unread'), false);
+  assert.equal(inboxRow(fixture, second.id).classList.contains('unread'), false);
+  assert.equal(inboxRow(fixture, incoming.id).classList.contains('unread'), true);
+  assert.equal(fixture.badge.textContent, '1');
+  assert.equal(fixture.readAll.disabled, false);
+});
+
+test('a failed read-all preserves state and can be retried inline', async () => {
+  const fixture = inboxRoot();
+  const item = notification({ id: 'read-all-retry' });
+  let attempts = 0;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('read-all-retry-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: attempts < 2 ? 1 : 0 });
+    if (options.method === 'POST') {
+      attempts += 1;
+      return attempts === 1
+        ? response(503)
+        : response(201, { changedCount: 1 });
+    }
+    return response(200, { items: [item], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.readAll.dispatch('click');
+  await settle();
+
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), true);
+  assert.equal(fixture.status.hidden, false);
+  assert.match(fixture.statusMessage.textContent, /모두 읽음 처리하지 못했습니다/);
+  fixture.statusRetry.dispatch('click');
+  await settle();
+
+  assert.equal(attempts, 2);
+  assert.equal(inboxRow(fixture, item.id).classList.contains('unread'), false);
+  assert.equal(fixture.status.hidden, true);
+});
+
+test('inbox failures preserve the cursor and retry into an empty or later page', async () => {
+  const fixture = inboxRoot();
+  const item = notification({ id: 'cursor-item' });
+  const cursors = [];
+  let listRequests = 0;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('cursor-retry-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 1 });
+    listRequests += 1;
+    const parsed = new URL(url);
+    cursors.push(parsed.searchParams.get('cursor'));
+    if (listRequests === 1) return response(503);
+    if (listRequests === 2) return response(200, { items: [item], nextCursor: 'same-cursor' });
+    if (listRequests === 3) return response(503);
+    return response(200, { items: [], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  assert.equal(fixture.error.hidden, false);
+  assert.equal(fixture.loading.hidden, true);
+  fixture.retry.dispatch('click');
+  await settle();
+  fixture.loadMore.dispatch('click');
+  await settle();
+  assert.equal(fixture.error.hidden, false);
+  fixture.retry.dispatch('click');
+  await settle();
+
+  assert.deepEqual(cursors, [null, null, 'same-cursor', 'same-cursor']);
+  assert.deepEqual(fixture.inboxItems.children.map(row => row.dataset.notificationId), ['cursor-item']);
+  assert.equal(fixture.loadMore.hidden, true);
+});
+
+test('socket inbox rows use safe text links and a restarted session ignores a stale page', async () => {
+  const firstFixture = inboxRoot();
+  let releaseStale;
+  let listRequests = 0;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token(`stale-token-${listRequests}`));
+    if (url.endsWith('/unread-count')) return response(200, { count: 1 });
+    listRequests += 1;
+    if (listRequests === 1) {
+      return new Promise(resolve => {
+        releaseStale = () => resolve(response(200, {
+          items: [notification({ id: 'stale' })],
+          nextCursor: null,
+        }));
+      });
+    }
+    return response(200, {
+      items: [notification({
+        id: 'current',
+        title: '<img src=x>',
+        body: 'x'.repeat(400),
+        linkUrl: 'https://unsafe.example',
+      })],
+      nextCursor: null,
+    });
+  };
+
+  NotificationClient.start(firstFixture.element);
+  await settle();
+  const secondFixture = inboxRoot();
+  NotificationClient.start(secondFixture.element);
+  await settle();
+  releaseStale();
+  await settle();
+
+  assert.equal(firstFixture.inboxItems.children.length, 0);
+  const row = inboxRow(secondFixture, 'current');
+  const link = row.querySelector('[data-notification-link]');
+  assert.equal(link.getAttribute('href'), '/notifications');
+  assert.equal(link.textContent, '<img src=x>');
+  assert.equal(row.querySelector('[data-notification-body]').textContent, 'x'.repeat(400));
+});
+
+test('a successful empty inbox shows its empty state', async () => {
+  const fixture = inboxRoot();
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('empty-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 0 });
+    return response(200, { items: [], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+
+  assert.equal(fixture.inboxEmpty.hidden, false);
+  assert.equal(fixture.inboxEmpty.textContent, '알림이 없습니다.');
+  assert.equal(fixture.loading.hidden, true);
+  assert.equal(fixture.error.hidden, true);
+});
+
+test('socket connect merges a missed first page without replacing the current load-more cursor', async () => {
+  const fixture = inboxRoot();
+  const socket = new FakeSocket();
+  const oldItem = notification({ id: 'inbox-old', title: 'Old' });
+  const refreshedOldItem = { ...oldItem, readAt: '2026-08-30T07:00:00.000Z' };
+  const missedItem = notification({ id: 'inbox-missed', title: 'Missed' });
+  const olderItem = notification({ id: 'inbox-older', title: 'Older' });
+  const listUrls = [];
+  globalThis.io = () => socket;
+  globalThis.fetch = async url => {
+    if (url === '/api/realtime/token') return response(200, token('inbox-connect-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: 3 });
+    listUrls.push(url);
+    if (listUrls.length === 1) {
+      return response(200, { items: [oldItem], nextCursor: 'older-cursor' });
+    }
+    if (listUrls.length === 2) {
+      return response(200, { items: [missedItem, refreshedOldItem], nextCursor: 'ignored-head-cursor' });
+    }
+    return response(200, { items: [olderItem], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  socket.serverEmit('connect');
+  await settle();
+
+  assert.deepEqual(
+    fixture.inboxItems.children.map(row => row.dataset.notificationId),
+    ['inbox-missed', 'inbox-old'],
+  );
+  assert.equal(inboxRow(fixture, oldItem.id).classList.contains('unread'), false);
+  fixture.loadMore.dispatch('click');
+  await settle();
+  assert.equal(new URL(listUrls[2]).searchParams.get('cursor'), 'older-cursor');
+  assert.deepEqual(
+    fixture.inboxItems.children.map(row => row.dataset.notificationId),
+    ['inbox-missed', 'inbox-old', 'inbox-older'],
+  );
+});
+
+test('read-all also clears a loaded header item when the inbox page failed', async () => {
+  const fixture = inboxRoot();
+  const recentOnly = notification({ id: 'recent-only', title: 'Recent only' });
+  let readAllDone = false;
+  globalThis.fetch = async (url, options = {}) => {
+    if (url === '/api/realtime/token') return response(200, token('recent-read-all-token'));
+    if (url.endsWith('/unread-count')) return response(200, { count: readAllDone ? 0 : 1 });
+    if (options.method === 'POST') {
+      readAllDone = true;
+      return response(201, { changedCount: 1 });
+    }
+    const limit = new URL(url).searchParams.get('limit');
+    return limit === '20'
+      ? response(503)
+      : response(200, { items: [recentOnly], nextCursor: null });
+  };
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  assert.equal(fixture.items.children[0].classList.contains('unread'), true);
+  fixture.readAll.dispatch('click');
+  await settle();
+
+  assert.equal(fixture.items.children[0].classList.contains('unread'), false);
+  assert.equal(fixture.badge.hidden, true);
 });
