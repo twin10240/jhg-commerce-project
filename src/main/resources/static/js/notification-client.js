@@ -21,6 +21,7 @@
   let emptyState = null;
   let logoutForm = null;
   let triggerListener = null;
+  let outsideClickListener = null;
   let logoutListener = null;
   let visibilityListener = null;
   let socketListeners = null;
@@ -850,6 +851,12 @@
       if (open && !recentLoaded) syncRecent(current);
     };
     trigger.addEventListener('click', triggerListener);
+    outsideClickListener = event => {
+      if (panel.hidden || element.contains(event.target)) return;
+      panel.hidden = true;
+      trigger.setAttribute('aria-expanded', 'false');
+    };
+    host.document?.addEventListener('click', outsideClickListener);
     logoutForm = element.closest('.site-nav')?.querySelector('[data-logout-form]') || null;
     if (logoutForm) {
       logoutListener = () => stop();
@@ -862,6 +869,9 @@
     generation += 1;
     session = null;
     if (trigger && triggerListener) trigger.removeEventListener('click', triggerListener);
+    if (host.document && outsideClickListener) {
+      host.document.removeEventListener('click', outsideClickListener);
+    }
     if (logoutForm && logoutListener) logoutForm.removeEventListener('submit', logoutListener);
     if (host.document && visibilityListener) {
       host.document.removeEventListener('visibilitychange', visibilityListener);
@@ -881,6 +891,7 @@
     emptyState = null;
     logoutForm = null;
     triggerListener = null;
+    outsideClickListener = null;
     logoutListener = null;
     visibilityListener = null;
     retryIndex = 0;
