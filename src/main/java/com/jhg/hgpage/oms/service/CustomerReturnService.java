@@ -10,6 +10,8 @@ import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
 import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +30,7 @@ public class CustomerReturnService {
 
     private final OrderRepository orderRepository;
     private final CustomerReturnRepository customerReturnRepository;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public Long request(Long orderId, Long memberId, String reason, List<ReturnLine> lines) {
@@ -81,7 +84,13 @@ public class CustomerReturnService {
 
     @Transactional
     public void markRequested(Long returnId, Long rmaId) {
-        findForUpdate(returnId).markRequested(rmaId);
+        CustomerReturn customerReturn = findForUpdate(returnId);
+        CustomerReturnStatus previous = customerReturn.getStatus();
+        customerReturn.markRequested(rmaId);
+        if (previous != CustomerReturnStatus.REQUESTED
+                && customerReturn.getStatus() == CustomerReturnStatus.REQUESTED) {
+            appendReturnEvent(customerReturn, NotificationEventType.RETURN_REQUESTED);
+        }
     }
 
     @Transactional
@@ -99,7 +108,9 @@ public class CustomerReturnService {
 
     @Transactional
     public void rejectReturn(Long returnId, String reviewer, String reason) {
-        findForUpdate(returnId).reject(reviewer, reason);
+        CustomerReturn customerReturn = findForUpdate(returnId);
+        customerReturn.reject(reviewer, reason);
+        appendReturnEvent(customerReturn, NotificationEventType.RETURN_REJECTED);
     }
 
     @Transactional(readOnly = true)
@@ -196,6 +207,13 @@ public class CustomerReturnService {
         if (!order.getMember().getId().equals(memberId)) {
             throw new EntityNotFoundException("Order", order.getId());
         }
+    }
+
+    private void appendReturnEvent(CustomerReturn customerReturn, NotificationEventType type) {
+        Long orderId = customerReturn.getOrder().getId();
+        eventWriter.append(type, customerReturn.getOrder().getMember().getId(),
+                "RETURN", customerReturn.getId().toString(),
+                Map.of("orderId", orderId, "returnId", customerReturn.getId()));
     }
 
     public record ReturnLine(Long orderItemId, int quantity) {}

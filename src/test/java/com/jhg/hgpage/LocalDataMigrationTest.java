@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LocalDataMigrationTest {
 
@@ -17,6 +18,7 @@ class LocalDataMigrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:local-data-migration;DB_CLOSE_DELAY=-1", "sa", "");
         try (Connection connection = dataSource.getConnection()) {
+            createOrdersTable(connection);
             connection.createStatement().execute("""
                     create table delivery (
                         delivery_id bigint primary key,
@@ -40,6 +42,7 @@ class LocalDataMigrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:local-enum-data-migration;DB_CLOSE_DELAY=-1", "sa", "");
         try (Connection connection = dataSource.getConnection()) {
+            createOrdersTable(connection);
             connection.createStatement().execute("""
                     create table delivery (
                         delivery_id bigint primary key,
@@ -63,6 +66,7 @@ class LocalDataMigrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:local-return-enum-migration;DB_CLOSE_DELAY=-1", "sa", "");
         try (Connection connection = dataSource.getConnection()) {
+            createOrdersTable(connection);
             connection.createStatement().execute("""
                     create table delivery (
                         delivery_id bigint primary key,
@@ -99,6 +103,7 @@ class LocalDataMigrationTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(
                 "jdbc:h2:mem:local-return-rma-migration;DB_CLOSE_DELAY=-1", "sa", "");
         try (Connection connection = dataSource.getConnection()) {
+            createOrdersTable(connection);
             connection.createStatement().execute("""
                     create table delivery (
                         delivery_id bigint primary key,
@@ -127,5 +132,45 @@ class LocalDataMigrationTest {
                 assertThat(result.getInt(1)).isEqualTo(2);
             }
         }
+    }
+
+    @Test
+    void 기존_주문_requestKey를_한번만_백필하고_고유하게_강제한다() throws Exception {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource(
+                "jdbc:h2:mem:local-order-key-migration;DB_CLOSE_DELAY=-1", "sa", "");
+        try (Connection connection = dataSource.getConnection()) {
+            createOrdersTable(connection);
+            connection.createStatement().execute("create table delivery (delivery_id bigint primary key, status varchar(20))");
+            connection.createStatement().execute("insert into orders(order_id) values (1)");
+        }
+
+        ResourceDatabasePopulator migration =
+                new ResourceDatabasePopulator(new ClassPathResource("db/local-data-migration.sql"));
+        migration.execute(dataSource);
+
+        String requestKey;
+        try (Connection connection = dataSource.getConnection();
+             ResultSet result = connection.createStatement()
+                     .executeQuery("select request_key from orders where order_id = 1")) {
+            assertThat(result.next()).isTrue();
+            requestKey = result.getString(1);
+            assertThat(requestKey).isNotBlank();
+        }
+
+        migration.execute(dataSource);
+        try (Connection connection = dataSource.getConnection()) {
+            assertThatThrownBy(() -> connection.createStatement().execute(
+                    "insert into orders(order_id, request_key) values (2, '" + requestKey + "')"))
+                    .isInstanceOf(java.sql.SQLException.class);
+            try (ResultSet result = connection.createStatement()
+                    .executeQuery("select request_key from orders where order_id = 1")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getString(1)).isEqualTo(requestKey);
+            }
+        }
+    }
+
+    private void createOrdersTable(Connection connection) throws Exception {
+        connection.createStatement().execute("create table orders (order_id bigint primary key)");
     }
 }

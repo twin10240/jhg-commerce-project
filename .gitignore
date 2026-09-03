@@ -42,5 +42,6 @@ spy.log
 
 Microsoft/
 .worktrees/
+worktrees/
 .superpowers/
 .DS_Store

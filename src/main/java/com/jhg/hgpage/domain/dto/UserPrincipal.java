@@ -54,6 +54,10 @@ public class UserPrincipal implements UserDetails {
         return phone;
     }
 
+    public Role getRole() {
+        return role;
+    }
+
     // 팩토리 메서드
     public static UserPrincipal from(Account account, Member member) {
         Role role = account.getRole();

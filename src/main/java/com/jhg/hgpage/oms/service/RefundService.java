@@ -9,12 +9,15 @@ import com.jhg.hgpage.oms.domain.enums.RefundSourceType;
 import com.jhg.hgpage.oms.domain.enums.RefundStatus;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.repository.RefundRequestRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.ToIntFunction;
@@ -29,6 +32,7 @@ public class RefundService {
     private final PaymentRepository paymentRepository;
     private final RefundRequestRepository refundRequestRepository;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public Optional<Long> requestOrderCancellationRefund(Long orderId) {
@@ -87,10 +91,11 @@ public class RefundService {
                 } else {
                     request.succeed(result.transactionId(), now);
                     payment.completeRefund(request.getAmount());
+                    appendRefundEvent(request, NotificationEventType.REFUND_COMPLETED);
                 }
             }
-            case DECLINED, PERMANENT_FAILURE -> request.manualReview(
-                    failureCode(result), failureReason(result), now);
+            case DECLINED, PERMANENT_FAILURE -> manualReview(
+                    request, failureCode(result), failureReason(result), now);
             case RETRYABLE_FAILURE, UNKNOWN -> retryOrReview(
                     request, failureCode(result), failureReason(result), now);
         }
@@ -104,7 +109,7 @@ public class RefundService {
                 continue;
             }
             if (request.getAttemptCount() >= 5) {
-                request.manualReview(STALE_PROCESSING, "Processing lease expired", now);
+                manualReview(request, STALE_PROCESSING, "Processing lease expired", now);
             } else {
                 request.retryAt(now, STALE_PROCESSING, "Processing lease expired", now);
             }
@@ -152,7 +157,19 @@ public class RefundService {
         retrySchedule.nextAttemptAt(request.getAttemptCount(), now)
                 .ifPresentOrElse(
                         next -> request.retryAt(next, code, reason, now),
-                        () -> request.manualReview(code, reason, now));
+                        () -> manualReview(request, code, reason, now));
+    }
+
+    private void manualReview(RefundRequest request, String code, String reason, LocalDateTime now) {
+        request.manualReview(code, reason, now);
+        appendRefundEvent(request, NotificationEventType.REFUND_REVIEW_REQUIRED);
+    }
+
+    private void appendRefundEvent(RefundRequest request, NotificationEventType type) {
+        Long orderId = request.getPayment().getOrder().getId();
+        eventWriter.append(type, request.getPayment().getOrder().getMember().getId(),
+                "REFUND", request.getId().toString(), Map.of(
+                        "orderId", orderId, "refundId", request.getId(), "amount", request.getAmount()));
     }
 
     private String failureCode(PaymentGateway.RefundResult result) {

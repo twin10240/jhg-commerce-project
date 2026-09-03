@@ -12,6 +12,8 @@ import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -30,6 +33,7 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public Long startPayment(Long orderId, Long memberId) {
@@ -185,6 +189,8 @@ public class PaymentService {
             order.resolveCancellationRelease(false);
         } else {
             order.markAllocationPending();
+            eventWriter.append(NotificationEventType.PAYMENT_APPROVED, order.getMember().getId(),
+                    "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
         }
     }
 
@@ -195,11 +201,15 @@ public class PaymentService {
             payment.cancelUnpaid();
             order.resolveCancellationRelease(false);
             order.finishCancellation();
+            eventWriter.append(NotificationEventType.ORDER_CANCELLED, order.getMember().getId(),
+                    "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
             return;
         }
         attempt.fail(failureCode(result), failureReason(result), now);
         payment.markPaymentFailed();
         order.markPaymentFailed();
+        eventWriter.append(NotificationEventType.PAYMENT_FAILED, order.getMember().getId(),
+                "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
     }
 
     private void retryOrReview(PaymentAttempt attempt, Payment payment, Order order,
@@ -220,6 +230,8 @@ public class PaymentService {
         }
         if (order.getStatus() == OrderStatus.PAYMENT_PENDING) {
             order.markPaymentReview();
+            eventWriter.append(NotificationEventType.PAYMENT_REVIEW_REQUIRED, order.getMember().getId(),
+                    "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
         }
     }
 

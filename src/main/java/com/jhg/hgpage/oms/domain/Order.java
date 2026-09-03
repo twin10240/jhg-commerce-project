@@ -9,6 +9,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static jakarta.persistence.FetchType.LAZY;
@@ -22,6 +23,10 @@ public class Order {
     @Id @GeneratedValue
     @Column(name = "order_id")
     private Long id;
+
+    @Setter(AccessLevel.NONE)
+    @Column(name = "request_key", unique = true, updatable = false)
+    private UUID requestKey;
 
     @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "member_id")
@@ -77,6 +82,7 @@ public class Order {
 
     public static Order createOrder(Member member, Delivery delivery, OrderItem... orderItems) {
         Order order = new Order();
+        order.requestKey = UUID.randomUUID();
 
         order.setMember(member);
         order.setDelivery(delivery);

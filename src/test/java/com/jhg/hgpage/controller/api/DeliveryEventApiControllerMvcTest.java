@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -24,6 +25,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(DeliveryEventApiController.class)
 @Import(SecurityConfig.class)
 class DeliveryEventApiControllerMvcTest {
+
+    private static final UUID REQUEST_KEY = UUID.fromString("3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33");
 
     @Autowired MockMvc mockMvc;
     @MockitoBean OrderService orderService;
@@ -37,15 +40,15 @@ class DeliveryEventApiControllerMvcTest {
 
     @Test
     void 배송완료_콜백을_주문_서비스에_위임한다() throws Exception {
-        mockMvc.perform(callback("{\"orderId\":40,\"deliveredAt\":\"2026-08-27T06:30:00.123456Z\"}"))
+        mockMvc.perform(callback("{\"requestKey\":\"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33\",\"orderId\":40,\"deliveredAt\":\"2026-08-27T06:30:00.123456Z\"}"))
                 .andExpect(status().isOk());
 
-        verify(orderService).markDelivered(40L, Instant.parse("2026-08-27T06:30:00.123456Z"));
+        verify(orderService).markDelivered(REQUEST_KEY, Instant.parse("2026-08-27T06:30:00.123456Z"));
     }
 
     @Test
-    void orderId가_없으면_400이다() throws Exception {
-        mockMvc.perform(callback("{\"orderId\":null,\"deliveredAt\":\"2026-08-27T06:30:00Z\"}"))
+    void requestKey가_없으면_400이다() throws Exception {
+        mockMvc.perform(callback("{\"orderId\":40,\"deliveredAt\":\"2026-08-27T06:30:00Z\"}"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(orderService);
@@ -53,7 +56,7 @@ class DeliveryEventApiControllerMvcTest {
 
     @Test
     void 배송완료_시각이_없으면_400이다() throws Exception {
-        mockMvc.perform(callback("{\"orderId\":40}"))
+        mockMvc.perform(callback("{\"requestKey\":\"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33\",\"orderId\":40}"))
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(orderService);
@@ -62,9 +65,9 @@ class DeliveryEventApiControllerMvcTest {
     @Test
     void 출고되지_않은_주문이면_409다() throws Exception {
         doThrow(new IllegalStateException("출고 완료 상태에서만 배송 완료할 수 있습니다."))
-                .when(orderService).markDelivered(40L, Instant.parse("2026-08-27T06:30:00Z"));
+                .when(orderService).markDelivered(REQUEST_KEY, Instant.parse("2026-08-27T06:30:00Z"));
 
-        mockMvc.perform(callback("{\"orderId\":40,\"deliveredAt\":\"2026-08-27T06:30:00Z\"}"))
+        mockMvc.perform(callback("{\"requestKey\":\"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33\",\"orderId\":40,\"deliveredAt\":\"2026-08-27T06:30:00Z\"}"))
                 .andExpect(status().isConflict());
     }
 

@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * OMS가 WMS 재고의 판매 가용 수량을 조회하는 읽기 포트.
@@ -23,8 +24,8 @@ public interface InventoryQueryPort {
      */
     Map<Long, Integer> availableByProductIds(Collection<Long> productIds);
 
-    Optional<ShipmentInfo> shipmentByOrderId(Long orderId);
+    Optional<ShipmentInfo> shipmentByRequestKey(UUID requestKey);
 
-    record ShipmentInfo(Long orderId, String carrierCode, String carrierName,
+    record ShipmentInfo(UUID requestKey, Long orderId, String carrierCode, String carrierName,
                         String trackingNumber, Instant issuedAt, Instant deliveredAt) {}
 }

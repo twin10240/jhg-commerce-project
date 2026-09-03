@@ -20,6 +20,7 @@ import com.jhg.hgpage.oms.service.CustomerReturnService;
 import com.jhg.hgpage.oms.service.RefundService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
 import com.jhg.hgpage.oms.service.ReturnSubmissionService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import com.jhg.hgpage.oms.service.ReturnSyncService;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -55,6 +57,7 @@ class ReturnSubmissionServiceTest {
     @Autowired CustomerReturnRepository customerReturnRepository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
+    @MockitoBean NotificationEventWriter eventWriter;
     @MockitoBean ReturnPort returnPort;
 
     @ParameterizedTest(name = "{0}")

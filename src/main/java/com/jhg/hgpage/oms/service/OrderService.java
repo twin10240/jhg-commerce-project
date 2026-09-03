@@ -13,6 +13,8 @@ import com.jhg.hgpage.exception.EntityNotFoundException;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +37,7 @@ public class OrderService {
     private final OrderCancellationService cancellationService;
     private final InventoryPort inventoryPort;
     private final InventoryQueryPort inventoryQueryPort;
+    private final NotificationEventWriter eventWriter;
 
     public List<Order> findAllOrders() {
         return orderRepository.findAll();
@@ -69,20 +73,22 @@ public class OrderService {
 
     @Transactional
     public void shipOrder(Long orderId) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.ship();
         InventoryPort.ShipmentResult shipment = inventoryPort.shipAll(
-                order.getId(), order.quantitiesByProductId());
+                order.getRequestKey(), order.quantitiesByProductId());
         order.getDelivery().recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
+        appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
     }
 
     @Transactional
     public void deliverOrder(Long orderId) {
-        Order order = findOrder(orderId);
+        Order order = findOrderForUpdate(orderId);
         order.deliver();
         order.getDelivery().recordDeliveredAt(Instant.now());
+        appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
     }
 
     /**
@@ -90,24 +96,36 @@ public class OrderService {
      * 409로 튕기지 않게 한다(관리자 화면의 deliverOrder는 사람이 누르는 경로라 그대로 예외를 던진다).
      */
     @Transactional
-    public void markDelivered(Long orderId, Instant deliveredAt) {
-        Order order = findOrder(orderId);
-        if (order.getDelivery().getStatus() != DeliveryStatus.DELIVERED) order.deliver();
+    public void markDelivered(UUID requestKey, Instant deliveredAt) {
+        Order order = orderRepository.findByRequestKeyForUpdate(requestKey)
+                .orElseThrow(() -> new IllegalStateException("Order not found: requestKey=" + requestKey));
+        DeliveryStatus previous = order.getDelivery().getStatus();
+        if (previous != DeliveryStatus.DELIVERED) order.deliver();
         order.getDelivery().recordDeliveredAt(deliveredAt);
+        if (previous != DeliveryStatus.DELIVERED) {
+            appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
+        }
     }
 
     @Transactional
     public void syncShipment(Long orderId) {
-        Order order = findOrder(orderId);
-        InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByOrderId(orderId)
+        Order order = findOrderForUpdate(orderId);
+        InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())
                 .orElseThrow(() -> new IllegalStateException("WMS 송장이 없습니다."));
         Delivery delivery = order.getDelivery();
+        DeliveryStatus previous = delivery.getStatus();
         if (delivery.getStatus() == DeliveryStatus.READY) order.ship();
         delivery.recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
         if (shipment.deliveredAt() != null) {
             if (delivery.getStatus() == DeliveryStatus.SHIPPED) order.deliver();
             delivery.recordDeliveredAt(shipment.deliveredAt());
+        }
+        if (previous == DeliveryStatus.READY) {
+            appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
+        }
+        if (shipment.deliveredAt() != null && previous != DeliveryStatus.DELIVERED) {
+            appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
         }
     }
 
@@ -129,6 +147,16 @@ public class OrderService {
     private Order findOrder(Long orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+    }
+
+    private Order findOrderForUpdate(Long orderId) {
+        return orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order", orderId));
+    }
+
+    private void appendOrderEvent(Order order, NotificationEventType type) {
+        eventWriter.append(type, order.getMember().getId(), "ORDER", order.getId().toString(),
+                Map.of("orderId", order.getId()));
     }
 
     public record OrderLine(Long productId, int quantity) {}

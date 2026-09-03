@@ -11,6 +11,8 @@ import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
 import com.jhg.hgpage.oms.service.OrderAllocationService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -31,12 +34,13 @@ class OrderAllocationServiceTest {
 
     @Mock OrderRepository orderRepository;
     @Mock OrderRepositoryQuery orderRepositoryQuery;
+    @Mock NotificationEventWriter eventWriter;
 
     OrderAllocationService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderAllocationService(orderRepository, orderRepositoryQuery, new RetrySchedule());
+        service = new OrderAllocationService(orderRepository, orderRepositoryQuery, new RetrySchedule(), eventWriter);
     }
 
     @Test
@@ -46,7 +50,8 @@ class OrderAllocationServiceTest {
 
         Optional<OrderAllocationService.AllocationCommand> command = service.claim(100L);
 
-        assertThat(command).contains(new OrderAllocationService.AllocationCommand(1, Map.of(1L, 2)));
+        assertThat(command).contains(new OrderAllocationService.AllocationCommand(
+                order.getRequestKey(), 1, Map.of(1L, 2)));
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
         assertThat(order.getAllocationAttemptCount()).isEqualTo(1);
     }
@@ -62,6 +67,10 @@ class OrderAllocationServiceTest {
 
         assertThat(reserved.getStatus()).isEqualTo(OrderStatus.ORDER);
         assertThat(shortage.getStatus()).isEqualTo(OrderStatus.BACKORDERED);
+        verify(eventWriter).append(NotificationEventType.STOCK_ALLOCATED, 1L,
+                "ORDER", "100", Map.of("orderId", 100L));
+        verify(eventWriter).append(NotificationEventType.ORDER_BACKORDERED, 1L,
+                "ORDER", "100", Map.of("orderId", 100L));
     }
 
     @Test
@@ -240,6 +249,7 @@ class OrderAllocationServiceTest {
         product.setName("상품");
         product.setPrice(10_000);
         Member member = Member.createUser("테스터", "010-0000-0000", new Address("서울", "관악구", "500"));
+        ReflectionTestUtils.setField(member, "id", 1L);
         Delivery delivery = new Delivery();
         delivery.setAddress(new Address("서울", "관악구", "500"));
         Order order = Order.createOrder(member, delivery, OrderItem.createOrderItem(product, 10_000, 2));

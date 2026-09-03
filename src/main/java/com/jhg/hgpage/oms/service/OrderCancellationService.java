@@ -10,6 +10,8 @@ import com.jhg.hgpage.oms.domain.enums.PaymentStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.PaymentAttemptRepository;
 import com.jhg.hgpage.oms.repository.PaymentRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +35,7 @@ public class OrderCancellationService {
     private final PaymentAttemptRepository paymentAttemptRepository;
     private final RefundService refundService;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public CancellationResult request(Long orderId, Long memberId) {
@@ -90,6 +94,9 @@ public class OrderCancellationService {
             case ORDER -> order.requestCancellation(true, LocalDateTime.now());
             default -> throw new IllegalStateException("주문 취소를 요청할 수 없습니다.");
         }
+        if (order.getStatus() == OrderStatus.CANCEL) {
+            appendCancelled(order);
+        }
         return result(order, payment);
     }
 
@@ -105,7 +112,7 @@ public class OrderCancellationService {
             return Optional.empty();
         }
         order.claimCancellation(now);
-        return Optional.of(new CancellationClaim(order.getCancellationAttemptCount(),
+        return Optional.of(new CancellationClaim(order.getRequestKey(), order.getCancellationAttemptCount(),
                 order.getCancellationReleaseRequired(), Map.copyOf(order.quantitiesByProductId())));
     }
 
@@ -120,6 +127,7 @@ public class OrderCancellationService {
         if (isPaid(payment)) {
             refundService.requestOrderCancellationRefund(orderId);
         }
+        appendCancelled(order);
         return true;
     }
 
@@ -210,6 +218,11 @@ public class OrderCancellationService {
         return failureCode != null && failureCode.matches("WMS_4\\d{2}");
     }
 
+    private void appendCancelled(Order order) {
+        eventWriter.append(NotificationEventType.ORDER_CANCELLED, order.getMember().getId(),
+                "ORDER", order.getId().toString(), Map.of("orderId", order.getId()));
+    }
+
     private CancellationResult result(Order order, Payment payment) {
         if (order.getStatus() != OrderStatus.CANCEL) {
             return new CancellationResult(isPaid(payment)
@@ -228,6 +241,7 @@ public class OrderCancellationService {
     public record CancellationResult(CancellationOutcome outcome) {
     }
 
-    public record CancellationClaim(int attemptNumber, boolean releaseRequired, Map<Long, Integer> quantities) {
+    public record CancellationClaim(UUID requestKey, int attemptNumber, boolean releaseRequired,
+                                    Map<Long, Integer> quantities) {
     }
 }

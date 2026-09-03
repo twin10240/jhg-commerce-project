@@ -17,6 +17,8 @@ import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.repository.RefundRequestRepository;
 import com.jhg.hgpage.oms.service.RefundService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,13 +50,14 @@ class RefundServiceTest {
 
     @Mock PaymentRepository paymentRepository;
     @Mock RefundRequestRepository refundRequestRepository;
+    @Mock NotificationEventWriter eventWriter;
 
     RefundService service;
     Fixture fixture;
 
     @BeforeEach
     void setUp() {
-        service = new RefundService(paymentRepository, refundRequestRepository, new RetrySchedule());
+        service = new RefundService(paymentRepository, refundRequestRepository, new RetrySchedule(), eventWriter);
         fixture = paidOrder(10_000, 2);
     }
 
@@ -180,6 +184,8 @@ class RefundServiceTest {
         assertThat(request.getGatewayTransactionId()).isEqualTo("MOCK-REFUND-1");
         assertThat(fixture.payment.getPendingRefundAmount()).isZero();
         assertThat(fixture.payment.getRefundedAmount()).isEqualTo(20_000);
+        verify(eventWriter).append(NotificationEventType.REFUND_COMPLETED, 1L,
+                "REFUND", "30", Map.of("orderId", 10L, "refundId", 30L, "amount", 20_000));
     }
 
     @Test

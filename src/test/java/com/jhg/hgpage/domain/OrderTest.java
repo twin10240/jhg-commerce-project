@@ -20,6 +20,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  */
 class OrderTest {
 
+    @Test
+    void 주문마다_서로_다른_requestKey를_발급한다() {
+        Order first = newOrder(product(), 1);
+        Order second = newOrder(product(), 1);
+
+        assertThat(first.getRequestKey()).isNotNull();
+        assertThat(second.getRequestKey()).isNotNull().isNotEqualTo(first.getRequestKey());
+    }
+
     private Product product() {
         Product product = new Product();
         product.setName("상품");

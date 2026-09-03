@@ -6,6 +6,9 @@ import org.flywaydb.core.api.MigrationState;
 import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 
+import java.sql.DriverManager;
+import java.util.Arrays;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -36,5 +39,38 @@ class FlywayMigrationTest {
         assertThat(applied).hasSize(1);
         assertThat(applied[0].getVersion().getVersion()).isEqualTo("1");
         assertThat(applied[0].getState()).isEqualTo(MigrationState.SUCCESS);
+    }
+
+    @Test
+    void V14_알림Outbox_마이그레이션이_H2_PostgreSQL모드에서_적용된다() throws Exception {
+        String url = "jdbc:h2:mem:flyway-notification-outbox;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=true";
+        try (var connection = DriverManager.getConnection(url, "sa", "");
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE baseline_marker (id INTEGER)");
+        }
+
+        Flyway flyway = Flyway.configure()
+                .dataSource(url, "sa", "")
+                .locations("classpath:db/migration")
+                .baselineOnMigrate(true)
+                .baselineVersion(MigrationVersion.fromVersion("13"))
+                .target(MigrationVersion.fromVersion("14"))
+                .load();
+
+        flyway.migrate();
+
+        MigrationInfo migration = Arrays.stream(flyway.info().applied())
+                .filter(info -> "14".equals(info.getVersion().getVersion()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(migration.getState()).isEqualTo(MigrationState.SUCCESS);
+
+        try (var connection = DriverManager.getConnection(url, "sa", "");
+             var statement = connection.createStatement();
+             var result = statement.executeQuery("SELECT COUNT(*) FROM information_schema.tables "
+                     + "WHERE table_name = 'notification_outbox'")) {
+            result.next();
+            assertThat(result.getInt(1)).isEqualTo(1);
+        }
     }
 }

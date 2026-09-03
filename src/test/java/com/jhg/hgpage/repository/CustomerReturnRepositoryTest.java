@@ -11,12 +11,14 @@ import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,7 @@ class CustomerReturnRepositoryTest {
     @Autowired CustomerReturnRepository customerReturnRepository;
     @Autowired CustomerReturnService customerReturnService;
     @Autowired TestEntityManager em;
+    @MockitoBean NotificationEventWriter eventWriter;
 
     @Test
     void 상세조회는_반품과_주문상품을_함께_가져온다() {

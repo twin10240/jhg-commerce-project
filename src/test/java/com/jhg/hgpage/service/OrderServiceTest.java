@@ -4,6 +4,7 @@ import com.jhg.hgpage.oms.service.BackorderAllocator;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import com.jhg.hgpage.oms.domain.Address;
 import com.jhg.hgpage.oms.domain.CustomerReturn;
 import com.jhg.hgpage.oms.domain.Delivery;
@@ -45,6 +46,7 @@ class OrderServiceTest {
     @Mock CustomerReturnRepository customerReturnRepository;
     @Mock CartService cartService;
     @Mock BackorderAllocator backorderAllocator;
+    @Mock NotificationEventWriter eventWriter;
     @InjectMocks OrderService orderService;
 
     private static final Address ADDRESS = new Address("서울", "관악구", "500");

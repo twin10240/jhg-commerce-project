@@ -120,13 +120,14 @@ class PaymentAdminConcurrencyTest {
     @Test
     void 미확정_취소할당_관리자와_처리기가_경합해도_같은주문을_한번만_예약한다() throws Exception {
         Long orderId = transactionTemplate.execute(status -> unresolvedAllocationReview());
+        UUID orderRequestKey = orderRepository.findById(orderId).orElseThrow().getRequestKey();
         orderAllocationService.retryOrReview(orderId, 5, "WMS_UNAVAILABLE");
         long workCount = orderRepository.count();
         CountDownLatch wmsStarted = new CountDownLatch(1);
         CountDownLatch releaseWms = new CountDownLatch(1);
-        when(inventoryPort.reserveAll(eq(orderId), any())).thenAnswer(invocation -> {
+        when(inventoryPort.reserveAll(eq(orderRequestKey), eq(orderId), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-            assertThat(invocation.getArgument(0, Long.class)).isEqualTo(orderId);
+            assertThat(invocation.getArgument(0, UUID.class)).isEqualTo(orderRequestKey);
             wmsStarted.countDown();
             assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
             return true;
@@ -143,7 +144,7 @@ class PaymentAdminConcurrencyTest {
             assertThat(processing.getId()).isEqualTo(orderId);
             assertThat(processing.getAllocationAttemptCount()).isEqualTo(6);
             assertThat(orderRepository.count()).isEqualTo(workCount);
-            verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
+            verify(inventoryPort, times(1)).reserveAll(eq(orderRequestKey), eq(orderId), any());
 
             releaseWms.countDown();
             admin.get(10, TimeUnit.SECONDS);
@@ -158,22 +159,23 @@ class PaymentAdminConcurrencyTest {
         assertThat(completed.getStatus()).isEqualTo(OrderStatus.CANCEL_REQUESTED);
         assertThat(completed.getCancellationReleaseRequired()).isTrue();
         assertThat(orderRepository.count()).isEqualTo(workCount);
-        verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
+        verify(inventoryPort, times(1)).reserveAll(eq(orderRequestKey), eq(orderId), any());
     }
 
     @Test
     void 해제취소검토_관리자와_처리기가_경합해도_같은주문을_한번만_해제한다() throws Exception {
         Long orderId = transactionTemplate.execute(status -> exhaustedReleaseCancellationReview());
+        UUID orderRequestKey = orderRepository.findById(orderId).orElseThrow().getRequestKey();
         long workCount = orderRepository.count();
         CountDownLatch wmsStarted = new CountDownLatch(1);
         CountDownLatch releaseWms = new CountDownLatch(1);
         doAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-            assertThat(invocation.getArgument(0, Long.class)).isEqualTo(orderId);
+            assertThat(invocation.getArgument(0, UUID.class)).isEqualTo(orderRequestKey);
             wmsStarted.countDown();
             assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
             return null;
-        }).when(inventoryPort).releaseAll(eq(orderId), any());
+        }).when(inventoryPort).releaseAll(eq(orderRequestKey), any());
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
@@ -186,7 +188,7 @@ class PaymentAdminConcurrencyTest {
             assertThat(processing.getId()).isEqualTo(orderId);
             assertThat(processing.getCancellationAttemptCount()).isEqualTo(6);
             assertThat(orderRepository.count()).isEqualTo(workCount);
-            verify(inventoryPort, times(1)).releaseAll(eq(orderId), any());
+            verify(inventoryPort, times(1)).releaseAll(eq(orderRequestKey), any());
 
             releaseWms.countDown();
             admin.get(10, TimeUnit.SECONDS);
@@ -200,7 +202,7 @@ class PaymentAdminConcurrencyTest {
         assertThat(completed.getCancellationAttemptCount()).isEqualTo(6);
         assertThat(completed.getStatus()).isEqualTo(OrderStatus.CANCEL);
         assertThat(orderRepository.count()).isEqualTo(workCount);
-        verify(inventoryPort, times(1)).releaseAll(eq(orderId), any());
+        verify(inventoryPort, times(1)).releaseAll(eq(orderRequestKey), any());
     }
 
     private PaymentFixture cancellationPaymentReview() {

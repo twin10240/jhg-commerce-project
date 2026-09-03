@@ -13,6 +13,7 @@ import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import com.jhg.hgpage.oms.dto.AdminCustomerReturnDto;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
 import com.jhg.hgpage.oms.service.CustomerReturnService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,6 +22,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 
 import java.util.List;
@@ -37,6 +39,7 @@ class CustomerReturnServiceTest {
     @Autowired CustomerReturnService customerReturnService;
     @Autowired CustomerReturnRepository customerReturnRepository;
     @Autowired TestEntityManager em;
+    @MockitoBean NotificationEventWriter eventWriter;
 
     private Fixture fixture;
 

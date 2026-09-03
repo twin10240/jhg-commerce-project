@@ -1,0 +1,20 @@
+CREATE TABLE notification_outbox (
+    id UUID NOT NULL,
+    event_id UUID NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    aggregate_type VARCHAR(30) NOT NULL,
+    aggregate_id VARCHAR(100) NOT NULL,
+    recipient_id BIGINT NOT NULL,
+    payload TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    attempt_count INTEGER NOT NULL,
+    next_attempt_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    processing_at TIMESTAMP WITH TIME ZONE,
+    published_at TIMESTAMP WITH TIME ZONE,
+    last_error_code VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    version BIGINT,
+    CONSTRAINT pk_notification_outbox PRIMARY KEY (id),
+    CONSTRAINT uq_notification_outbox_event_id UNIQUE (event_id),
+    CONSTRAINT ck_notification_outbox_attempt_count CHECK (attempt_count >= 0)
+);

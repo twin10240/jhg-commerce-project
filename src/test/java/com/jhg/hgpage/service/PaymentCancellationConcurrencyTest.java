@@ -168,7 +168,7 @@ class PaymentCancellationConcurrencyTest {
         Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
         CountDownLatch wmsStarted = new CountDownLatch(1);
         CountDownLatch releaseWms = new CountDownLatch(1);
-        when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenAnswer(invocation -> {
+        when(inventoryPort.reserveAll(any(UUID.class), eq(fixture.orderId), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             wmsStarted.countDown();
             assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
@@ -177,7 +177,7 @@ class PaymentCancellationConcurrencyTest {
         doAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             return null;
-        }).when(inventoryPort).releaseAll(eq(fixture.orderId), any());
+        }).when(inventoryPort).releaseAll(any(UUID.class), any());
         ExecutorService executor = Executors.newSingleThreadExecutor();
 
         try {
@@ -194,7 +194,7 @@ class PaymentCancellationConcurrencyTest {
         cancellationProcessor.process(fixture.orderId);
 
         assertCancelledWithOneRefund(fixture.orderId, 10_000);
-        verify(inventoryPort, times(1)).releaseAll(eq(fixture.orderId), any());
+        verify(inventoryPort, times(1)).releaseAll(any(UUID.class), any());
     }
 
     @Test
@@ -205,7 +205,7 @@ class PaymentCancellationConcurrencyTest {
             order.claimAllocation(LocalDateTime.now());
             order.retryAllocation(LocalDateTime.now().minusSeconds(1), "WMS_UNAVAILABLE");
         });
-        when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenReturn(true);
+        when(inventoryPort.reserveAll(any(UUID.class), eq(fixture.orderId), any())).thenReturn(true);
 
         assertThat(paymentFacade.cancelOrder(fixture.orderId, fixture.memberId))
                 .isEqualTo(CancellationOutcome.REFUND_PENDING);
@@ -213,7 +213,7 @@ class PaymentCancellationConcurrencyTest {
         cancellationProcessor.process(fixture.orderId);
 
         assertCancelledWithOneRefund(fixture.orderId, 10_000);
-        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+        verify(inventoryPort).releaseAll(any(UUID.class), any());
     }
 
     @Test
@@ -234,19 +234,19 @@ class PaymentCancellationConcurrencyTest {
         assertThat(orderAllocationService.findCancellationAllocationReviewOrderIds())
                 .contains(fixture.orderId);
         assertThat(orderAllocationService.requeueCancellationAllocation(fixture.orderId)).isTrue();
-        when(inventoryPort.reserveAll(eq(fixture.orderId), any())).thenReturn(true);
+        when(inventoryPort.reserveAll(any(UUID.class), eq(fixture.orderId), any())).thenReturn(true);
 
         allocationProcessor.process(fixture.orderId);
         cancellationProcessor.process(fixture.orderId);
 
         assertCancelledWithOneRefund(fixture.orderId, 10_000);
-        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+        verify(inventoryPort).releaseAll(any(UUID.class), any());
     }
 
     @Test
     void 다섯번의_불명확한_할당후_취소도_재큐해_예약해제와_환불로_수렴한다() {
         Fixture fixture = transactionTemplate.execute(status -> paidAllocationPending());
-        when(inventoryPort.reserveAll(eq(fixture.orderId), any()))
+        when(inventoryPort.reserveAll(any(UUID.class), eq(fixture.orderId), any()))
                 .thenThrow(new ResourceAccessException("unknown-1"))
                 .thenThrow(new ResourceAccessException("unknown-2"))
                 .thenThrow(new ResourceAccessException("unknown-3"))
@@ -279,7 +279,7 @@ class PaymentCancellationConcurrencyTest {
         cancellationProcessor.process(fixture.orderId);
 
         assertCancelledWithOneRefund(fixture.orderId, 10_000);
-        verify(inventoryPort).releaseAll(eq(fixture.orderId), any());
+        verify(inventoryPort).releaseAll(any(UUID.class), any());
     }
 
     @Test
@@ -342,7 +342,7 @@ class PaymentCancellationConcurrencyTest {
             wmsStarted.countDown();
             assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
             return null;
-        }).when(inventoryPort).releaseAll(eq(fixture.orderId), any());
+        }).when(inventoryPort).releaseAll(any(UUID.class), any());
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
@@ -350,7 +350,7 @@ class PaymentCancellationConcurrencyTest {
             assertThat(wmsStarted.await(10, TimeUnit.SECONDS)).isTrue();
             Future<?> second = executor.submit(() -> cancellationProcessor.process(fixture.orderId));
             second.get(10, TimeUnit.SECONDS);
-            verify(inventoryPort, times(1)).releaseAll(eq(fixture.orderId), any());
+            verify(inventoryPort, times(1)).releaseAll(any(UUID.class), any());
             releaseWms.countDown();
             first.get(10, TimeUnit.SECONDS);
         } finally {
@@ -359,7 +359,7 @@ class PaymentCancellationConcurrencyTest {
         }
 
         assertCancelledWithOneRefund(fixture.orderId, 10_000);
-        verify(inventoryPort, times(1)).releaseAll(eq(fixture.orderId), any());
+        verify(inventoryPort, times(1)).releaseAll(any(UUID.class), any());
     }
 
     private void assertCancelledWithOneRefund(Long orderId, int amount) {

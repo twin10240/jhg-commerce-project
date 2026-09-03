@@ -7,6 +7,8 @@ import com.jhg.hgpage.oms.domain.CustomerReturnItem;
 import com.jhg.hgpage.oms.domain.enums.CustomerReturnStatus;
 import com.jhg.hgpage.oms.domain.enums.ReturnDisposition;
 import com.jhg.hgpage.oms.repository.CustomerReturnRepository;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class ReturnSyncService {
 
     private final CustomerReturnRepository customerReturnRepository;
     private final RefundService refundService;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public void apply(ReturnResult result) {
@@ -70,6 +73,7 @@ public class ReturnSyncService {
         if (target == CustomerReturnStatus.COMPLETED) {
             refundService.requestReturnRefund(customerReturn);
         }
+        appendReturnEvent(customerReturn, target);
         customerReturnRepository.flush();
     }
 
@@ -162,6 +166,20 @@ public class ReturnSyncService {
 
     private void require(boolean valid) {
         if (!valid) throw new ReturnContractMismatchException();
+    }
+
+    private void appendReturnEvent(CustomerReturn customerReturn, CustomerReturnStatus target) {
+        NotificationEventType type = switch (target) {
+            case REQUESTED -> NotificationEventType.RETURN_REQUESTED;
+            case RECEIVED -> NotificationEventType.RETURN_RECEIVED;
+            case COMPLETED -> NotificationEventType.RETURN_COMPLETED;
+            case CANCELLED -> NotificationEventType.RETURN_CANCELLED;
+            default -> throw new ReturnContractMismatchException();
+        };
+        Long orderId = customerReturn.getOrder().getId();
+        eventWriter.append(type, customerReturn.getOrder().getMember().getId(),
+                "RETURN", customerReturn.getId().toString(),
+                Map.of("orderId", orderId, "returnId", customerReturn.getId()));
     }
 
     public static final class ReturnContractMismatchException extends RuntimeException {

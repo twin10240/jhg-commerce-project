@@ -59,7 +59,7 @@ PENDING_SUBMISSION → REQUESTED → RECEIVED → COMPLETED
 ```text
 OrderService
   -> 주문 저장으로 orderId 확보
-  -> InventoryPort.reserveAll(orderId, 수량)
+  -> InventoryPort.reserveAll(requestKey, orderId, 수량)
      -> 성공: ORDER
      -> 재고 부족 또는 WMS 통신 최종 실패: BACKORDERED
 ```

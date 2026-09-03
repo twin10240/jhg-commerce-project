@@ -15,6 +15,7 @@ import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -24,6 +25,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CancellationProcessorTest {
+
+    private static final UUID REQUEST_KEY = UUID.fromString("3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33");
 
     @Mock OrderCancellationService cancellationService;
     @Mock InventoryPort inventoryPort;
@@ -39,7 +42,7 @@ class CancellationProcessorTest {
     @Test
     void 해제필요_취소는_claim_외부해제_완료후_백오더재할당_순서다() {
         OrderCancellationService.CancellationClaim claim =
-                new OrderCancellationService.CancellationClaim(3, true, Map.of(7L, 2));
+                new OrderCancellationService.CancellationClaim(REQUEST_KEY, 3, true, Map.of(7L, 2));
         when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
         when(cancellationService.complete(10L, 3)).thenReturn(true);
 
@@ -47,7 +50,7 @@ class CancellationProcessorTest {
 
         InOrder calls = inOrder(cancellationService, inventoryPort, backorderAllocator);
         calls.verify(cancellationService).claim(10L);
-        calls.verify(inventoryPort).releaseAll(10L, claim.quantities());
+        calls.verify(inventoryPort).releaseAll(REQUEST_KEY, claim.quantities());
         calls.verify(cancellationService).complete(10L, 3);
         calls.verify(backorderAllocator).allocate(claim.quantities().keySet());
     }
@@ -55,13 +58,13 @@ class CancellationProcessorTest {
     @Test
     void 해제불필요_취소는_WMS없이_완료한다() {
         OrderCancellationService.CancellationClaim claim =
-                new OrderCancellationService.CancellationClaim(1, false, Map.of(7L, 2));
+                new OrderCancellationService.CancellationClaim(REQUEST_KEY, 1, false, Map.of(7L, 2));
         when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
         when(cancellationService.complete(10L, 1)).thenReturn(true);
 
         processor.process(10L);
 
-        verify(inventoryPort, never()).releaseAll(10L, claim.quantities());
+        verify(inventoryPort, never()).releaseAll(REQUEST_KEY, claim.quantities());
         verify(cancellationService).complete(10L, 1);
         verify(backorderAllocator, never()).allocate(claim.quantities().keySet());
     }
@@ -69,9 +72,9 @@ class CancellationProcessorTest {
     @Test
     void WMS_일시예외는_제한재시도로_보낸다() {
         OrderCancellationService.CancellationClaim claim =
-                new OrderCancellationService.CancellationClaim(2, true, Map.of(7L, 2));
+                new OrderCancellationService.CancellationClaim(REQUEST_KEY, 2, true, Map.of(7L, 2));
         when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
-        doThrow(new IllegalStateException("down")).when(inventoryPort).releaseAll(10L, claim.quantities());
+        doThrow(new IllegalStateException("down")).when(inventoryPort).releaseAll(REQUEST_KEY, claim.quantities());
 
         processor.process(10L);
 
@@ -82,10 +85,10 @@ class CancellationProcessorTest {
     @Test
     void WMS_4xx는_즉시_수동검토로_보낸다() {
         OrderCancellationService.CancellationClaim claim =
-                new OrderCancellationService.CancellationClaim(2, true, Map.of(7L, 2));
+                new OrderCancellationService.CancellationClaim(REQUEST_KEY, 2, true, Map.of(7L, 2));
         when(cancellationService.claim(10L)).thenReturn(Optional.of(claim));
         doThrow(new HttpClientErrorException(HttpStatus.BAD_REQUEST))
-                .when(inventoryPort).releaseAll(10L, claim.quantities());
+                .when(inventoryPort).releaseAll(REQUEST_KEY, claim.quantities());
 
         processor.process(10L);
 

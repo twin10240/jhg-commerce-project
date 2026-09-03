@@ -18,6 +18,8 @@ import com.jhg.hgpage.oms.repository.PaymentRepository;
 import com.jhg.hgpage.oms.service.OrderCancellationService;
 import com.jhg.hgpage.oms.service.RefundService;
 import com.jhg.hgpage.oms.service.RetrySchedule;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,13 +48,15 @@ class OrderCancellationServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock PaymentAttemptRepository paymentAttemptRepository;
     @Mock RefundService refundService;
+    @Mock NotificationEventWriter eventWriter;
 
     OrderCancellationService service;
 
     @BeforeEach
     void setUp() {
         service = new OrderCancellationService(
-                orderRepository, paymentRepository, paymentAttemptRepository, refundService, new RetrySchedule());
+                orderRepository, paymentRepository, paymentAttemptRepository, refundService,
+                new RetrySchedule(), eventWriter);
     }
 
     @Test
@@ -67,6 +71,8 @@ class OrderCancellationServiceTest {
         assertThat(fixture.payment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(fixture.attempt.getStatus()).isEqualTo(PaymentAttemptStatus.CANCELLED);
         verifyNoInteractions(refundService);
+        verify(eventWriter).append(NotificationEventType.ORDER_CANCELLED, 1L,
+                "ORDER", "10", Map.of("orderId", 10L));
     }
 
     @Test

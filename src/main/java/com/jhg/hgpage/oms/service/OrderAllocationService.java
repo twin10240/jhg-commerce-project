@@ -4,6 +4,8 @@ import com.jhg.hgpage.oms.domain.Order;
 import com.jhg.hgpage.oms.domain.enums.OrderStatus;
 import com.jhg.hgpage.oms.repository.OrderRepository;
 import com.jhg.hgpage.oms.repository.OrderRepositoryQuery;
+import com.jhg.hgpage.realtime.outbox.NotificationEventType;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class OrderAllocationService {
     private final OrderRepository orderRepository;
     private final OrderRepositoryQuery orderRepositoryQuery;
     private final RetrySchedule retrySchedule;
+    private final NotificationEventWriter eventWriter;
 
     @Transactional
     public Optional<AllocationCommand> claim(Long orderId) {
@@ -37,7 +41,7 @@ public class OrderAllocationService {
             claimCancelledAllocation(order, now);
         }
         return Optional.of(new AllocationCommand(
-                order.getAllocationAttemptCount(), Map.copyOf(order.quantitiesByProductId())));
+                order.getRequestKey(), order.getAllocationAttemptCount(), Map.copyOf(order.quantitiesByProductId())));
     }
 
     @Transactional
@@ -51,6 +55,10 @@ public class OrderAllocationService {
             clearWork(order);
         } else {
             order.completeAllocation(reserved);
+            eventWriter.append(reserved ? NotificationEventType.STOCK_ALLOCATED
+                            : NotificationEventType.ORDER_BACKORDERED,
+                    order.getMember().getId(), "ORDER", order.getId().toString(),
+                    Map.of("orderId", order.getId()));
         }
     }
 
@@ -179,6 +187,6 @@ public class OrderAllocationService {
         order.setAllocationProcessingAt(null);
     }
 
-    public record AllocationCommand(int attemptNumber, Map<Long, Integer> quantities) {
+    public record AllocationCommand(UUID requestKey, int attemptNumber, Map<Long, Integer> quantities) {
     }
 }

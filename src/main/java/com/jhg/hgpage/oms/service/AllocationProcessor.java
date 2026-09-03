@@ -16,7 +16,7 @@ public class AllocationProcessor {
     public void process(Long orderId) {
         orderAllocationService.claim(orderId).ifPresent(command -> {
             try {
-                boolean reserved = inventoryPort.reserveAll(orderId, command.quantities());
+                boolean reserved = inventoryPort.reserveAll(command.requestKey(), orderId, command.quantities());
                 orderAllocationService.complete(orderId, command.attemptNumber(), reserved);
             } catch (HttpClientErrorException exception) {
                 orderAllocationService.manualReview(

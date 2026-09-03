@@ -3,6 +3,7 @@ package com.jhg.hgpage.service;
 import com.jhg.hgpage.oms.service.CartService;
 import com.jhg.hgpage.oms.service.MemberService;
 import com.jhg.hgpage.oms.service.OrderService;
+import com.jhg.hgpage.realtime.outbox.NotificationEventWriter;
 import com.jhg.hgpage.contract.InventoryPort;
 import com.jhg.hgpage.contract.InventoryQueryPort;
 import com.jhg.hgpage.oms.domain.Address;
@@ -49,6 +50,7 @@ class OrderServiceAdminTest {
     @Mock CartService cartService;
     @Mock InventoryPort inventoryPort;
     @Mock InventoryQueryPort inventoryQueryPort;
+    @Mock NotificationEventWriter eventWriter;
     @InjectMocks OrderService orderService;
 
     private Order newOrder(String memberName) {
@@ -141,9 +143,9 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A"); // 상품1, 수량 2
         ReflectionTestUtils.setField(order, "id", 10L);
 
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
-        when(inventoryPort.shipAll(10L, Map.of(1L, 2))).thenReturn(
-                new InventoryPort.ShipmentResult(10L, "MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z")));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryPort.shipAll(order.getRequestKey(), Map.of(1L, 2))).thenReturn(
+                new InventoryPort.ShipmentResult(order.getRequestKey(), 10L, "MOCK", "테스트택배", "MOCK-10", Instant.parse("2026-08-27T06:30:00.123456Z")));
 
         orderService.shipOrder(10L);
 
@@ -151,7 +153,7 @@ class OrderServiceAdminTest {
         assertThat(order.getDelivery().getTrackingNumber()).isEqualTo("MOCK-10");
         assertThat(order.getDelivery().getShipmentIssuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
         // 실물 차감은 도메인이 아니라 InventoryPort(WMS)에 위임한다
-        verify(inventoryPort).shipAll(10L, Map.of(1L, 2));
+        verify(inventoryPort).shipAll(order.getRequestKey(), Map.of(1L, 2));
     }
 
     @Test
@@ -159,7 +161,7 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         order.ship();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
 
         orderService.deliverOrder(10L);
 
@@ -173,11 +175,11 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         order.ship();
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByRequestKeyForUpdate(order.getRequestKey())).thenReturn(Optional.of(order));
 
         Instant deliveredAt = Instant.parse("2026-08-27T06:30:00.123456Z");
-        orderService.markDelivered(10L, deliveredAt);
-        orderService.markDelivered(10L, deliveredAt);   // 통지 재발송 — 사람이 누르는 deliverOrder와 달리 멱등이다
+        orderService.markDelivered(order.getRequestKey(), deliveredAt);
+        orderService.markDelivered(order.getRequestKey(), deliveredAt);   // 통지 재발송 — 사람이 누르는 deliverOrder와 달리 멱등이다
 
         assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
         assertThat(order.getDelivery().getDeliveredAt()).isEqualTo(deliveredAt);
@@ -187,9 +189,9 @@ class OrderServiceAdminTest {
     void markDelivered_출고되지_않은_주문은_거부한다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
+        when(orderRepository.findByRequestKeyForUpdate(order.getRequestKey())).thenReturn(Optional.of(order));
 
-        assertThatThrownBy(() -> orderService.markDelivered(10L, Instant.parse("2026-08-27T06:30:00Z")))
+        assertThatThrownBy(() -> orderService.markDelivered(order.getRequestKey(), Instant.parse("2026-08-27T06:30:00Z")))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -197,9 +199,9 @@ class OrderServiceAdminTest {
     void WMS_송장을_동기화하면_OMS_출고상태와_송장을_복구한다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
-        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
-                new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(order.getRequestKey(), 10L, "MOCK", "테스트택배", "MOCK-10",
                         Instant.parse("2026-08-27T06:30:00.123456Z"), null)));
 
         orderService.syncShipment(10L);
@@ -213,9 +215,9 @@ class OrderServiceAdminTest {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
         Instant deliveredAt = Instant.parse("2026-08-28T01:00:00.123456Z");
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
-        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.of(
-                new InventoryQueryPort.ShipmentInfo(10L, "MOCK", "테스트택배", "MOCK-10",
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(order.getRequestKey(), 10L, "MOCK", "테스트택배", "MOCK-10",
                         Instant.parse("2026-08-27T06:30:00.123456Z"), deliveredAt)));
 
         orderService.syncShipment(10L);
@@ -228,8 +230,8 @@ class OrderServiceAdminTest {
     void WMS에_송장이_없으면_동기화하지_않는다() {
         Order order = newOrder("회원A");
         ReflectionTestUtils.setField(order, "id", 10L);
-        when(orderRepository.findById(10L)).thenReturn(Optional.of(order));
-        when(inventoryQueryPort.shipmentByOrderId(10L)).thenReturn(Optional.empty());
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.syncShipment(10L))
                 .isInstanceOf(IllegalStateException.class)
@@ -239,7 +241,7 @@ class OrderServiceAdminTest {
 
     @Test
     void 없는_주문의_출고처리는_EntityNotFoundException을_던진다() {
-        when(orderRepository.findById(99L)).thenReturn(Optional.empty());
+        when(orderRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.shipOrder(99L))
                 .isInstanceOf(EntityNotFoundException.class);
