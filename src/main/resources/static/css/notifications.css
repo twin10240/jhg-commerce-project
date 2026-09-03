@@ -20,6 +20,7 @@
 .notification-read-all{min-width:7.5rem}
 .notification-inbox-list{min-width:0;border-top:1px solid var(--app-line)}
 .notification-inbox-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:start;gap:14px;min-width:0;padding:18px 4px;border-bottom:1px solid var(--app-line)}
+.notification-inbox-row:not(.unread){grid-template-columns:minmax(0,1fr)}
 .notification-inbox-row.unread{background:var(--app-accent-soft)}
 .notification-inbox-indicator{width:8px;height:8px;margin-top:7px;border-radius:50%;background:var(--app-accent)}
 .notification-inbox-content{display:grid;gap:6px;min-width:0}

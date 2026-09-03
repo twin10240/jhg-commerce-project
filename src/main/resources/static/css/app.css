@@ -18,6 +18,7 @@ img,svg,video{max-width:100%}
 .app-card{background:var(--app-card);border:1px solid var(--app-line);border-radius:var(--app-radius);box-shadow:var(--app-shadow);padding:24px}
 .app-title{margin:0 0 6px;font-size:28px}.app-subtitle{margin:0;color:var(--app-muted)}
 .app-btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;padding:11px 16px;background:var(--app-accent);color:#fff;text-decoration:none;font-weight:800;cursor:pointer}
+.app-btn[hidden]{display:none}
 .app-btn.secondary{background:#fff;color:var(--app-ink);border:1px solid var(--app-line)}
 .app-btn.danger{background:var(--app-danger)}
 .status-badge{display:inline-block;border-radius:999px;padding:5px 11px;font-size:13px;font-weight:800}
