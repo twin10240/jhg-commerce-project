@@ -68,6 +68,15 @@ class ResponsiveTemplateContractTest {
     }
 
     @Test
+    void shippingTableKeepsDesktopColumnsReadable() throws Exception {
+        String html = read("src/main/resources/templates/admin/orders.html");
+
+        assertThat(html).contains(".container{max-width:1600px; margin:0 auto}");
+        assertThat(html).contains(".table-wrap{overflow-x:auto}");
+        assertThat(html).contains("table{width:100%; min-width:1360px;");
+    }
+
+    @Test
     void catalogActionsStackAtTabletWidth() throws Exception {
         String html = read("src/main/resources/templates/main.html");
 
