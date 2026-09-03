@@ -75,6 +75,7 @@
     tbody tr td:last-child{border-top-right-radius:12px; border-bottom-right-radius:12px}
     .right{text-align:right}
     .hint{color:var(--muted); font-size:12px}
+    .shipment-issued-at{display:block;margin-top:4px}
     .payment-status{white-space:nowrap}
 
     .status-badge{
@@ -196,7 +197,7 @@
             <span class="copy-feedback" role="status"></span>
           </button>
           <time th:if="${o.shipmentIssuedAt != null}" th:attr="datetime=${o.shipmentIssuedAt}"
-                th:text="|발급 ${#temporals.format(o.shipmentIssuedAt,'yyyy-MM-dd HH:mm')}|" class="hint"></time>
+                th:text="|발급 ${#temporals.format(o.shipmentIssuedAt,'yyyy-MM-dd HH:mm')}|" class="hint shipment-issued-at"></time>
           <span th:unless="${o.trackingNumber != null}" class="hint">-</span>
         </td>
         <td class="right mobile-hide"><span th:text="${#numbers.formatInteger(o.totalPrice,1,'COMMA')}">23,000</span>원</td>

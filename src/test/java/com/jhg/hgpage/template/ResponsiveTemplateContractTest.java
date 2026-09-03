@@ -77,6 +77,14 @@ class ResponsiveTemplateContractTest {
     }
 
     @Test
+    void shippingIssuedAtStartsBelowCopyButton() throws Exception {
+        String html = read("src/main/resources/templates/admin/orders.html");
+
+        assertThat(html).contains(".shipment-issued-at{display:block;margin-top:4px}");
+        assertThat(html).contains("class=\"hint shipment-issued-at\"");
+    }
+
+    @Test
     void catalogActionsStackAtTabletWidth() throws Exception {
         String html = read("src/main/resources/templates/main.html");
 
