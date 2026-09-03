@@ -117,6 +117,10 @@ class FakeElement {
     }
     return null;
   }
+
+  contains(node) {
+    return this === node || this.children.some(child => child.contains(node));
+  }
 }
 
 class FakeDocument {
@@ -139,8 +143,8 @@ class FakeDocument {
     this.listeners.get(type)?.delete(listener);
   }
 
-  dispatch(type) {
-    for (const listener of [...(this.listeners.get(type) || [])]) listener({ type });
+  dispatch(type, target = this) {
+    for (const listener of [...(this.listeners.get(type) || [])]) listener({ type, target });
   }
 
   append(...children) {
@@ -631,6 +635,26 @@ test('the recent panel fetches five items only on first open and renders text sa
   await settle();
   assert.equal(fixture.badge.hidden, true);
   assert.equal(readRequests, 1);
+});
+
+test('clicking outside the recent notification panel closes it', async () => {
+  const fixture = uiRoot();
+  const outside = new FakeElement('main');
+  globalThis.fetch = async url => url === '/api/realtime/token'
+    ? response(200, token('outside-click-token'))
+    : response(200, { items: [], nextCursor: null });
+
+  NotificationClient.start(fixture.element);
+  await settle();
+  fixture.trigger.dispatch('click');
+  await settle();
+  assert.equal(fixture.panel.hidden, false);
+
+  fixture.document.append(outside);
+  fixture.document.dispatch('click', outside);
+
+  assert.equal(fixture.panel.hidden, true);
+  assert.equal(fixture.trigger.getAttribute('aria-expanded'), 'false');
 });
 
 test('notification:new prepends once per ID and increments the unread badge once', async () => {
