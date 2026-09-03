@@ -17,11 +17,13 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withBadRequest;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
@@ -31,6 +33,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @TestPropertySource(properties = "wms.base-url=http://wms-test")
 class WmsInventoryAdapterTest {
 
+    private static final UUID REQUEST_KEY = UUID.fromString("3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33");
+
     @Autowired MockRestServiceServer server;
     @Autowired WmsInventoryAdapter adapter;
 
@@ -38,9 +42,12 @@ class WmsInventoryAdapterTest {
     void reserve_WMS에_POST_요청을_보내고_결과를_반환한다() {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andExpect(method(HttpMethod.POST))
+              .andExpect(content().json("""
+                      {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","orderId":1,"items":{"1":3}}
+                      """))
               .andRespond(withSuccess("true", MediaType.APPLICATION_JSON));
 
-        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+        boolean result = adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3));
 
         assertThat(result).isTrue();
         server.verify();
@@ -50,15 +57,20 @@ class WmsInventoryAdapterTest {
     void ship_WMS_응답의_소수점_시각과_송장을_반환한다() {
         server.expect(requestTo("http://wms-test/api/inventory/ship"))
               .andExpect(method(HttpMethod.POST))
+              .andExpect(content().json("""
+                      {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","items":{"1":3}}
+                      """))
               .andRespond(withSuccess("""
-                      {"orderId":1,"carrierCode":"MOCK","carrierName":"테스트택배",
-                       "trackingNumber":"MOCK-1-20260827063000","issuedAt":"2026-08-27T06:30:00.123456Z"}
+                      {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","orderId":1,
+                       "carrierCode":"MOCK","carrierName":"테스트택배",
+                       "trackingNumber":"MOCK-1-20260827063000-3f2a9c14","issuedAt":"2026-08-27T06:30:00.123456Z"}
                       """, MediaType.APPLICATION_JSON));
 
-        var result = adapter.shipAll(1L, Map.of(1L, 3));
+        var result = adapter.shipAll(REQUEST_KEY, Map.of(1L, 3));
 
+        assertThat(result.requestKey()).isEqualTo(REQUEST_KEY);
         assertThat(result.orderId()).isEqualTo(1L);
-        assertThat(result.trackingNumber()).isEqualTo("MOCK-1-20260827063000");
+        assertThat(result.trackingNumber()).isEqualTo("MOCK-1-20260827063000-3f2a9c14");
         assertThat(result.issuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
         server.verify();
     }
@@ -71,20 +83,20 @@ class WmsInventoryAdapterTest {
                       .body("주문에 대한 예약이 없어 출고할 수 없습니다.")
                       .contentType(MediaType.TEXT_PLAIN));
 
-        assertThatThrownBy(() -> adapter.shipAll(1L, Map.of(1L, 999)))
+        assertThatThrownBy(() -> adapter.shipAll(REQUEST_KEY, Map.of(1L, 999)))
                 .isInstanceOf(HttpClientErrorException.Conflict.class);
         server.verify();
     }
 
     @Test
-    void ship_응답은_trackingNumber가_아니라_orderId로_검증한다() {
+    void ship_응답은_requestKey로_검증한다() {
         server.expect(requestTo("http://wms-test/api/inventory/ship"))
               .andRespond(withSuccess("""
-                      {"orderId":2,"carrierCode":"MOCK","carrierName":"테스트택배",
+                      {"requestKey":"11111111-1111-1111-1111-111111111111","orderId":1,"carrierCode":"MOCK","carrierName":"테스트택배",
                        "trackingNumber":"MOCK-1","issuedAt":"2026-08-27T06:30:00.1Z"}
                       """, MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> adapter.shipAll(1L, Map.of(1L, 3)))
+        assertThatThrownBy(() -> adapter.shipAll(REQUEST_KEY, Map.of(1L, 3)))
                 .isInstanceOf(RestClientException.class)
                 .hasMessageContaining("응답이 잘못되었습니다");
         server.verify();
@@ -94,9 +106,12 @@ class WmsInventoryAdapterTest {
     void release_WMS에_POST_요청을_보낸다() {
         server.expect(requestTo("http://wms-test/api/inventory/release"))
               .andExpect(method(HttpMethod.POST))
+              .andExpect(content().json("""
+                      {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","items":{"1":3}}
+                      """))
               .andRespond(withSuccess());
 
-        adapter.releaseAll(1L, Map.of(1L, 3));
+        adapter.releaseAll(REQUEST_KEY, Map.of(1L, 3));
         server.verify();
     }
 
@@ -110,7 +125,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withSuccess("true", MediaType.APPLICATION_JSON));
 
-        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+        boolean result = adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3));
 
         assertThat(result).isTrue();
         server.verify(); // 정확히 2회 호출
@@ -123,7 +138,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withException(new ConnectException("refused")));
 
-        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+        assertThatThrownBy(() -> adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3)))
                 .isInstanceOf(ResourceAccessException.class);
         server.verify();
     }
@@ -133,7 +148,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withSuccess("false", MediaType.APPLICATION_JSON));
 
-        assertThat(adapter.reserveAll(1L, Map.of(1L, 3))).isFalse();
+        assertThat(adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3))).isFalse();
         server.verify();
     }
 
@@ -142,7 +157,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+        assertThatThrownBy(() -> adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3)))
                 .isInstanceOf(RestClientException.class);
         server.verify();
     }
@@ -155,7 +170,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withSuccess("true", MediaType.APPLICATION_JSON));
 
-        boolean result = adapter.reserveAll(1L, Map.of(1L, 3));
+        boolean result = adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3));
 
         assertThat(result).isTrue();
         server.verify();
@@ -168,7 +183,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withServerError());
 
-        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+        assertThatThrownBy(() -> adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3)))
                 .isInstanceOf(HttpServerErrorException.class);
         server.verify();
     }
@@ -179,7 +194,7 @@ class WmsInventoryAdapterTest {
         server.expect(requestTo("http://wms-test/api/inventory/reserve"))
               .andRespond(withBadRequest());
 
-        assertThatThrownBy(() -> adapter.reserveAll(1L, Map.of(1L, 3)))
+        assertThatThrownBy(() -> adapter.reserveAll(REQUEST_KEY, 1L, Map.of(1L, 3)))
                 .isInstanceOf(HttpClientErrorException.class);
         server.verify();
     }

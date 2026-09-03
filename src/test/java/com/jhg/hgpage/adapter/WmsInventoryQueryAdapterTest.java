@@ -12,6 +12,7 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import java.util.List;
 import java.util.Map;
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -22,6 +23,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 @RestClientTest(WmsInventoryQueryAdapter.class)
 @TestPropertySource(properties = "wms.base-url=http://wms-test")
 class WmsInventoryQueryAdapterTest {
+
+    private static final UUID REQUEST_KEY = UUID.fromString("3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33");
 
     @Autowired MockRestServiceServer server;
     @Autowired WmsInventoryQueryAdapter adapter;
@@ -62,15 +65,17 @@ class WmsInventoryQueryAdapterTest {
 
     @Test
     void WMS에서_주문의_송장과_배송완료시각을_조회한다() {
-        server.expect(requestTo("http://wms-test/api/shipments/202"))
+        server.expect(requestTo("http://wms-test/api/shipments/" + REQUEST_KEY))
               .andRespond(withSuccess("""
-                      {"orderId":202,"carrierCode":"MOCK","carrierName":"테스트택배",
+                      {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","orderId":202,
+                       "carrierCode":"MOCK","carrierName":"테스트택배",
                        "trackingNumber":"MOCK-202","issuedAt":"2026-08-27T06:30:00.123456Z",
                        "deliveredAt":"2026-08-28T01:00:00.123456Z"}
                       """, MediaType.APPLICATION_JSON));
 
-        var shipment = adapter.shipmentByOrderId(202L).orElseThrow();
+        var shipment = adapter.shipmentByRequestKey(REQUEST_KEY).orElseThrow();
 
+        assertThat(shipment.requestKey()).isEqualTo(REQUEST_KEY);
         assertThat(shipment.trackingNumber()).isEqualTo("MOCK-202");
         assertThat(shipment.issuedAt()).isEqualTo(Instant.parse("2026-08-27T06:30:00.123456Z"));
         assertThat(shipment.deliveredAt()).isEqualTo(Instant.parse("2026-08-28T01:00:00.123456Z"));
@@ -79,10 +84,10 @@ class WmsInventoryQueryAdapterTest {
 
     @Test
     void WMS에_송장이_없으면_빈_결과다() {
-        server.expect(requestTo("http://wms-test/api/shipments/404"))
+        server.expect(requestTo("http://wms-test/api/shipments/" + REQUEST_KEY))
               .andRespond(withResourceNotFound());
 
-        assertThat(adapter.shipmentByOrderId(404L)).isEmpty();
+        assertThat(adapter.shipmentByRequestKey(REQUEST_KEY)).isEmpty();
         server.verify();
     }
 }

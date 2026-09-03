@@ -173,8 +173,8 @@ class BusinessNotificationOutboxIntegrationTest {
         OrderFixture fixture = orderFixture();
         Instant issuedAt = Instant.parse("2026-08-30T01:00:00Z");
         Instant deliveredAt = Instant.parse("2026-08-30T02:00:00Z");
-        when(inventoryQueryPort.shipmentByOrderId(fixture.orderId())).thenReturn(Optional.of(
-                new InventoryQueryPort.ShipmentInfo(fixture.orderId(), "CJ", "CJ", "TRACK", issuedAt,
+        when(inventoryQueryPort.shipmentByRequestKey(fixture.requestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(fixture.requestKey(), fixture.orderId(), "CJ", "CJ", "TRACK", issuedAt,
                         deliveredAt)));
 
         orderService.syncShipment(fixture.orderId());
@@ -198,8 +198,8 @@ class BusinessNotificationOutboxIntegrationTest {
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            Future<?> first = executor.submit(() -> markDelivered(fixture.orderId(), deliveredAt, ready, start));
-            Future<?> second = executor.submit(() -> markDelivered(fixture.orderId(), deliveredAt, ready, start));
+            Future<?> first = executor.submit(() -> markDelivered(fixture.requestKey(), deliveredAt, ready, start));
+            Future<?> second = executor.submit(() -> markDelivered(fixture.requestKey(), deliveredAt, ready, start));
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
             first.get(5, TimeUnit.SECONDS);
@@ -216,8 +216,8 @@ class BusinessNotificationOutboxIntegrationTest {
     void concurrent_ship_commands_append_one_event() throws Exception {
         OrderFixture fixture = orderFixture();
         holdConcurrentUnlockedReads(fixture.orderId());
-        when(inventoryPort.shipAll(eq(fixture.orderId()), any())).thenReturn(
-                new InventoryPort.ShipmentResult(fixture.orderId(), "CJ", "CJ",
+        when(inventoryPort.shipAll(eq(fixture.requestKey()), any())).thenReturn(
+                new InventoryPort.ShipmentResult(fixture.requestKey(), fixture.orderId(), "CJ", "CJ",
                         "TRACK", Instant.parse("2026-08-30T01:00:00Z")));
 
         List<Throwable> results = runConcurrently(() -> orderService.shipOrder(fixture.orderId()));
@@ -226,7 +226,7 @@ class BusinessNotificationOutboxIntegrationTest {
         assertSingleSuccessfulTransition(results);
         assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.SHIPPED);
         assertThat(events(NotificationEventType.SHIPMENT_STARTED)).hasSize(1);
-        verify(inventoryPort, times(1)).shipAll(eq(fixture.orderId()), any());
+        verify(inventoryPort, times(1)).shipAll(eq(fixture.requestKey()), any());
     }
 
     @Test
@@ -319,8 +319,8 @@ class BusinessNotificationOutboxIntegrationTest {
     @Test
     void serialization_failure_rolls_back_business_state() throws Exception {
         OrderFixture fixture = orderFixture();
-        when(inventoryQueryPort.shipmentByOrderId(fixture.orderId())).thenReturn(Optional.of(
-                new InventoryQueryPort.ShipmentInfo(fixture.orderId(), "CJ", "CJ", "TRACK",
+        when(inventoryQueryPort.shipmentByRequestKey(fixture.requestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(fixture.requestKey(), fixture.orderId(), "CJ", "CJ", "TRACK",
                         Instant.parse("2026-08-30T01:00:00Z"), null)));
         doThrow(new JsonProcessingException("serialization failure") { })
                 .when(objectMapper).writeValueAsString(any(NotificationEventPayload.class));
@@ -382,7 +382,7 @@ class BusinessNotificationOutboxIntegrationTest {
                 OrderItem.createOrderItem(product, product.getPrice(), 1));
         em.persist(order);
         em.flush();
-        return new OrderFixture(member.getId(), order.getId());
+        return new OrderFixture(member.getId(), order.getId(), order.getRequestKey());
     }
 
     private ReturnFixture returnFixture(boolean approved) {
@@ -461,11 +461,11 @@ class BusinessNotificationOutboxIntegrationTest {
                 .getDelivery().getStatus());
     }
 
-    private void markDelivered(Long orderId, Instant deliveredAt, CountDownLatch ready, CountDownLatch start) {
+    private void markDelivered(UUID requestKey, Instant deliveredAt, CountDownLatch ready, CountDownLatch start) {
         try {
             ready.countDown();
             start.await();
-            orderService.markDelivered(orderId, deliveredAt);
+            orderService.markDelivered(requestKey, deliveredAt);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
@@ -518,7 +518,7 @@ class BusinessNotificationOutboxIntegrationTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
-    private record OrderFixture(Long memberId, Long orderId) { }
+    private record OrderFixture(Long memberId, Long orderId, UUID requestKey) { }
     private record PaymentFixture(Long memberId, Long orderId, Long attemptId) { }
     private record ReturnFixture(Long memberId, Long orderId, Long returnId, UUID requestKey,
                                  Long orderItemId, Long productId) { }

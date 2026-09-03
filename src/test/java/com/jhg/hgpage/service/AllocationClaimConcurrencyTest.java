@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,9 +53,10 @@ class AllocationClaimConcurrencyTest {
     @Test
     void 두_처리기가_같은주문을_경합해도_WMS는_한번만_호출한다() throws Exception {
         Long orderId = transactionTemplate.execute(status -> paidPendingOrder());
+        UUID requestKey = orderRepository.findById(orderId).orElseThrow().getRequestKey();
         CountDownLatch wmsStarted = new CountDownLatch(1);
         CountDownLatch releaseWms = new CountDownLatch(1);
-        when(inventoryPort.reserveAll(eq(orderId), any())).thenAnswer(invocation -> {
+        when(inventoryPort.reserveAll(eq(requestKey), eq(orderId), any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             wmsStarted.countDown();
             assertThat(releaseWms.await(10, TimeUnit.SECONDS)).isTrue();
@@ -71,7 +73,7 @@ class AllocationClaimConcurrencyTest {
             Order active = orderRepository.findById(orderId).orElseThrow();
             assertThat(active.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
             assertThat(active.getAllocationAttemptCount()).isEqualTo(1);
-            verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
+            verify(inventoryPort, times(1)).reserveAll(eq(requestKey), eq(orderId), any());
 
             releaseWms.countDown();
             first.get(10, TimeUnit.SECONDS);
@@ -80,7 +82,7 @@ class AllocationClaimConcurrencyTest {
             executor.shutdownNow();
         }
 
-        verify(inventoryPort, times(1)).reserveAll(eq(orderId), any());
+        verify(inventoryPort, times(1)).reserveAll(eq(requestKey), eq(orderId), any());
         assertThat(orderRepository.findById(orderId).orElseThrow().getStatus()).isEqualTo(OrderStatus.ORDER);
     }
 

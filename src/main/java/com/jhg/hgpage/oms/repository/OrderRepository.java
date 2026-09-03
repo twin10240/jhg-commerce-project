@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
@@ -18,6 +19,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from Order o where o.id = :orderId")
     Optional<Order> findByIdForUpdate(@Param("orderId") Long orderId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from Order o where o.requestKey = :requestKey")
+    Optional<Order> findByRequestKeyForUpdate(@Param("requestKey") UUID requestKey);
 
     @Query("select o.id from Order o where o.status = com.jhg.hgpage.oms.domain.enums.OrderStatus.CANCEL_REQUESTED " +
             "and o.cancellationReleaseRequired is not null and o.cancellationProcessingAt is null " +

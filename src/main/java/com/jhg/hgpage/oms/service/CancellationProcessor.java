@@ -17,7 +17,7 @@ public class CancellationProcessor {
         cancellationService.claim(orderId).ifPresent(claim -> {
             try {
                 if (claim.releaseRequired()) {
-                    inventoryPort.releaseAll(orderId, claim.quantities());
+                    inventoryPort.releaseAll(claim.requestKey(), claim.quantities());
                 }
                 if (cancellationService.complete(orderId, claim.attemptNumber()) && claim.releaseRequired()) {
                     backorderAllocator.allocate(claim.quantities().keySet());

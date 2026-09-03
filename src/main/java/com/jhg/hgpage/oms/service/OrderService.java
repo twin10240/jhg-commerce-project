@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -76,7 +77,7 @@ public class OrderService {
         // 상태 전이는 도메인이, 실물 차감은 WMS 포트가 수행한다(가드 통과 후에만 출고).
         order.ship();
         InventoryPort.ShipmentResult shipment = inventoryPort.shipAll(
-                order.getId(), order.quantitiesByProductId());
+                order.getRequestKey(), order.quantitiesByProductId());
         order.getDelivery().recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
         appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
@@ -95,8 +96,9 @@ public class OrderService {
      * 409로 튕기지 않게 한다(관리자 화면의 deliverOrder는 사람이 누르는 경로라 그대로 예외를 던진다).
      */
     @Transactional
-    public void markDelivered(Long orderId, Instant deliveredAt) {
-        Order order = findOrderForUpdate(orderId);
+    public void markDelivered(UUID requestKey, Instant deliveredAt) {
+        Order order = orderRepository.findByRequestKeyForUpdate(requestKey)
+                .orElseThrow(() -> new IllegalStateException("Order not found: requestKey=" + requestKey));
         DeliveryStatus previous = order.getDelivery().getStatus();
         if (previous != DeliveryStatus.DELIVERED) order.deliver();
         order.getDelivery().recordDeliveredAt(deliveredAt);
@@ -108,7 +110,7 @@ public class OrderService {
     @Transactional
     public void syncShipment(Long orderId) {
         Order order = findOrderForUpdate(orderId);
-        InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByOrderId(orderId)
+        InventoryQueryPort.ShipmentInfo shipment = inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())
                 .orElseThrow(() -> new IllegalStateException("WMS 송장이 없습니다."));
         Delivery delivery = order.getDelivery();
         DeliveryStatus previous = delivery.getStatus();

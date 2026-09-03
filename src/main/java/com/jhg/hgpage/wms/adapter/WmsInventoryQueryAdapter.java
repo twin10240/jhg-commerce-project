@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -65,13 +66,13 @@ public class WmsInventoryQueryAdapter implements InventoryQueryPort {
     }
 
     @Override
-    public Optional<ShipmentInfo> shipmentByOrderId(Long orderId) {
+    public Optional<ShipmentInfo> shipmentByRequestKey(UUID requestKey) {
         try {
             ShipmentInfo result = restClient.get()
-                    .uri("/api/shipments/{orderId}", orderId)
+                    .uri("/api/shipments/{requestKey}", requestKey)
                     .retrieve()
                     .body(ShipmentInfo.class);
-            if (result == null || !orderId.equals(result.orderId())
+            if (result == null || !requestKey.equals(result.requestKey())
                     || result.carrierCode() == null || result.carrierName() == null
                     || result.trackingNumber() == null || result.issuedAt() == null) {
                 throw new RestClientException("WMS 송장 조회 응답이 잘못되었습니다.");

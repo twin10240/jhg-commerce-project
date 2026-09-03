@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.util.UUID;
 
 /**
  * WMS 배송완료 콜백. 창고가 기록한 사실을 받아 Delivery를 DELIVERED로 올린다.
@@ -24,18 +25,19 @@ public class DeliveryEventApiController {
 
     @PostMapping("/api/delivery-events")
     public ResponseEntity<Void> receive(@RequestBody(required = false) DeliveryEvent event) {
-        if (event == null || event.orderId() == null || event.deliveredAt() == null) {
+        if (event == null || event.requestKey() == null || event.deliveredAt() == null) {
             return ResponseEntity.badRequest().build();
         }
         try {
-            orderService.markDelivered(event.orderId(), event.deliveredAt());
+            orderService.markDelivered(event.requestKey(), event.deliveredAt());
             return ResponseEntity.ok().build();
         } catch (IllegalStateException e) {
             // 출고되지 않은 주문에 배송완료가 온 경우 — 두 시스템의 상태가 어긋났다는 신호라 삼키지 않는다.
-            log.warn("WMS 배송완료 콜백 거부: orderId={}, {}", event.orderId(), e.getMessage());
+            log.warn("WMS 배송완료 콜백 거부: requestKey={}, orderId={}, {}",
+                    event.requestKey(), event.orderId(), e.getMessage());
             return ResponseEntity.status(409).build();
         }
     }
 
-    public record DeliveryEvent(Long orderId, Instant deliveredAt) {}
+    public record DeliveryEvent(UUID requestKey, Long orderId, Instant deliveredAt) {}
 }

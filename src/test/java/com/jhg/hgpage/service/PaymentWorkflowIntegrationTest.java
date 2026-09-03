@@ -87,7 +87,7 @@ class PaymentWorkflowIntegrationTest {
 
     @Test
     void 결제승인_뒤_할당성공은_ORDER로_영속된다() {
-        when(inventoryPort.reserveAll(any(), any())).thenReturn(true);
+        when(inventoryPort.reserveAll(any(), any(), any())).thenReturn(true);
 
         Long orderId = checkout(2);
         assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
@@ -105,7 +105,7 @@ class PaymentWorkflowIntegrationTest {
 
     @Test
     void 결제승인_뒤_재고부족은_BACKORDERED로_영속된다() {
-        when(inventoryPort.reserveAll(any(), any())).thenReturn(false);
+        when(inventoryPort.reserveAll(any(), any(), any())).thenReturn(false);
 
         Long orderId = checkout(2);
         assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
@@ -122,7 +122,7 @@ class PaymentWorkflowIntegrationTest {
 
     @Test
     void 유료_BACKORDERED_취소는_전액환불을_한번만_완료한다() {
-        when(inventoryPort.reserveAll(any(), any())).thenReturn(false);
+        when(inventoryPort.reserveAll(any(), any(), any())).thenReturn(false);
         Long orderId = checkout(2);
         allocationProcessor.process(orderId);
         assertThat(snapshot(orderId)).isEqualTo(new WorkflowSnapshot(
@@ -157,7 +157,7 @@ class PaymentWorkflowIntegrationTest {
 
     @Test
     void 배송완료_주문의_부분반품승인은_부분환불을_한번만_완료한다() {
-        when(inventoryPort.reserveAll(any(), any())).thenReturn(true);
+        when(inventoryPort.reserveAll(any(), any(), any())).thenReturn(true);
         Long orderId = checkout(2);
         allocationProcessor.process(orderId);
         transactionTemplate.executeWithoutResult(status -> {

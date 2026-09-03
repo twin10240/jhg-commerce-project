@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * InventoryPort REST 어댑터 (OMS→WMS 예약/출고/해제).
@@ -33,29 +34,29 @@ public class WmsInventoryAdapter implements InventoryPort {
                 .build();
     }
 
-    record WriteRequest(Long orderId, Map<Long, Integer> items) {}
+    record WriteRequest(UUID requestKey, Long orderId, Map<Long, Integer> items) {}
 
     @Override
-    public boolean reserveAll(Long orderId, Map<Long, Integer> qtyByProductId) {
+    public boolean reserveAll(UUID requestKey, Long orderId, Map<Long, Integer> qtyByProductId) {
         try {
-            return doReserve(orderId, qtyByProductId);
+            return doReserve(requestKey, orderId, qtyByProductId);
         } catch (ResourceAccessException | HttpServerErrorException first) {
-            // 통신 blip 또는 WMS 5xx(동시 예약 낙관적 락 충돌 #22)는 재시도 대상 — orderId 멱등이라
+            // 통신 blip 또는 WMS 5xx(동시 예약 낙관적 락 충돌 #22)는 재시도 대상 — requestKey 멱등이라
             // 첫 요청이 실제 예약됐어도 재시도가 같은 결과로 수렴(S4). 4xx는 안 잡아 그대로 표면화.
             log.warn("WMS 예약 실패 — 1회 재시도: orderId={}, cause={}", orderId, first.getClass().getSimpleName());
             try {
-                return doReserve(orderId, qtyByProductId);
+                return doReserve(requestKey, orderId, qtyByProductId);
             } catch (ResourceAccessException | HttpServerErrorException second) {
                 throw second;
             }
         }
     }
 
-    private boolean doReserve(Long orderId, Map<Long, Integer> qtyByProductId) {
+    private boolean doReserve(UUID requestKey, Long orderId, Map<Long, Integer> qtyByProductId) {
         Boolean result = restClient.post()
                 .uri("/api/inventory/reserve")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new WriteRequest(orderId, qtyByProductId))
+                .body(new WriteRequest(requestKey, orderId, qtyByProductId))
                 .retrieve()
                 .body(Boolean.class);
         if (result == null) {
@@ -65,14 +66,14 @@ public class WmsInventoryAdapter implements InventoryPort {
     }
 
     @Override
-    public ShipmentResult shipAll(Long orderId, Map<Long, Integer> qtyByProductId) {
+    public ShipmentResult shipAll(UUID requestKey, Map<Long, Integer> qtyByProductId) {
         ShipmentResult result = restClient.post()
                 .uri("/api/inventory/ship")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new WriteRequest(orderId, qtyByProductId))
+                .body(new WriteRequest(requestKey, null, qtyByProductId))
                 .retrieve()
                 .body(ShipmentResult.class);
-        if (result == null || !orderId.equals(result.orderId())
+        if (result == null || !requestKey.equals(result.requestKey())
                 || result.carrierCode() == null || result.carrierName() == null
                 || result.trackingNumber() == null || result.issuedAt() == null) {
             throw new RestClientException("WMS 출고 응답이 잘못되었습니다.");
@@ -81,11 +82,11 @@ public class WmsInventoryAdapter implements InventoryPort {
     }
 
     @Override
-    public void releaseAll(Long orderId, Map<Long, Integer> qtyByProductId) {
+    public void releaseAll(UUID requestKey, Map<Long, Integer> qtyByProductId) {
         restClient.post()
                 .uri("/api/inventory/release")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new WriteRequest(orderId, qtyByProductId))
+                .body(new WriteRequest(requestKey, null, qtyByProductId))
                 .retrieve()
                 .toBodilessEntity();
     }

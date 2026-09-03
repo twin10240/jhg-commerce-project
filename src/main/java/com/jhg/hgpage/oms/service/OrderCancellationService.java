@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -111,7 +112,7 @@ public class OrderCancellationService {
             return Optional.empty();
         }
         order.claimCancellation(now);
-        return Optional.of(new CancellationClaim(order.getCancellationAttemptCount(),
+        return Optional.of(new CancellationClaim(order.getRequestKey(), order.getCancellationAttemptCount(),
                 order.getCancellationReleaseRequired(), Map.copyOf(order.quantitiesByProductId())));
     }
 
@@ -240,6 +241,7 @@ public class OrderCancellationService {
     public record CancellationResult(CancellationOutcome outcome) {
     }
 
-    public record CancellationClaim(int attemptNumber, boolean releaseRequired, Map<Long, Integer> quantities) {
+    public record CancellationClaim(UUID requestKey, int attemptNumber, boolean releaseRequired,
+                                    Map<Long, Integer> quantities) {
     }
 }

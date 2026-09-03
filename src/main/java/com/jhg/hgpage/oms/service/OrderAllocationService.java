@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -40,7 +41,7 @@ public class OrderAllocationService {
             claimCancelledAllocation(order, now);
         }
         return Optional.of(new AllocationCommand(
-                order.getAllocationAttemptCount(), Map.copyOf(order.quantitiesByProductId())));
+                order.getRequestKey(), order.getAllocationAttemptCount(), Map.copyOf(order.quantitiesByProductId())));
     }
 
     @Transactional
@@ -186,6 +187,6 @@ public class OrderAllocationService {
         order.setAllocationProcessingAt(null);
     }
 
-    public record AllocationCommand(int attemptNumber, Map<Long, Integer> quantities) {
+    public record AllocationCommand(UUID requestKey, int attemptNumber, Map<Long, Integer> quantities) {
     }
 }

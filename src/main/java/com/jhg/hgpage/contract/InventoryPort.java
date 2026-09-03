@@ -2,6 +2,7 @@ package com.jhg.hgpage.contract;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * OMS가 WMS 재고에 대해 수행하는 연산 포트(예약/해제/출고).
@@ -21,21 +22,21 @@ public interface InventoryPort {
      * 하나라도 부족하면 아무것도 예약하지 않고 false를 반환한다(원자적).
      * 가용성 검사와 예약을 WMS가 한 연산으로 처리해 check-then-act 경합을 없앤다.
      */
-    boolean reserveAll(Long orderId, Map<Long, Integer> qtyByProductId);
+    boolean reserveAll(UUID requestKey, Long orderId, Map<Long, Integer> qtyByProductId);
 
     /**
      * 출고: 전 상품의 실물 재고를 차감한다(예약분도 함께 해소).
      * 출고 시점에 비로소 실물이 빠진다.
      * 상품/수량은 요청 형식 검증용이며 실제 출고량은 WMS 예약 원장을 따른다.
      */
-    ShipmentResult shipAll(Long orderId, Map<Long, Integer> qtyByProductId);
+    ShipmentResult shipAll(UUID requestKey, Map<Long, Integer> qtyByProductId);
 
-    record ShipmentResult(Long orderId, String carrierCode, String carrierName,
+    record ShipmentResult(UUID requestKey, Long orderId, String carrierCode, String carrierName,
                           String trackingNumber, Instant issuedAt) {}
 
     /**
      * 예약 해제: 전 상품의 예약분을 되돌린다(가용분 복구).
      * ORDER 주문 취소 시점에 호출한다.
      */
-    void releaseAll(Long orderId, Map<Long, Integer> qtyByProductId);
+    void releaseAll(UUID requestKey, Map<Long, Integer> qtyByProductId);
 }

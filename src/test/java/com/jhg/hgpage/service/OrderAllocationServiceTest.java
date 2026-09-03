@@ -50,7 +50,8 @@ class OrderAllocationServiceTest {
 
         Optional<OrderAllocationService.AllocationCommand> command = service.claim(100L);
 
-        assertThat(command).contains(new OrderAllocationService.AllocationCommand(1, Map.of(1L, 2)));
+        assertThat(command).contains(new OrderAllocationService.AllocationCommand(
+                order.getRequestKey(), 1, Map.of(1L, 2)));
         assertThat(order.getStatus()).isEqualTo(OrderStatus.ALLOCATION_PROCESSING);
         assertThat(order.getAllocationAttemptCount()).isEqualTo(1);
     }
