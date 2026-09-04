@@ -100,6 +100,18 @@ class NotificationOutboxAdminControllerMvcTest {
     }
 
     @Test
+    void admin_sees_the_chat_message_label() throws Exception {
+        var failedEvents = List.of(new NotificationOutboxService.FailedEvent(
+                UUID.randomUUID(), UUID.randomUUID(), "CHAT_MESSAGE", "ORDER", "42", 3, "HTTP_422",
+                Instant.parse("2026-08-30T06:30:00Z")));
+        when(notificationOutboxService.findFailed()).thenReturn(failedEvents);
+
+        mockMvc.perform(get("/admin/notification-events").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("새 상담 메시지")));
+    }
+
+    @Test
     void admin_can_retry_a_failed_event() throws Exception {
         UUID id = UUID.randomUUID();
         when(notificationOutboxService.requeueFailed(eq(id), any(Instant.class))).thenReturn(true);

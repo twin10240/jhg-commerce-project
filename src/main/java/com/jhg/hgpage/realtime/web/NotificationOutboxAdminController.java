@@ -32,7 +32,8 @@ public class NotificationOutboxAdminController {
             Map.entry("RETURN_COMPLETED", "반품 처리 완료"),
             Map.entry("RETURN_CANCELLED", "반품 취소"),
             Map.entry("REFUND_COMPLETED", "환불 완료"),
-            Map.entry("REFUND_REVIEW_REQUIRED", "환불 확인 필요"));
+            Map.entry("REFUND_REVIEW_REQUIRED", "환불 확인 필요"),
+            Map.entry("CHAT_MESSAGE", "새 상담 메시지"));
 
     private static final Map<String, String> ERROR_CODE_LABELS = Map.of(
             "IO_FAILURE", "통신 오류",
