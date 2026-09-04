@@ -239,6 +239,7 @@
 
   <div class="actions">
     <a class="btn muted" th:href="@{/orders}">내 주문으로</a>
+    <a class="btn" th:href="@{/chat(orderId=${order.id})}">상담 문의</a>
     <a class="btn" th:if="${order.status.name() == 'PAYMENT_PENDING'}"
        th:href="@{|/orders/${order.id}/payment|}">결제 계속하기</a>
     <a class="btn" th:if="${order.paymentRetryable}"

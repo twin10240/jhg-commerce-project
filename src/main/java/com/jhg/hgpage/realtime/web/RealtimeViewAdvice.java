@@ -19,7 +19,7 @@ public class RealtimeViewAdvice {
     @ModelAttribute
     void addRealtimePublicUrl(Model model, Authentication authentication) {
         if (authentication != null && authentication.getAuthorities().stream()
-                .anyMatch(authority -> authority.getAuthority().equals("ROLE_USER"))) {
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_USER") || authority.getAuthority().equals("ROLE_ADMIN"))) {
             model.addAttribute("realtimePublicUrl", realtimePublicUrl);
         }
     }

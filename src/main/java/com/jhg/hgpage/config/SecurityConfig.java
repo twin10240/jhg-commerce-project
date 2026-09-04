@@ -55,8 +55,8 @@ public class SecurityConfig {
                     .requestMatchers("/", "/login", "/signup", "/error", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
                     .requestMatchers("/admin/**").hasRole("ADMIN") // 내부적으로 "ROLE_ADMIN" 권한 검사
                     // 주문·반품·장바구니는 고객(USER) 전용 — admin은 운영자라 구매 흐름 사용 불가
-                    .requestMatchers("/notifications", "/orders/**", "/returns/**", "/cart/**", "/api/cart/**").hasRole("USER")
-                    .requestMatchers("/api/chat/**").authenticated()
+                    .requestMatchers("/orders/**", "/returns/**", "/cart/**", "/api/cart/**", "/chat/**").hasRole("USER")
+                    .requestMatchers("/notifications", "/api/chat/**").authenticated()
                     .anyRequest().authenticated()
             )
             .formLogin(form -> form
