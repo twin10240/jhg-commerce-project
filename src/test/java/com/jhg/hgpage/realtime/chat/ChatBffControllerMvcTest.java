@@ -39,7 +39,7 @@ class ChatBffControllerMvcTest {
         when(orders.findDetailById(10L)).thenReturn(Optional.of(order(1L)));
         when(client.createConversation("10", 1L)).thenReturn(conversation());
 
-        mockMvc.perform(post("/api/v1/chat/conversations").with(user(principal(1L))).with(csrf()).contentType("application/json").content("{\"orderId\":10}"))
+        mockMvc.perform(post("/api/chat/conversations").with(user(principal(1L))).with(csrf()).contentType("application/json").content("{\"orderId\":10}"))
                 .andExpect(status().isOk());
         verify(client).createConversation("10", 1L);
     }
@@ -47,12 +47,12 @@ class ChatBffControllerMvcTest {
     @Test void 다른_고객의_주문은_존재하지_않는것처럼_처리한다() throws Exception {
         when(orders.findDetailById(10L)).thenReturn(Optional.of(order(2L)));
 
-        mockMvc.perform(post("/api/v1/chat/conversations").with(user(principal(1L))).with(csrf()).contentType("application/json").content("{\"orderId\":10}"))
+        mockMvc.perform(post("/api/chat/conversations").with(user(principal(1L))).with(csrf()).contentType("application/json").content("{\"orderId\":10}"))
                 .andExpect(status().isNotFound());
     }
 
     @Test @WithMockUser(roles = "USER") void csrf_없이_생성할수_없다() throws Exception {
-        mockMvc.perform(post("/api/v1/chat/conversations").contentType("application/json").content("{\"orderId\":10}"))
+        mockMvc.perform(post("/api/chat/conversations").contentType("application/json").content("{\"orderId\":10}"))
                 .andExpect(status().isForbidden());
     }
 

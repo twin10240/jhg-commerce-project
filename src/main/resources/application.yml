@@ -76,12 +76,12 @@ cancellations:
 
 realtime:
   chat:
-    enabled: ${REALTIME_CHAT_ENABLED:true}
+    enabled: ${REALTIME_CHAT_ENABLED:false}
   public-url: ${REALTIME_PUBLIC_URL:http://localhost:3000}
   base-url: ${REALTIME_BASE_URL:http://localhost:3000}
   event-hmac-secret: ${REALTIME_EVENT_HMAC_SECRET:}
-  # 로컬 기본값은 realtime-service의 CHAT_INTERNAL_HMAC_SECRET와 맞춘다. 운영에서는 반드시 환경변수로 주입한다.
-  chat-hmac-secret: ${REALTIME_CHAT_HMAC_SECRET:local-chat-hmac-secret}
+  # 채팅을 활성화할 때는 realtime-service의 CHAT_INTERNAL_HMAC_SECRET와 같은 값으로 주입한다.
+  chat-hmac-secret: ${REALTIME_CHAT_HMAC_SECRET:}
   outbox:
     enabled: ${REALTIME_OUTBOX_ENABLED:false}
     sweep-delay: ${REALTIME_OUTBOX_SWEEP_DELAY:1s}

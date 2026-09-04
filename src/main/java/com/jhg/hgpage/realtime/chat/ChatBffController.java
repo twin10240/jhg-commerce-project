@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/chat/conversations")
+@RequestMapping("/api/chat/conversations")
 @Validated
 @ConditionalOnProperty(name = "realtime.chat.enabled", havingValue = "true")
 public class ChatBffController {
