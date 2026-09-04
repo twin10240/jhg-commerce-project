@@ -25,10 +25,10 @@
       <tbody>
       <tr th:each="event : ${failedEvents}">
         <td class="event-id" th:text="${event.eventId}">e133d8bf-9993-4d59-8b7a-c80fd2d2d37b</td>
-        <td th:text="${event.eventType}">DELIVERY_COMPLETED</td>
+        <td th:text="${eventTypeLabels[event.eventType] ?: event.eventType}">배송 완료</td>
         <td th:text="|${event.aggregateType} #${event.aggregateId}|">ORDER #42</td>
         <td class="number" th:text="${event.attemptCount}">3</td>
-        <td th:text="${event.lastErrorCode ?: '-'}">HTTP_422</td>
+        <td th:text="${event.lastErrorCode == null ? '-' : (errorCodeLabels[event.lastErrorCode] ?: event.lastErrorCode)}">요청 처리 오류</td>
         <td><time th:attr="datetime=${event.createdAt}" th:text="${#temporals.format(event.createdAt,'yyyy-MM-dd HH:mm')}">2026-08-30 15:30</time></td>
         <td>
           <form class="retry-form" th:action="@{/admin/notification-events/{id}/retry(id=${event.id})}" method="post"
