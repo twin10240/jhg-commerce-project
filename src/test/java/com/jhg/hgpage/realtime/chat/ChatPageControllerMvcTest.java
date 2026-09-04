@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
@@ -64,6 +65,17 @@ class ChatPageControllerMvcTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/admin/chat").with(user(customer())))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void notification_link_redirects_each_role_to_its_chat_page() throws Exception {
+        String id = "7ee1c992-4b85-4bb3-8f1c-8f8a6d57bc34";
+        mockMvc.perform(get("/chat/conversations/{id}", id).param("orderId", "101").with(user(customer())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/chat?orderId=101&conversationId=" + id));
+        mockMvc.perform(get("/chat/conversations/{id}", id).param("orderId", "101").with(user(admin())))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/chat?conversationId=" + id));
     }
 
     @Test

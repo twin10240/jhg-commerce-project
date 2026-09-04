@@ -15,6 +15,11 @@
   const list = root.querySelector('[data-chat-conversations]');
   let conversation = null;
   let oldest = null;
+  let requestedConversationId = root.dataset.chatRequestedConversationId || null;
+  let socket = null;
+  let tokenRefreshTimer = null;
+  let reconnectTimer = null;
+  let connecting = false;
   const seen = new Set();
 
   const api = async (path, options = {}) => {
@@ -23,7 +28,7 @@
     return response.status === 204 ? null : response.json();
   };
   const cursor = message => btoa(unescape(encodeURIComponent(JSON.stringify({ id: message.id, createdAt: message.createdAt })))).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
-  const uuid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+  const uuid = () => crypto.randomUUID();
   const setStatus = text => { status.textContent = text; };
 
   function append(message, before = false) {
@@ -43,7 +48,8 @@
   async function load(cursorValue) {
     if (!conversation) return;
     const page = await api(`/${conversation.id}/messages?limit=50${cursorValue ? `&cursor=${encodeURIComponent(cursorValue)}` : ''}`);
-    page.slice().reverse().forEach(message => append(message, Boolean(cursorValue)));
+    if (cursorValue) page.forEach(message => append(message, true));
+    else page.slice().reverse().forEach(message => append(message));
     oldest = page.at(-1) || oldest;
     loadMore.hidden = page.length < 50;
     await markRead();
@@ -65,7 +71,9 @@
       button.setAttribute('aria-current', String(item.id === conversation?.id)); button.onclick = () => select(item);
       const row = document.createElement('li'); row.append(button); list.append(row);
     });
-    if (!conversation && items[0]) select(items[0]);
+    const requested = requestedConversationId && items.find(item => item.id === requestedConversationId);
+    if (!conversation && (requested || items[0])) select(requested || items[0]);
+    requestedConversationId = null;
   }
   async function reloadConversations() { renderList(await api('')); }
 
@@ -86,17 +94,49 @@
     catch (error) { setStatus(error.message); }
   });
 
+  function stopSocket() {
+    if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+    tokenRefreshTimer = null;
+    if (socket) { socket.removeAllListeners(); socket.disconnect(); }
+    socket = null;
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; connect().catch(() => scheduleReconnect()); }, 1_000);
+  }
   async function connect() {
-    if (!window.io) return;
-    const token = await fetch('/api/realtime/token', { method: 'POST', headers: csrf }).then(response => response.ok ? response.json() : Promise.reject());
-    const socket = window.io(document.getElementById('notification-root')?.dataset.realtimeUrl, { auth: { token: token.token } });
-    socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); });
-    socket.on('chat:conversation:updated', update => { if (update.id === conversation?.id) { conversation = { ...conversation, ...update }; select(conversation); } if (role === 'ADMIN') reloadConversations().catch(() => {}); });
-    socket.on('connect', () => conversation && load().catch(() => {}));
+    if (!window.io || connecting) return;
+    connecting = true;
+    stopSocket();
+    try {
+      const token = await fetch('/api/realtime/token', { method: 'POST', headers: csrf }).then(response => response.ok ? response.json() : Promise.reject(new Error('실시간 인증 토큰을 갱신하지 못했습니다.')));
+      const realtimeUrl = document.getElementById('notification-root')?.dataset.realtimeUrl;
+      socket = window.io(realtimeUrl, { auth: { token: token.token }, autoConnect: false, reconnection: false });
+      socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); });
+      socket.on('chat:conversation:updated', update => { if (update.id === conversation?.id) { conversation = { ...conversation, ...update }; select(conversation); } if (role === 'ADMIN') reloadConversations().catch(() => {}); });
+      socket.on('chat:read', update => {
+        if (update.conversationId === conversation?.id) setStatus(`상대방이 ${new Date(update.readAt).toLocaleString('ko-KR')}에 읽었습니다.`);
+      });
+      socket.on('connect', () => conversation && load().catch(() => {}));
+      socket.on('disconnect', scheduleReconnect);
+      socket.on('connect_error', scheduleReconnect);
+      const refreshAt = Math.max(1_000, new Date(token.expiresAt).getTime() - Date.now() - 15_000);
+      tokenRefreshTimer = setTimeout(() => connect().catch(() => scheduleReconnect()), refreshAt);
+      socket.connect();
+    } catch (error) {
+      scheduleReconnect();
+      throw error;
+    } finally { connecting = false; }
   }
   (async () => {
     try {
-      if (role === 'USER') select(await api('', { method: 'POST', body: JSON.stringify({ orderId: Number(root.dataset.orderId) }) }));
+      if (role === 'USER' && requestedConversationId) {
+        const conversations = await api('');
+        const requested = conversations.find(item => item.id === requestedConversationId);
+        if (!requested) throw new Error('상담을 찾을 수 없습니다.');
+        select(requested);
+        requestedConversationId = null;
+      } else if (role === 'USER') select(await api('', { method: 'POST', body: JSON.stringify({ orderId: Number(root.dataset.orderId) }) }));
       else await reloadConversations();
       await connect();
     } catch (error) { setStatus(error.message || '채팅을 불러오지 못했습니다.'); }
