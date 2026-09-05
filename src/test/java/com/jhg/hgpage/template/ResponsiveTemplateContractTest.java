@@ -26,6 +26,14 @@ class ResponsiveTemplateContractTest {
     }
 
     @Test
+    void bodyDoesNotBecomeScrollportForAbsoluteNavigationPanels() throws Exception {
+        String css = read("src/main/resources/static/css/app.css");
+
+        assertThat(css).contains("html{overflow-x:hidden}body{max-width:100%}");
+        assertThat(css).doesNotContain("html,body{max-width:100%;overflow-x:hidden}");
+    }
+
+    @Test
     void cartRowsBecomeMobileCards() throws Exception {
         String html = read("src/main/resources/templates/cart.html");
 

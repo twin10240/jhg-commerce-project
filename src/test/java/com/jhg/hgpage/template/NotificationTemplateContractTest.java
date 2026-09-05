@@ -62,6 +62,7 @@ class NotificationTemplateContractTest {
         String page = read("src/main/resources/templates/notifications.html");
 
         assertThat(page).contains(
+                "class=\"notification-page\"",
                 "data-notification-inbox",
                 "data-notification-unread-filter",
                 "data-notification-read-all",
@@ -91,5 +92,27 @@ class NotificationTemplateContractTest {
                 "min-height:44px",
                 "grid-template-columns:minmax(0,1fr)",
                 "@media(max-width:720px)");
+    }
+
+    @Test
+    void notificationPageUsesWarmSharedBackgroundPalette() throws Exception {
+        String css = read("src/main/resources/static/css/notifications.css");
+
+        assertThat(css).contains(
+                ".notification-page{background:",
+                "background-repeat:no-repeat",
+                "background-attachment:fixed",
+                ".notification-page{background:linear-gradient(180deg,#1b1917,#26211d)");
+    }
+
+    @Test
+    void notificationInboxUsesSharedCardVisualTokens() throws Exception {
+        String css = read("src/main/resources/static/css/notifications.css");
+
+        assertThat(css).contains(
+                ".notification-inbox{min-width:0;padding:24px;border:1px solid #eadfd6;border-radius:var(--app-radius);background:#fffaf5;box-shadow:0 20px 45px rgba(68,60,51,.18)}",
+                ".notification-inbox-header{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:0;padding-bottom:18px;border-bottom:1px solid var(--app-line)}",
+                ".notification-inbox-list{min-width:0;border-top:0}",
+                ".notification-inbox{background:#201d1a;border-color:#39322c;box-shadow:0 20px 45px rgba(0,0,0,.18)}");
     }
 }

@@ -784,3 +784,69 @@ OMS와 WMS를 `local` 프로파일로 함께 초기화하고 Chrome UI와 독립
 | 알림 REST | 통과 | 목록 `200`, 본인 상세 `200`, 인증 없음 `401`, 개별 읽음 `204`, 모두 읽음 `201`, 최종 unread `0` |
 | Socket.IO | 통과 | 허용 Origin 연결, `STOCK_ALLOCATED`의 `notification:new` 수신, 권위 있는 상세 조회 `200` |
 | 브라우저 화면 | 미검증/환경 복구 후 수행 | 브라우저 백엔드 목록이 비어 있어 `1440x900`·`390x844` 스크린샷과 시각적 겹침 검증을 수행하지 못함 |
+
+## 주문 연결 고객–관리자 채팅 수동 검증 (대기 중)
+
+아래 항목은 로컬 PostgreSQL과 OMS 로그인 세션이 필요한 브라우저 통합 시나리오다. 이 문서 작성 시점에는
+서비스를 함께 실행하지 않았으므로 결과를 기록하지 않았다. 자동 검증 결과와 혼동하지 않도록 실제 실행 뒤
+`[기록값]`을 채운다.
+
+### 준비·기동
+
+```bash
+# 두 서비스에는 같은 비밀값을 넣는다. 값 자체는 화면·로그·문서에 기록하지 않는다.
+export REALTIME_CHAT_ENABLED=true
+export REALTIME_CHAT_HMAC_SECRET='<shared-chat-hmac-secret>'
+export CHAT_INTERNAL_HMAC_SECRET="$REALTIME_CHAT_HMAC_SECRET"
+export CHAT_ADMIN_MEMBER_ID=1
+
+cd /Users/jo/study/jhg-realtime-service
+npm run start:dev
+
+cd /Users/jo/study/jhg-commerce-project
+./gradlew bootRun
+```
+
+- OMS: `http://localhost:8080`, realtime-service: `http://localhost:3000`
+- 고객 계정: `twin10240@naver.com / 1111` (USER), 관리자 계정: `admin@admin.com / 1111` (ADMIN)
+- 고객 소유 주문: `[orderId]`; 상담방: `[conversationId]`; 첫 메시지: `[messageId]`
+- OMS 내부 요청 서명은 raw body뿐 아니라 `timestamp.method.pathAndQuery.rawBody`의 UTF-8 HMAC-SHA256이다.
+  브라우저는 이 서명을 만들거나 secret을 보관하지 않는다.
+
+### C1. 정상 전송·실시간 수신·재접속
+
+1. 고객으로 로그인해 `http://localhost:8080/orders/[orderId]`에서 **상담 문의**를 열고 첫 메시지를 보낸다.
+2. 별도 브라우저 프로필의 관리자로 `http://localhost:8080/admin/chat`을 연다.
+3. 관리자 목록과 열린 대화에 첫 메시지가 표시되고, 양쪽 브라우저의 Socket.IO 연결이 유지되는지 확인한다.
+4. 관리자 탭을 닫은 뒤 고객이 두 번째 메시지를 보낸다. 관리자 계정으로 다시 로그인하고 `/admin/chat`을 새로 연다.
+
+기대 결과:
+
+- 첫 메시지는 관리자에게 `chat:message:new`으로 보이고, 두 번째 메시지는 연결이 없던 동안에도 저장된다.
+- 재접속 뒤 목록 조회로 두 메시지가 모두 나타나며 관리자 알림함에는 `새 상담 메시지`(`CHAT_MESSAGE`)가 보인다.
+- 기록: socket 수신 `[pass/fail]`, 재접속 메시지 수 `[n]`, 알림 ID `[notificationId]`.
+
+### C2. 중복 재시도·권한·종료 상태
+
+1. 브라우저 개발자 도구에서 같은 `clientMessageId`와 body로 첫 메시지 POST를 한 번 더 재전송한다.
+2. 다른 USER 계정으로 같은 `http://localhost:8080/chat?orderId=[orderId]` 및 해당 대화 API에 접근한다.
+3. 관리자가 상담방을 `CLOSED`로 바꾼 뒤 고객이 새 메시지를 보낸다. 이어 관리자가 `OPEN`으로 되돌리고 전송을 다시 시도한다.
+
+기대 결과:
+
+- 중복 전송은 같은 메시지 ID를 반환하며 메시지와 `CHAT_MESSAGE` 알림은 각각 한 건만 존재한다.
+- 다른 고객은 주문/대화 존재를 알 수 없는 `404`를 받는다.
+- 닫힌 상담방은 새 메시지를 `409`으로 거부하고, 다시 열면 정상 전송된다.
+- 기록: 중복 메시지 ID `[messageId]`, 비인가 응답 `[status]`, CLOSED 응답 `[status]`, 재개 전송 `[pass/fail]`.
+
+### C3. realtime-service 중단 중 저장 실패와 복구
+
+1. `npm run start:dev` 프로세스를 중단한다.
+2. 고객 화면에서 메시지를 전송한다.
+3. realtime-service를 다시 기동하고 고객·관리자 화면을 새로고침한다.
+
+기대 결과:
+
+- OMS BFF가 realtime-service에 저장을 의존하므로 중단 중 전송은 성공으로 표시되면 안 되며, 입력 내용은 사용자가 재시도할 수 있어야 한다.
+- 서비스 복구 후 재전송은 한 번만 저장되고, 새로고침 후 두 쪽 대화와 알림함이 같은 메시지 ID를 가리킨다.
+- 기록: 중단 중 응답 `[status]`, 복구 뒤 메시지 ID `[messageId]`, 중복 행 없음 `[pass/fail]`.

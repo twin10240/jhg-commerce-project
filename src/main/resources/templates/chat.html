@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>주문 상담</title>
+  <link rel="stylesheet" th:href="@{/css/app.css}"><link rel="stylesheet" th:href="@{/css/chat.css}">
+</head>
+<body>
+<div th:replace="~{fragments/layout :: nav('orders')}"></div>
+<main class="chat-page" data-chat-root data-chat-role="USER" th:attr="data-order-id=${orderId},data-member-id=${memberId},data-chat-requested-conversation-id=${conversationId},data-csrf-header=${_csrf.headerName},data-csrf-token=${_csrf.token}">
+  <header><h1>주문 상담</h1><p>주문 #<span th:text="${orderId}">0</span> 관련 문의를 남겨주세요.</p></header>
+  <section class="chat-panel" data-chat-conversation-id="">
+    <p class="chat-status" data-chat-status aria-live="polite">상담을 불러오는 중입니다.</p>
+    <button type="button" class="chat-secondary" data-chat-load-more hidden>이전 메시지 더 보기</button>
+    <ol class="chat-messages" data-chat-messages aria-live="polite"></ol>
+    <form data-chat-message-form>
+      <label for="chat-body">메시지</label>
+      <textarea id="chat-body" data-chat-body required placeholder="문의 내용을 입력하세요."></textarea>
+      <button type="submit" data-chat-send>보내기</button>
+    </form>
+  </section>
+</main>
+<script th:src="@{/js/chat-client.js}" defer></script>
+</body>
+</html>

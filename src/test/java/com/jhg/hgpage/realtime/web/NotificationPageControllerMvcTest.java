@@ -54,12 +54,13 @@ class NotificationPageControllerMvcTest {
     }
 
     @Test
-    void admin_cannot_view_customer_notifications_or_receive_the_public_url() throws Exception {
+    void admin_can_view_own_notifications_and_receive_the_public_url() throws Exception {
         mockMvc.perform(get("/notifications").with(user(admin())))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("realtimePublicUrl", "https://realtime.example:3000"));
 
         mockMvc.perform(get("/login").with(user(admin())))
-                .andExpect(model().attributeDoesNotExist("realtimePublicUrl"));
+                .andExpect(model().attribute("realtimePublicUrl", "https://realtime.example:3000"));
     }
 
     @Test

@@ -5,7 +5,7 @@
   --app-radius:16px; --app-shadow:0 14px 35px rgba(68,60,51,.12);
 }
 *,*:before,*:after{box-sizing:border-box}
-html,body{max-width:100%;overflow-x:hidden}
+html{overflow-x:hidden}body{max-width:100%}
 img,svg,video{max-width:100%}
 .site-nav{max-width:1080px;margin:0 auto 20px;display:flex;align-items:center;gap:18px;padding:12px 16px;background:rgba(255,255,255,.92);border:1px solid var(--app-line);border-radius:16px;box-shadow:0 8px 24px rgba(68,60,51,.08)}
 .site-brand{font-weight:900;color:var(--app-ink);text-decoration:none;margin-right:auto}
