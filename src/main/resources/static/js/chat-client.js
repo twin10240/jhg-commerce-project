@@ -56,6 +56,7 @@
     oldest = page.at(-1) || oldest;
     loadMore.hidden = page.length < 50;
     await markRead();
+    if (role === 'ADMIN') await reloadConversations();
   }
   function select(next) {
     conversation = next;
@@ -91,6 +92,7 @@
     event.preventDefault();
     const text = body.value.trim();
     if (!text || !conversation) return;
+    if (Array.from(text).length > 2_000) return setStatus('메시지는 2,000자까지 입력할 수 있습니다.');
     if (!pendingSend || pendingSend.text !== text) pendingSend = { text, clientMessageId: uuid() };
     send.disabled = true;
     try {
@@ -126,7 +128,7 @@
       const token = await fetch('/api/realtime/token', { method: 'POST', headers: csrf }).then(response => response.ok ? response.json() : Promise.reject(new Error('실시간 인증 토큰을 갱신하지 못했습니다.')));
       const realtimeUrl = document.getElementById('notification-root')?.dataset.realtimeUrl;
       socket = window.io(realtimeUrl, { auth: { token: token.token }, autoConnect: false, reconnection: false });
-      socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); if (role === 'ADMIN') reloadConversations().catch(() => {}); });
+      socket.on('chat:message:new', async message => { append(message); try { if (message.conversationId === conversation?.id) await markRead(); if (role === 'ADMIN') await reloadConversations(); } catch {} });
       socket.on('chat:conversation:updated', update => { if (update.id === conversation?.id) { conversation = { ...conversation, ...update }; select(conversation); } if (role === 'ADMIN') reloadConversations().catch(() => {}); });
       socket.on('chat:read', update => {
         if (update.conversationId === conversation?.id && update.readerMemberId && String(update.readerMemberId) !== memberId) {
