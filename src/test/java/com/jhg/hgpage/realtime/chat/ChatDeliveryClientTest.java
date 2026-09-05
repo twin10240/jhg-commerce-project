@@ -31,14 +31,14 @@ class ChatDeliveryClientTest {
     }
     @AfterEach void tearDown() { server.stop(0); }
 
-    @Test void UTF8_원문과_타임스탬프를_서명한다() throws Exception {
+    @Test void 메서드_경로_UTF8_원문과_타임스탬프를_서명한다() throws Exception {
         ChatDeliveryClient client = new ChatDeliveryClient(RestClient.builder(), new ObjectMapper().findAndRegisterModules(), baseUrl(), SECRET);
 
         ChatDtos.Conversation result = client.createConversation("1", 7L);
 
         assertThat(result.orderId()).isEqualTo("1");
         assertThat(new String(body, StandardCharsets.UTF_8)).contains("customerMemberId");
-        assertThat(signature).isEqualTo("v1=" + hmac(timestamp, body));
+        assertThat(signature).isEqualTo("v1=" + hmac(timestamp, "POST", "/internal/v1/chat/conversations", body));
     }
 
     private void respond(HttpExchange exchange) throws java.io.IOException {
@@ -51,10 +51,10 @@ class ChatDeliveryClientTest {
         exchange.close();
     }
     private String baseUrl() { return "http://localhost:" + server.getAddress().getPort(); }
-    private String hmac(String value, byte[] input) throws Exception {
+    private String hmac(String value, String method, String path, byte[] input) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-        mac.update((value + ".").getBytes(StandardCharsets.UTF_8));
+        mac.update((value + "." + method + "." + path + ".").getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(mac.doFinal(input));
     }
 }

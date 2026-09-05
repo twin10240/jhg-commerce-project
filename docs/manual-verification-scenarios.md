@@ -810,6 +810,8 @@ cd /Users/jo/study/jhg-commerce-project
 - OMS: `http://localhost:8080`, realtime-service: `http://localhost:3000`
 - 고객 계정: `twin10240@naver.com / 1111` (USER), 관리자 계정: `admin@admin.com / 1111` (ADMIN)
 - 고객 소유 주문: `[orderId]`; 상담방: `[conversationId]`; 첫 메시지: `[messageId]`
+- OMS 내부 요청 서명은 raw body뿐 아니라 `timestamp.method.pathAndQuery.rawBody`의 UTF-8 HMAC-SHA256이다.
+  브라우저는 이 서명을 만들거나 secret을 보관하지 않는다.
 
 ### C1. 정상 전송·실시간 수신·재접속
 

@@ -21,6 +21,7 @@
   let tokenRefreshTimer = null;
   let reconnectTimer = null;
   let connecting = false;
+  let pendingSend = null;
   const seen = new Set();
 
   const api = async (path, options = {}) => {
@@ -38,6 +39,7 @@
     const item = document.createElement('li');
     item.className = `chat-message ${message.senderRole === role ? 'mine' : ''}`;
     item.dataset.chatMessageId = message.id;
+    if (message.readAt) { item.classList.add('read'); item.dataset.chatReadAt = message.readAt; }
     item.textContent = message.body;
     const time = document.createElement('time');
     time.dateTime = message.createdAt;
@@ -68,7 +70,7 @@
     if (!list) return;
     list.replaceChildren();
     items.forEach(item => {
-      const button = document.createElement('button'); button.type = 'button'; button.textContent = `주문 #${item.orderId} · ${item.status}`;
+      const button = document.createElement('button'); button.type = 'button'; button.textContent = `주문 #${item.orderId} · ${item.status}${item.unanswered ? ' · 고객 문의' : ''}`;
       button.setAttribute('aria-current', String(item.id === conversation?.id)); button.onclick = () => select(item);
       const row = document.createElement('li'); row.append(button); list.append(row);
     });
@@ -76,19 +78,29 @@
     if (!conversation && (requested || items[0])) select(requested || items[0]);
     requestedConversationId = null;
   }
-  async function reloadConversations() { renderList(await api('')); }
+  async function reloadConversations() {
+    const items = await api('');
+    if (role === 'ADMIN') await Promise.all(items.map(async item => {
+      const latest = await api(`/${item.id}/messages?limit=1`);
+      item.unanswered = latest[0]?.senderRole === 'USER' && !latest[0]?.readAt;
+    }));
+    renderList(items);
+  }
 
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const text = body.value.trim();
     if (!text || !conversation) return;
+    if (!pendingSend || pendingSend.text !== text) pendingSend = { text, clientMessageId: uuid() };
     send.disabled = true;
     try {
-      append(await api(`/${conversation.id}/messages`, { method: 'POST', body: JSON.stringify({ body: text, clientMessageId: uuid() }) }));
+      append(await api(`/${conversation.id}/messages`, { method: 'POST', body: JSON.stringify({ body: text, clientMessageId: pendingSend.clientMessageId }) }));
       body.value = '';
+      pendingSend = null;
       await markRead();
     } catch (error) { setStatus(error.message); } finally { send.disabled = false; }
   });
+  body.addEventListener('input', () => { if (pendingSend && body.value.trim() !== pendingSend.text) pendingSend = null; });
   loadMore.addEventListener('click', () => oldest && load(cursor(oldest)).catch(error => setStatus(error.message)));
   statusToggle?.addEventListener('click', async () => {
     try { select(await api(`/${conversation.id}`, { method: 'PATCH', body: JSON.stringify({ status: conversation.status === 'OPEN' ? 'CLOSED' : 'OPEN' }) })); await reloadConversations(); }
@@ -114,7 +126,7 @@
       const token = await fetch('/api/realtime/token', { method: 'POST', headers: csrf }).then(response => response.ok ? response.json() : Promise.reject(new Error('실시간 인증 토큰을 갱신하지 못했습니다.')));
       const realtimeUrl = document.getElementById('notification-root')?.dataset.realtimeUrl;
       socket = window.io(realtimeUrl, { auth: { token: token.token }, autoConnect: false, reconnection: false });
-      socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); });
+      socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); if (role === 'ADMIN') reloadConversations().catch(() => {}); });
       socket.on('chat:conversation:updated', update => { if (update.id === conversation?.id) { conversation = { ...conversation, ...update }; select(conversation); } if (role === 'ADMIN') reloadConversations().catch(() => {}); });
       socket.on('chat:read', update => {
         if (update.conversationId === conversation?.id && update.readerMemberId && String(update.readerMemberId) !== memberId) {

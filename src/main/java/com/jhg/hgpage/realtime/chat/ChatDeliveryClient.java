@@ -81,9 +81,9 @@ public class ChatDeliveryClient {
         String timestamp = Long.toString(Instant.now().getEpochSecond());
         try {
             String response = switch (method) {
-                case "GET" -> client.get().uri(uri).headers(h -> headers(h, timestamp, bytes)).exchange((r, s) -> response(s));
-                case "PATCH" -> client.patch().uri(uri).contentType(MediaType.APPLICATION_JSON).headers(h -> headers(h, timestamp, bytes)).body(bytes).exchange((r, s) -> response(s));
-                default -> client.post().uri(uri).contentType(MediaType.APPLICATION_JSON).headers(h -> headers(h, timestamp, bytes)).body(bytes).exchange((r, s) -> response(s));
+                case "GET" -> client.get().uri(uri).headers(h -> headers(h, method, uri, timestamp, bytes)).exchange((r, s) -> response(s));
+                case "PATCH" -> client.patch().uri(uri).contentType(MediaType.APPLICATION_JSON).headers(h -> headers(h, method, uri, timestamp, bytes)).body(bytes).exchange((r, s) -> response(s));
+                default -> client.post().uri(uri).contentType(MediaType.APPLICATION_JSON).headers(h -> headers(h, method, uri, timestamp, bytes)).body(bytes).exchange((r, s) -> response(s));
             };
             return type != null ? objectMapper.readValue(response, type) : (T) objectMapper.readValue(response, listType);
         } catch (ResponseStatusException exception) {
@@ -105,9 +105,9 @@ public class ChatDeliveryClient {
         return body;
     }
 
-    private void headers(org.springframework.http.HttpHeaders headers, String timestamp, byte[] body) {
+    private void headers(org.springframework.http.HttpHeaders headers, String method, String uri, String timestamp, byte[] body) {
         headers.set("X-OMS-Chat-Timestamp", timestamp);
-        headers.set("X-OMS-Chat-Signature", "v1=" + signature(timestamp, body));
+        headers.set("X-OMS-Chat-Signature", "v1=" + signature(timestamp, method, uri, body));
     }
 
     private String json(Object input) {
@@ -115,11 +115,11 @@ public class ChatDeliveryClient {
         catch (Exception exception) { throw new IllegalStateException("Unable to serialize chat request", exception); }
     }
 
-    private String signature(String timestamp, byte[] body) {
+    private String signature(String timestamp, String method, String uri, byte[] body) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret, "HmacSHA256"));
-            mac.update((timestamp + ".").getBytes(StandardCharsets.UTF_8));
+            mac.update((timestamp + "." + method + "." + uri + ".").getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(mac.doFinal(body));
         } catch (Exception exception) { throw new IllegalStateException("Unable to sign chat request", exception); }
     }

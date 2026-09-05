@@ -2,7 +2,6 @@ package com.jhg.hgpage.realtime.chat.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -11,7 +10,7 @@ public final class ChatDtos {
     private ChatDtos() {}
 
     public record CreateConversationRequest(@NotNull Long orderId) {}
-    public record SendMessageRequest(@NotBlank @Size(max = 2000) String body, @NotNull UUID clientMessageId) {}
+    public record SendMessageRequest(@NotBlank String body, @NotNull UUID clientMessageId) {}
     public record UpdateStatusRequest(@NotBlank String status) {}
     public record Conversation(UUID id, String orderId, String customerMemberId, String status,
                                Instant lastMessageAt, Instant createdAt, Instant updatedAt) {}

@@ -11,7 +11,7 @@
   <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/orders}" th:classappend="${active == 'shipping'} ? 'active'">배송 관리</a>
   <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/payments}" th:classappend="${active == 'payments'} ? 'active'">결제·환불 관리</a>
   <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/returns}" th:classappend="${active == 'returns'} ? 'active'">반품 관리</a>
-  <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/chat}" th:classappend="${active == 'chat'} ? 'active'">상담</a>
+  <a sec:authorize="hasRole('ADMIN')" th:if="${@environment.getProperty('realtime.chat.enabled') == 'true'}" th:href="@{/admin/chat}" th:classappend="${active == 'chat'} ? 'active'">상담</a>
   <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/notification-events}" th:classappend="${active == 'notification-events'} ? 'active'">알림 이벤트</a>
   <link sec:authorize="hasAnyRole('USER','ADMIN')" rel="stylesheet" th:href="@{/css/notifications.css}">
   <div sec:authorize="hasAnyRole('USER','ADMIN')"
