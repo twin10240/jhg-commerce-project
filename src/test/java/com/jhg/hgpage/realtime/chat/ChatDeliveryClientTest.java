@@ -8,12 +8,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,6 +23,7 @@ class ChatDeliveryClientTest {
     private static final String SECRET = "test-chat-secret";
     private HttpServer server;
     private byte[] body;
+    private String method;
     private String timestamp;
     private String signature;
 
@@ -41,7 +44,18 @@ class ChatDeliveryClientTest {
         assertThat(signature).isEqualTo("v1=" + hmac(timestamp, "POST", "/internal/v1/chat/conversations", body));
     }
 
+    @Test void 상담상태를_PATCH로_갱신한다() {
+        ChatDeliveryClient client = new ChatDeliveryClient(RestClient.builder().requestFactory(new SimpleClientHttpRequestFactory()), new ObjectMapper().findAndRegisterModules(), baseUrl(), SECRET);
+
+        ChatDtos.Conversation result = client.updateStatus(UUID.fromString("2e14515f-1c87-4caf-9654-0092efb0b23e"), 7L, com.jhg.hgpage.domain.enums.Role.ADMIN, "CLOSED");
+
+        assertThat(result.orderId()).isEqualTo("1");
+        assertThat(method).isEqualTo("PATCH");
+        assertThat(new String(body, StandardCharsets.UTF_8)).contains("\"status\":\"CLOSED\"");
+    }
+
     private void respond(HttpExchange exchange) throws java.io.IOException {
+        method = exchange.getRequestMethod();
         body = exchange.getRequestBody().readAllBytes();
         timestamp = exchange.getRequestHeaders().getFirst("X-OMS-Chat-Timestamp");
         signature = exchange.getRequestHeaders().getFirst("X-OMS-Chat-Signature");

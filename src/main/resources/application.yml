@@ -45,6 +45,7 @@ spring:
   # 자동구성 RestClient.Builder 전체(어댑터 3종)에 적용(Spring Boot 3.4+).
   http:
     client:
+      factory: simple
       connect-timeout: 1s
       read-timeout: 2s
 

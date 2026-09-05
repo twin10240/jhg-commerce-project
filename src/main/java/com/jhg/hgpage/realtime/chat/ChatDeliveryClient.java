@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -17,6 +18,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.List;
@@ -34,7 +37,9 @@ public class ChatDeliveryClient {
                               @Value("${realtime.base-url}") String baseUrl,
                               @Value("${realtime.chat-hmac-secret:}") String secret) {
         if (secret.isBlank()) throw new IllegalStateException("realtime.chat-hmac-secret must be configured");
-        this.client = builder.baseUrl(baseUrl).build();
+        var requestFactory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(1)).build());
+        requestFactory.setReadTimeout(Duration.ofSeconds(2));
+        this.client = builder.requestFactory(requestFactory).baseUrl(baseUrl).build();
         this.objectMapper = objectMapper;
         this.secret = secret.getBytes(StandardCharsets.UTF_8);
     }

@@ -91,6 +91,49 @@ class ChatPageControllerMvcTest {
         assertTrue(client.contains("update.readerMemberId"));
     }
 
+    @Test
+    void chat_messages_align_sent_left_and_received_right() throws Exception {
+        String css = new String(new ClassPathResource("static/css/chat.css").getInputStream().readAllBytes());
+        assertTrue(css.contains(".chat-message:not(.mine){align-self:flex-end}"));
+        assertTrue(css.contains(".chat-message.mine{background:#fde4d3;align-self:flex-start}"));
+    }
+
+    @Test
+    void chat_page_uses_the_shared_app_background() throws Exception {
+        String css = new String(new ClassPathResource("static/css/chat.css").getInputStream().readAllBytes());
+        assertTrue(css.contains("body{background:var(--app-bg)}"));
+    }
+
+    @Test
+    void chat_page_text_uses_the_shared_ink_color() throws Exception {
+        String css = new String(new ClassPathResource("static/css/chat.css").getInputStream().readAllBytes());
+        assertTrue(css.contains(".chat-page{max-width:960px;margin:24px auto;padding:0 16px;color:var(--app-ink)}"));
+        assertTrue(css.contains(".chat-page h1{margin-bottom:4px;color:var(--app-ink)}"));
+    }
+
+    @Test
+    void chat_messages_keep_dark_text_on_light_bubbles() throws Exception {
+        String css = new String(new ClassPathResource("static/css/chat.css").getInputStream().readAllBytes());
+        assertTrue(css.contains(".chat-message{max-width:78%;padding:10px 12px;border-radius:12px;background:#f7efe7;color:#1f1b18;"));
+    }
+
+    @Test
+    void customer_chat_creates_a_conversation_only_when_sending() throws Exception {
+        String client = new String(new ClassPathResource("static/js/chat-client.js").getInputStream().readAllBytes());
+        assertTrue(client.contains("async function loadCustomerConversation()"));
+        assertTrue(client.contains("if (!conversation) { conversation = await api('', { method: 'POST'"));
+        assertTrue(client.contains("panel.dataset.chatConversationId = conversation.id; setStatus(`주문 #${conversation.orderId} 상담 (진행 중)`);"));
+        assertTrue(client.contains("else if (role === 'USER') await loadCustomerConversation();"));
+    }
+
+    @Test
+    void closed_chat_disables_the_message_composer() throws Exception {
+        String client = new String(new ClassPathResource("static/js/chat-client.js").getInputStream().readAllBytes());
+        assertTrue(client.contains("body.disabled = !enabled"));
+        assertTrue(client.contains("send.disabled = !enabled"));
+        assertTrue(client.contains("setComposerState(next.status === 'OPEN')"));
+    }
+
     private UserPrincipal customer() { return new UserPrincipal(1L, "user@example.com", "사용자", "010", "pw", Role.USER); }
     private UserPrincipal admin() { return new UserPrincipal(2L, "admin@example.com", "관리자", "010", "pw", Role.ADMIN); }
 }

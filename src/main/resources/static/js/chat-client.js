@@ -23,6 +23,7 @@
   let connecting = false;
   let pendingSend = null;
   const seen = new Set();
+  const setComposerState = enabled => { form.hidden = !enabled; body.disabled = !enabled; send.disabled = !enabled; };
 
   const api = async (path, options = {}) => {
     const response = await fetch(`/api/chat/conversations${path}`, { ...options, headers: { ...csrf, 'Content-Type': 'application/json', ...(options.headers || {}) } });
@@ -63,7 +64,7 @@
     panel.dataset.chatConversationId = next.id;
     messages.replaceChildren(); seen.clear(); oldest = null;
     setStatus(`주문 #${next.orderId} 상담 (${next.status === 'OPEN' ? '진행 중' : '종료'})`);
-    form.hidden = next.status !== 'OPEN';
+    setComposerState(next.status === 'OPEN');
     if (statusToggle) { statusToggle.hidden = false; statusToggle.textContent = next.status === 'OPEN' ? '상담 종료' : '상담 재개'; }
     load().catch(error => setStatus(error.message));
   }
@@ -88,19 +89,28 @@
     renderList(items);
   }
 
+  async function loadCustomerConversation() {
+    const conversations = await api('');
+    const existing = conversations.find(item => item.orderId === String(root.dataset.orderId));
+    if (existing) select(existing);
+    else { conversation = null; panel.dataset.chatConversationId = ''; setComposerState(true); setStatus('문의 내용을 입력하면 상담이 시작됩니다.'); }
+  }
+
   form.addEventListener('submit', async event => {
     event.preventDefault();
     const text = body.value.trim();
-    if (!text || !conversation) return;
+    if (!text) return;
+    if (conversation?.status === 'CLOSED') return;
     if (Array.from(text).length > 2_000) return setStatus('메시지는 2,000자까지 입력할 수 있습니다.');
     if (!pendingSend || pendingSend.text !== text) pendingSend = { text, clientMessageId: uuid() };
     send.disabled = true;
     try {
+      if (!conversation) { conversation = await api('', { method: 'POST', body: JSON.stringify({ orderId: Number(root.dataset.orderId) }) }); panel.dataset.chatConversationId = conversation.id; setStatus(`주문 #${conversation.orderId} 상담 (진행 중)`); }
       append(await api(`/${conversation.id}/messages`, { method: 'POST', body: JSON.stringify({ body: text, clientMessageId: pendingSend.clientMessageId }) }));
       body.value = '';
       pendingSend = null;
       await markRead();
-    } catch (error) { setStatus(error.message); } finally { send.disabled = false; }
+    } catch (error) { setStatus(error.message); } finally { send.disabled = !conversation || conversation.status !== 'OPEN'; }
   });
   body.addEventListener('input', () => { if (pendingSend && body.value.trim() !== pendingSend.text) pendingSend = null; });
   loadMore.addEventListener('click', () => oldest && load(cursor(oldest)).catch(error => setStatus(error.message)));
@@ -154,7 +164,7 @@
         if (!requested) throw new Error('상담을 찾을 수 없습니다.');
         select(requested);
         requestedConversationId = null;
-      } else if (role === 'USER') select(await api('', { method: 'POST', body: JSON.stringify({ orderId: Number(root.dataset.orderId) }) }));
+      } else if (role === 'USER') await loadCustomerConversation();
       else await reloadConversations();
       await connect();
     } catch (error) { setStatus(error.message || '채팅을 불러오지 못했습니다.'); }
