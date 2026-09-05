@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
@@ -38,7 +39,9 @@ class ChatPageControllerMvcTest {
         mockMvc.perform(get("/chat").param("orderId", "101").with(user(customer())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("chat"))
+                .andExpect(model().attribute("memberId", 1L))
                 .andExpect(content().string(containsString("data-chat-root")))
+                .andExpect(content().string(containsString("data-member-id=\"1\"")))
                 .andExpect(content().string(containsString("data-chat-conversation-id")))
                 .andExpect(content().string(containsString("data-chat-messages")))
                 .andExpect(content().string(containsString("data-chat-message-form")))
@@ -51,7 +54,9 @@ class ChatPageControllerMvcTest {
         mockMvc.perform(get("/admin/chat").with(user(admin())))
                 .andExpect(status().isOk())
                 .andExpect(view().name("admin/chat"))
+                .andExpect(model().attribute("memberId", 2L))
                 .andExpect(content().string(containsString("data-chat-root")))
+                .andExpect(content().string(containsString("data-member-id=\"2\"")))
                 .andExpect(content().string(containsString("data-chat-conversation-id")))
                 .andExpect(content().string(containsString("data-chat-messages")))
                 .andExpect(content().string(containsString("data-chat-message-form")))
@@ -82,6 +87,8 @@ class ChatPageControllerMvcTest {
     void order_detail_keeps_the_customer_consultation_link() throws Exception {
         String template = new String(new ClassPathResource("templates/orderview.html").getInputStream().readAllBytes());
         assertTrue(template.contains("@{/chat(orderId=${order.id})}"));
+        String client = new String(new ClassPathResource("static/js/chat-client.js").getInputStream().readAllBytes());
+        assertTrue(client.contains("update.readerMemberId"));
     }
 
     private UserPrincipal customer() { return new UserPrincipal(1L, "user@example.com", "사용자", "010", "pw", Role.USER); }

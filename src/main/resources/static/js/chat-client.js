@@ -3,6 +3,7 @@
   if (!root) return;
 
   const role = root.dataset.chatRole;
+  const memberId = root.dataset.memberId;
   const csrf = { [root.dataset.csrfHeader]: root.dataset.csrfToken };
   const panel = root.querySelector('[data-chat-conversation-id]');
   const messages = root.querySelector('[data-chat-messages]');
@@ -105,6 +106,7 @@
     reconnectTimer = setTimeout(() => { reconnectTimer = null; connect().catch(() => scheduleReconnect()); }, 1_000);
   }
   async function connect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     if (!window.io || connecting) return;
     connecting = true;
     stopSocket();
@@ -115,7 +117,9 @@
       socket.on('chat:message:new', message => { append(message); if (message.conversationId === conversation?.id) markRead().catch(() => {}); });
       socket.on('chat:conversation:updated', update => { if (update.id === conversation?.id) { conversation = { ...conversation, ...update }; select(conversation); } if (role === 'ADMIN') reloadConversations().catch(() => {}); });
       socket.on('chat:read', update => {
-        if (update.conversationId === conversation?.id) setStatus(`상대방이 ${new Date(update.readAt).toLocaleString('ko-KR')}에 읽었습니다.`);
+        if (update.conversationId === conversation?.id && update.readerMemberId && String(update.readerMemberId) !== memberId) {
+          setStatus(`상대방이 ${new Date(update.readAt).toLocaleString('ko-KR')}에 읽었습니다.`);
+        }
       });
       socket.on('connect', () => conversation && load().catch(() => {}));
       socket.on('disconnect', scheduleReconnect);

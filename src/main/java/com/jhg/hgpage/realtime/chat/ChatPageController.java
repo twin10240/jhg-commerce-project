@@ -15,17 +15,22 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "realtime.chat.enabled", havingValue = "true")
 public class ChatPageController {
     @GetMapping("/chat")
-    public String customer(@RequestParam Long orderId,
+    public String customer(@AuthenticationPrincipal UserPrincipal principal,
+                           @RequestParam Long orderId,
                            @RequestParam(required = false) UUID conversationId,
                            Model model) {
         model.addAttribute("orderId", orderId);
         model.addAttribute("conversationId", conversationId);
+        model.addAttribute("memberId", principal.getId());
         return "chat";
     }
 
     @GetMapping("/admin/chat")
-    public String admin(@RequestParam(required = false) UUID conversationId, Model model) {
+    public String admin(@AuthenticationPrincipal UserPrincipal principal,
+                        @RequestParam(required = false) UUID conversationId,
+                        Model model) {
         model.addAttribute("conversationId", conversationId);
+        model.addAttribute("memberId", principal.getId());
         return "admin/chat";
     }
 

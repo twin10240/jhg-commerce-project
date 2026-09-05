@@ -7,7 +7,7 @@
 </head>
 <body>
 <div th:replace="~{fragments/layout :: nav('chat')}"></div>
-<main class="chat-page chat-admin" data-chat-root data-chat-role="ADMIN" th:attr="data-chat-requested-conversation-id=${conversationId},data-csrf-header=${_csrf.headerName},data-csrf-token=${_csrf.token}">
+<main class="chat-page chat-admin" data-chat-root data-chat-role="ADMIN" th:attr="data-member-id=${memberId},data-chat-requested-conversation-id=${conversationId},data-csrf-header=${_csrf.headerName},data-csrf-token=${_csrf.token}">
   <header><h1>상담 관리</h1><p>주문별 고객 상담을 확인하고 답변합니다.</p></header>
   <div class="chat-admin-layout">
     <aside><h2>상담 목록</h2><ol data-chat-conversations class="chat-conversations"></ol></aside>
