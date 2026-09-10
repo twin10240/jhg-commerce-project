@@ -57,4 +57,18 @@ test('OMS integration reports only the requested PR commit and propagates remote
       status: 'completed', conclusion: 'success' };
   await assert.rejects(runIntegration(event, source, wrongRun), /Run\/request mismatch/);
   assert.ok(statuses.every((s) => s.state === 'pending'), 'An unrelated successful run must never produce success');
+  let elapsed = 0;
+  let request;
+  const slowRun = async (path, body) => {
+    if (body) {
+      request = body.inputs;
+      return { workflow_run_id: 42, html_url: 'https://github.com/twin10240/jhg-system-tests/actions/runs/42' };
+    }
+    elapsed += 15_000;
+    return { id: 42, event: 'workflow_dispatch', head_branch: 'main',
+      display_title: `System integration · ${request.request_id} · oms`, status: 'in_progress' };
+  };
+  await assert.rejects(runIntegration(event, source, slowRun,
+    async (ms) => { elapsed += ms; }, () => elapsed), /exceeded 25 minutes/);
+  assert.ok(elapsed <= 25 * 60_000 + 15_000, 'API latency must count toward the deadline');
 });

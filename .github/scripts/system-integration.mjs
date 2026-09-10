@@ -6,7 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 const oms = 'twin10240/jhg-commerce-project';
 const system = 'twin10240/jhg-system-tests';
 
-export async function runIntegration(event, sourceApi, systemApi, wait = delay) {
+export async function runIntegration(event, sourceApi, systemApi, wait = delay, now = Date.now) {
   const pr = event.pull_request;
   const trusted = (pull) => {
     assert.equal(pull.base.repo.full_name, oms);
@@ -42,7 +42,9 @@ export async function runIntegration(event, sourceApi, systemApi, wait = delay) 
   console.log(JSON.stringify({ request_id, sha, run_id: id, url }));
   await status('pending', 'Isolated system test running', url);
   // ponytail: poll for up to 25 minutes; use callbacks if waiting runner time becomes costly.
-  for (let attempt = 0; attempt < 150; attempt++) {
+  const deadline = now() + 25 * 60_000;
+  let attempt = 0;
+  while (now() < deadline) {
     const run = await systemApi(`actions/runs/${id}`);
     assert.equal(run.id, id);
     assert.equal(run.event, 'workflow_dispatch');
@@ -53,8 +55,9 @@ export async function runIntegration(event, sourceApi, systemApi, wait = delay) 
       await status(state, `System integration: ${run.conclusion}`, url);
       return { state, run_id: id, url, request_id, sha };
     }
-    if (attempt % 6 === 0) console.log(`Waiting for system run ${id}: ${run.status}`);
-    await wait(10_000);
+    if (attempt++ % 6 === 0) console.log(`Waiting for system run ${id}: ${run.status}`);
+    const remaining = deadline - now();
+    if (remaining > 0) await wait(Math.min(10_000, remaining));
   }
   throw new Error(`System test wait exceeded 25 minutes: ${url}`);
 }
