@@ -49,8 +49,8 @@ export async function runIntegration(event, sourceApi, systemApi, wait = delay, 
     assert.equal(run.id, id);
     assert.equal(run.event, 'workflow_dispatch');
     assert.equal(run.head_branch, 'main');
-    assert.equal(run.display_title, `System integration · ${request_id} · oms`, 'Run/request mismatch');
     if (run.status === 'completed') {
+      assert.equal(run.display_title, `System integration · ${request_id} · oms`, 'Run/request mismatch');
       const state = run.conclusion === 'success' ? 'success' : 'failure';
       await status(state, `System integration: ${run.conclusion}`, url);
       return { state, run_id: id, url, request_id, sha };

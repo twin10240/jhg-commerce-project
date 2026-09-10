@@ -25,9 +25,10 @@ test('OMS integration reports only the requested PR commit and propagates remote
         event.pull_request.head.sha = 'b'.repeat(40);
         return { workflow_run_id: 42, html_url: 'https://github.com/twin10240/jhg-system-tests/actions/runs/42' };
       }
+      const starting = ++reads === 1;
       return { id: 42, event: 'workflow_dispatch', head_branch: 'main',
-        display_title: `System integration · ${inputs.request_id} · oms`,
-        status: ++reads === 1 ? 'in_progress' : 'completed', conclusion };
+        display_title: starting ? 'System integration' : `System integration · ${inputs.request_id} · oms`,
+        status: starting ? 'queued' : 'completed', conclusion };
     };
     const result = await runIntegration(event, source, remote, async () => {});
     assert.equal(inputs.sha, sha);
