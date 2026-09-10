@@ -281,6 +281,8 @@ PR의 `system-integration/oms` 상태에서 진행·성공·실패와 원격 실
 
 OMS Actions secret `SYSTEM_TESTS_TOKEN`에는 **jhg-system-tests 저장소 하나만 선택한**
 fine-grained PAT의 **Actions: read and write** 권한이 필요합니다. 만료 전에 갱신합니다.
+2026-09-10에 호출용 secret을 등록했습니다. 현재 토큰 만료일은 **2026-10-10**이며,
+갱신 시 같은 저장소·권한 범위로 발급한 뒤 `SYSTEM_TESTS_TOKEN`을 교체합니다.
 이 토큰은 호출·결과 조회 단계에만 제공하며, OMS 상태 기록에는 해당 작업의 `GITHUB_TOKEN`을
 사용합니다. 서비스 빌드에는 호출 토큰과 OMS 상태 쓰기 권한을 전달하지 않습니다.
 정상 원격 결과는 성공/실패로, 호출 오류·취소·25분 대기 초과는 오류로 표시합니다.
