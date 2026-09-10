@@ -266,6 +266,27 @@ Railway 배포 설정은 보존돼 있지만 **현재 서비스는 중단 상태
 - **단위 테스트**: Mockito 기반 서비스/도메인 테스트 (`OrderServiceTest`, `OrderAllocationServiceTest`, `BackorderAllocatorTest` 등)
 - **슬라이스 테스트**: `@WebMvcTest`(Security 포함 컨트롤러·템플릿 렌더링 검증), `@DataJpaTest`(임베디드 H2 — 낙관적 락, fetch join 쿼리, 시드 멱등성 검증 — 별도 DB 서버 불필요)
 
+## OMS PR 시스템 통합 검사
+
+`master` 대상의 내부 PR이 생성되거나 갱신되면 `OMS system integration`이
+[전용 테스트 저장소](https://github.com/twin10240/jhg-system-tests)의 `main` 워크플로를 호출합니다.
+OMS는 해당 PR의 HEAD SHA, WMS·realtime은 전용 저장소의 기준 SHA로 검증합니다.
+PR의 `system-integration/oms` 상태에서 진행·성공·실패와 원격 실행 로그 링크를 확인합니다.
+현재는 시범 운영이며 병합 필수 검사로 설정하지 않습니다.
+
+호출기는 PR 코드 대신 **이벤트의 기본 브랜치 SHA**에 있는 코드를 실행합니다.
+같은 저장소의 OWNER/MEMBER/COLLABORATOR PR만 허용하고, API로 확인한 현재 PR HEAD가
+이벤트 SHA와 다르면 오래된 요청을 생략합니다. 요청 이후 HEAD가 바뀌어도 결과는 원래 SHA에만
+기록합니다. 같은 SHA의 재실행은 순차 처리하며, fork PR 자동 실행은 제공하지 않습니다.
+
+OMS Actions secret `SYSTEM_TESTS_TOKEN`에는 **jhg-system-tests 저장소 하나만 선택한**
+fine-grained PAT의 **Actions: read and write** 권한이 필요합니다. 만료 전에 갱신합니다.
+이 토큰은 호출·결과 조회 단계에만 제공하며, OMS 상태 기록에는 해당 작업의 `GITHUB_TOKEN`을
+사용합니다. 서비스 빌드에는 호출 토큰과 OMS 상태 쓰기 권한을 전달하지 않습니다.
+정상 원격 결과는 성공/실패로, 호출 오류·취소·25분 대기 초과는 오류로 표시합니다.
+
+호출 로직 검증: `node --test .github/scripts/system-integration.test.mjs` (Node.js 24.20.0).
+
 ## 문서
 
 - [`docs/기획서.md`](docs/기획서.md) — 프로젝트 기획서(배경·비전·핵심 시나리오·로드맵)

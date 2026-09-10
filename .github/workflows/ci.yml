@@ -8,6 +8,20 @@ on:
     branches: [ master ]
 
 jobs:
+  system-caller-checks:
+    name: System caller checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.20.0
+      - run: node --test .github/scripts/system-integration.test.mjs
+
   build-and-test:
     name: Build & Test (JDK 17)
     runs-on: ubuntu-latest
