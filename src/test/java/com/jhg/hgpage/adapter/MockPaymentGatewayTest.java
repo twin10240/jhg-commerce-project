@@ -90,6 +90,22 @@ class MockPaymentGatewayTest {
                 });
     }
 
+    @Test
+    void fault_프로파일의_첫_승인만_거절하고_재시도는_성공한다() {
+        contextRunner.withPropertyValues(
+                        "spring.profiles.active=payment-faults",
+                        "MOCK_PAYMENT_APPROVAL_OUTCOME=SUCCESS",
+                        "MOCK_PAYMENT_DECLINE_FIRST=true")
+                .run(context -> {
+                    var gateway = context.getBean(com.jhg.hgpage.contract.PaymentGateway.class);
+                    var command = new ApprovalCommand(1L, 10_000,
+                            UUID.fromString("00000000-0000-0000-0000-000000000005"));
+
+                    assertThat(gateway.approve(command).outcome()).isEqualTo(GatewayOutcome.DECLINED);
+                    assertThat(gateway.approve(command).outcome()).isEqualTo(GatewayOutcome.SUCCESS);
+                });
+    }
+
     @Configuration(proxyBeanMethods = false)
     @ComponentScan(basePackageClasses = MockPaymentGateway.class)
     static class GatewayBeans {
