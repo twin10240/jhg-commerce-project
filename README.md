@@ -189,6 +189,8 @@ export OMS_JWT_PUBLIC_KEY="$(cat "$KEY_DIR/realtime-jwt-public.pem")"
 export OMS_JWT_ISSUER=oms
 export OMS_JWT_AUDIENCE=realtime-service
 export OMS_EVENT_HMAC_SECRET='<OMS와 같은 공유 secret>'
+export CHAT_INTERNAL_HMAC_SECRET='<OMS와 realtime-service가 공유하는 채팅 secret>'
+export CHAT_ADMIN_MEMBER_ID=1
 export NOTIFICATION_RETENTION_DAYS=90
 npm run start:dev
 
@@ -197,27 +199,38 @@ cd ../jhg-wms-project && ./gradlew bootRun
 
 # 4. 별도 터미널에서 이 저장소의 OMS(:8080)를 기동한다.
 # (시작 전 공유 secret을 안전한 secret 저장소에서 한 번 생성해 두 터미널에 같은 값으로 주입한다.)
-# PEM은 줄바꿈을 보존한 환경변수로 주입한다. 리터럴 "\\n" 문자열로 바꾸지 않는다.
+# PEM은 줄바꿈을 보존해도 되고, 헤더를 떼고 한 줄 Base64로 넣어도 된다.
+# 리터럴 "\\n" 문자열로 바꾸는 것만 피한다.
 export REALTIME_JWT_PRIVATE_KEY="$(cat "$KEY_DIR/realtime-jwt-private.pem")"
 export REALTIME_BASE_URL=http://localhost:3000
 export REALTIME_PUBLIC_URL=http://localhost:3000
 export REALTIME_EVENT_HMAC_SECRET='<Node OMS_EVENT_HMAC_SECRET과 같은 값>'
 export REALTIME_OUTBOX_ENABLED=true
+export REALTIME_CHAT_ENABLED=true
+export REALTIME_CHAT_HMAC_SECRET='<realtime-service CHAT_INTERNAL_HMAC_SECRET과 같은 값>'
 ./gradlew bootRun
 ```
 
 Node에는 `DATABASE_URL`, 정확한 브라우저 origin인 `OMS_ALLOWED_ORIGIN`, OMS 공개키, `OMS_JWT_ISSUER=oms`,
 `OMS_JWT_AUDIENCE=realtime-service`, 공유 `OMS_EVENT_HMAC_SECRET`, 보존 기간 `NOTIFICATION_RETENTION_DAYS=90`이
-필요하다. OMS에는 개인키와 `REALTIME_BASE_URL`, 브라우저용 `REALTIME_PUBLIC_URL`, 공유 HMAC secret,
-`REALTIME_OUTBOX_ENABLED=true`가 필요하다. `REALTIME_JWT_PRIVATE_KEY`는 OMS의 RS256 개인키이며 실시간 서비스에는 위 명령으로 만든 공개키만 배포한다.
-배포 플랫폼의 secret 입력란에는 PEM 원문을 multiline 값으로 등록한다. shell, CI, `.env` 도구가 줄바꿈을
-지원하지 않으면 파일 내용을 환경변수로 읽어 주입하는 해당 플랫폼의 secret 기능을 사용한다. 개인키와
+필요하다. 채팅을 사용하면 Node에 `CHAT_INTERNAL_HMAC_SECRET`, `CHAT_ADMIN_MEMBER_ID`도 필요하다.
+OMS에는 개인키와 `REALTIME_BASE_URL`, 브라우저용 `REALTIME_PUBLIC_URL`, 공유 HMAC secret,
+`REALTIME_OUTBOX_ENABLED=true`가 필요하며, 채팅을 사용하면 `REALTIME_CHAT_ENABLED=true`와
+`REALTIME_CHAT_HMAC_SECRET`도 필요하다. `REALTIME_JWT_PRIVATE_KEY`는 OMS의 RS256 개인키이며 실시간 서비스에는
+위 명령으로 만든 공개키만 배포한다. PEM은 줄바꿈을 보존한 원문 또는 헤더·공백을 제거한 한 줄 Base64로
+주입할 수 있다. 개인키와
 `REALTIME_EVENT_HMAC_SECRET`은 로그, 예제 파일, Git에 남기지 않는다.
 
 `REALTIME_BASE_URL`은 실시간 서비스의 origin만 지정한다(OMS가 `/internal/v1/events`를 붙인다). 운영은
 HTTPS URL을 사용하고, HMAC secret은 OMS와 실시간 서비스에 같은 값으로 주입한다. `REALTIME_OUTBOX_ENABLED`
 를 켜고 secret이 비어 있으면 OMS는 기동하지 않는다. 전송기가 꺼져 있어도 Outbox 이벤트는 저장되며, 켠 뒤
 대기 이벤트를 발행한다.
+
+공개 실행에서는 Node의 `OMS_ALLOWED_ORIGIN`을 `https://oms.<도메인>`으로, OMS의
+`REALTIME_PUBLIC_URL`을 `https://rt.<도메인>`으로 설정한다. `REALTIME_BASE_URL`은 OMS가 실시간 서비스에
+서버 간 호출을 하는 주소이므로 같은 머신에서 함께 실행하면 로컬 주소를 유지할 수 있다. 브라우저는
+`REALTIME_PUBLIC_URL`에서 Socket.IO 클라이언트를 직접 로드하므로 realtime 서비스에도 별도 공개 호스트가 필요하다.
+실제 공개 URL과 개인 머신 주소는 저장소에 기록하지 않는다.
 
 ### 초기 계정 (자동 시드)
 
