@@ -47,12 +47,10 @@ public class SecurityConfig {
     @Order(2)
     SecurityFilterChain web(HttpSecurity http) throws Exception {
         http
-            // H2 콘솔 사용 시 sameOrigin, 그 외 프레임 보안 유지
             .headers(h -> h.frameOptions(f -> f.sameOrigin()))
-            // CSRF 기본 활성화(폼 기반이라면 권장), 특정 경로만 예외 가능
-            .csrf(csrf -> csrf.ignoringRequestMatchers("/h2-console/**"))
+            .csrf(withDefaults())
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/", "/login", "/signup", "/error", "/css/**", "/js/**", "/images/**", "/h2-console/**").permitAll()
+                    .requestMatchers("/", "/login", "/signup", "/error", "/css/**", "/js/**", "/images/**").permitAll()
                     .requestMatchers("/admin/**").hasRole("ADMIN") // 내부적으로 "ROLE_ADMIN" 권한 검사
                     // 주문·반품·장바구니는 고객(USER) 전용 — admin은 운영자라 구매 흐름 사용 불가
                     .requestMatchers("/chat/conversations/**").authenticated()

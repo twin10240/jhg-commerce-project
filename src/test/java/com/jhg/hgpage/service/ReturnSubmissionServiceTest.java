@@ -104,7 +104,7 @@ class ReturnSubmissionServiceTest {
         when(returnPort.create(any())).thenAnswer(invocation -> {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             assertThat(invocation.getArgument(0, CreateRequest.class)).isEqualTo(new CreateRequest(
-                    fixture.requestKey(), fixture.orderId(), "상품 불량",
+                    fixture.requestKey(), fixture.orderId(), fixture.orderRequestKey(), "상품 불량",
                     List.of(new CreateItem(fixture.orderItemId(), fixture.productId(), 2))));
             return result(fixture);
         });
@@ -241,7 +241,7 @@ class ReturnSubmissionServiceTest {
                     List.of(new CustomerReturnService.ReturnLine(item.getId(), 2)));
             customerReturnRepository.findDetailedById(returnId).orElseThrow().approve("admin@example.com");
             UUID requestKey = customerReturnService.pendingSubmission(returnId).requestKey();
-            return new Fixture(returnId, requestKey, order.getId(), item.getId(), product.getId(), 1000L + returnId);
+            return new Fixture(returnId, requestKey, order.getRequestKey(), order.getId(), item.getId(), product.getId(), 1000L + returnId);
         });
     }
 
@@ -259,6 +259,6 @@ class ReturnSubmissionServiceTest {
                 new ResultItem(fixture.orderItemId(), fixture.productId(), 2, 1, "RESTOCKED")));
     }
 
-    private record Fixture(Long returnId, UUID requestKey, Long orderId,
+    private record Fixture(Long returnId, UUID requestKey, UUID orderRequestKey, Long orderId,
                            Long orderItemId, Long productId, Long rmaId) {}
 }

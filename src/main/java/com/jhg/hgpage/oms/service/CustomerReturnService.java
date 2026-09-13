@@ -74,7 +74,7 @@ public class CustomerReturnService {
         if (customerReturn.getStatus() != CustomerReturnStatus.PENDING_SUBMISSION) {
             throw new IllegalStateException("WMS 접수 대기 상태가 아닙니다.");
         }
-        return new Submission(customerReturn.getId(), customerReturn.getRequestKey(),
+        return new Submission(customerReturn.getId(), customerReturn.getRequestKey(), customerReturn.getOrder().getRequestKey(),
                 customerReturn.getOrder().getId(), customerReturn.getReason(),
                 customerReturn.getItems().stream()
                         .map(item -> new SubmissionItem(item.getOrderItem().getId(),
@@ -218,7 +218,7 @@ public class CustomerReturnService {
 
     public record ReturnLine(Long orderItemId, int quantity) {}
 
-    public record Submission(Long returnId, UUID requestKey, Long orderId, String reason,
+    public record Submission(Long returnId, UUID requestKey, UUID orderRequestKey, Long orderId, String reason,
                              List<SubmissionItem> items) {}
 
     public record SubmissionItem(Long orderItemId, Long productId, int quantity) {}

@@ -9,7 +9,7 @@ public interface ReturnPort {
 
     ReturnResult find(Long rmaId);
 
-    record CreateRequest(UUID requestKey, Long orderId, String reason, List<CreateItem> items) {}
+    record CreateRequest(UUID requestKey, Long orderId, UUID orderRequestKey, String reason, List<CreateItem> items) {}
 
     record CreateItem(Long orderItemId, Long productId, int quantity) {}
 
