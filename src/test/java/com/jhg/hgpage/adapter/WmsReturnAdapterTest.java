@@ -360,12 +360,13 @@ class WmsReturnAdapterTest {
     }
 
     private CreateRequest request() {
-        return new CreateRequest(REQUEST_KEY, 100L, "불량", List.of(new CreateItem(501L, 1L, 2)));
+        return new CreateRequest(REQUEST_KEY, 100L, UUID.fromString("00000000-0000-0000-0000-000000000002"),
+                "불량", List.of(new CreateItem(501L, 1L, 2)));
     }
 
     private String requestJson() {
         return """
-                {"requestKey":"00000000-0000-0000-0000-000000000001","orderId":100,"reason":"불량","items":[{"orderItemId":501,"productId":1,"quantity":2}]}
+                {"requestKey":"00000000-0000-0000-0000-000000000001","orderRequestKey":"00000000-0000-0000-0000-000000000002","orderId":100,"reason":"불량","items":[{"orderItemId":501,"productId":1,"quantity":2}]}
                 """;
     }
 

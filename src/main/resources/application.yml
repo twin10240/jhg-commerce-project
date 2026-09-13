@@ -7,6 +7,9 @@ server:
         name: OMSSESSION
 
 spring:
+  h2:
+    console:
+      enabled: false
   datasource:
 #    url: jdbc:h2:~/hgpage
     url: jdbc:h2:tcp://localhost/~/hgpage

@@ -82,7 +82,7 @@ OMS -> WMS 호출은 connect 1초/read 2초 타임아웃을 사용한다. 예약
 
 ## RMA 접수와 복구
 
-1. OMS가 고객 요청과 `requestKey`를 커밋한 뒤 Basic 인증으로 WMS `POST /api/returns`를 호출한다.
+1. OMS가 고객 요청과 반품 `requestKey`를 커밋한 뒤 주문 `requestKey`를 `orderRequestKey`로 함께 실어 Basic 인증으로 WMS `POST /api/returns`를 호출한다.
 2. 같은 `requestKey`와 같은 내용은 WMS의 기존 `rmaId`로 수렴한다.
 3. WMS는 완료·취소 결과를 Basic 인증 `POST /api/return-status-events`로 알린다.
 4. OMS는 `requestKey`, `rmaId`, 주문, 전체 품목·상품·수량을 대조하고 불일치 콜백을 `409`로 거부한다.

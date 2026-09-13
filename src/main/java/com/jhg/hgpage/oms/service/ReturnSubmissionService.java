@@ -36,7 +36,7 @@ public class ReturnSubmissionService {
     }
 
     private CreateRequest toRequest(CustomerReturnService.Submission submission) {
-        return new CreateRequest(submission.requestKey(), submission.orderId(), submission.reason(),
+        return new CreateRequest(submission.requestKey(), submission.orderId(), submission.orderRequestKey(), submission.reason(),
                 submission.items().stream()
                         .map(item -> new CreateItem(item.orderItemId(), item.productId(), item.quantity()))
                         .toList());
