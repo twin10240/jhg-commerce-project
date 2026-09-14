@@ -56,3 +56,5 @@ WMS 호출은 adapter에서만 만든다. 반품 접수 본문은 반품 자신�
 - 기존 포트·adapter·RepositoryQuery 패턴을 재사용하고 불필요한 추상화를 추가하지 않는다.
 - OMS·realtime·system-tests는 Codex 담당이다. WMS 저장소는 Claude Code 담당이므로 직접 커밋하지 않는다.
 - 공개하면 안 되는 교차 저장소 요청은 저장소 밖 `~/study/docs/codex-requests/`에 둔다.
+- 서비스 PR 통합 검증은 일시 SHA override이며 system-tests 기준을 자동 갱신하지 않는다.
+- 병합 후 기준 갱신 필요 여부를 판단하고 [교차 저장소 완료 기록](https://github.com/twin10240/jhg-system-tests/blob/main/docs/cross-repository-work.md)에 구현 PR/SHA·기준 PR/SHA·검증·배포를 구분한다. 문서만 변경하면 기준 갱신 불필요 이유를 적는다.
