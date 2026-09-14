@@ -1,5 +1,7 @@
 # OMS 작업 가이드
 
+에이전트가 틀리면 [`docs/agent-failure-log.md`](docs/agent-failure-log.md)에 적고 막을 곳을 정한다.
+
 ## 목적
 
 이 저장소는 Spring Boot 3.5.5 기반 학습용 OMS(`com.jhg`, Java 17)다. OMS는 회원·상품 카탈로그·장바구니·주문·결제·백오더·반품 고객 흐름을 소유하고, 재고·예약·출고·발주는 `jhg-wms-project`, 알림은 `jhg-realtime-service`가 소유한다.
