@@ -56,7 +56,8 @@ public class AdminOrderDto {
                 .toList();
         this.shippable = order.getStatus() == OrderStatus.ORDER
                 && order.getDelivery().getStatus() == DeliveryStatus.READY;
-        this.deliverable = order.getDelivery().getStatus() == DeliveryStatus.SHIPPED;
+        this.deliverable = order.getDelivery().getStatus() == DeliveryStatus.SHIPPED
+                && order.getDelivery().getDeliveryVersion() == 0;
         PaymentViewDto paymentView = PaymentViewDto.from(order, payment);
         this.orderStatusLabel = paymentView.orderStatusLabel();
         this.paymentStatusLabel = paymentView.paymentStatusLabel();
@@ -79,7 +80,7 @@ public class AdminOrderDto {
 
     public String getManagementGroup() {
         if (shippable) return "ready";
-        if (deliverable) return "shipping";
+        if (deliverable || deliveryStatus == DeliveryStatus.SHIPPED || deliveryStatus == DeliveryStatus.DELIVERY_FAILED) return "shipping";
         if (status == OrderStatus.BACKORDERED) return "backorder";
         if (deliveryStatus == DeliveryStatus.DELIVERED) return "completed";
         return "other";

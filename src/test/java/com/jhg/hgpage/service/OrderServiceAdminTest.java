@@ -246,4 +246,123 @@ class OrderServiceAdminTest {
         assertThatThrownBy(() -> orderService.shipOrder(99L))
                 .isInstanceOf(EntityNotFoundException.class);
     }
+
+    @Test
+    void 버전_배송실패와_재배송은_재고와_결제를_건드리지_않고_알림을_한번씩_쓴다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        ReflectionTestUtils.setField(order.getMember(), "id", 20L);
+        order.ship();
+        when(orderRepository.findByRequestKeyForUpdate(order.getRequestKey())).thenReturn(Optional.of(order));
+        Instant at = Instant.parse("2026-10-14T00:00:00Z");
+        orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE");
+        assertThat(AdminOrderDto.from(order).getOrderStatusLabel()).isEqualTo("배송 실패");
+        assertThat(AdminOrderDto.from(order).getManagementGroup()).isEqualTo("shipping");
+        orderService.markDelivered(order.getRequestKey(), at.plusSeconds(100));
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERY_FAILED);
+        orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE");
+        orderService.applyDeliveryStatus(order.getRequestKey(), "SHIPPED", 3, at.plusSeconds(1), null);
+        assertThat(AdminOrderDto.from(order).isDeliverable()).isFalse();
+        orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERED", 4, at.plusSeconds(2), null);
+        orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERED", 4, at.plusSeconds(2), null);
+        orderService.markDelivered(order.getRequestKey(), at.plusSeconds(100));
+        assertThat(order.getDelivery().getDeliveredAt()).isEqualTo(at.plusSeconds(2));
+        for (var type : List.of(com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_FAILED,
+                com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_RETRY_STARTED,
+                com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_COMPLETED)) {
+            verify(eventWriter).append(type, 20L, "ORDER", "10", Map.of("orderId", 10L));
+        }
+        verifyNoInteractions(inventoryPort);
+    }
+
+    @Test
+    void 실패_콜백을_놓쳐도_새로운_재배송_버전과_완료를_반영한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        ReflectionTestUtils.setField(order.getMember(), "id", 20L);
+        order.ship();
+        when(orderRepository.findByRequestKeyForUpdate(order.getRequestKey())).thenReturn(Optional.of(order));
+        Instant at = Instant.parse("2026-10-14T00:00:00Z");
+        orderService.applyDeliveryStatus(order.getRequestKey(), "SHIPPED", 3, at, null);
+        orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERED", 4, at.plusSeconds(1), null);
+        verify(eventWriter).append(com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_RETRY_STARTED,
+                20L, "ORDER", "10", Map.of("orderId", 10L));
+        verify(eventWriter, org.mockito.Mockito.never()).append(
+                org.mockito.ArgumentMatchers.eq(com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_FAILED),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyMap());
+    }
+
+    @Test
+    void 조회_동기화는_빠진_재배송_콜백을_건너뛰고_최신_완료로_복구한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        ReflectionTestUtils.setField(order.getMember(), "id", 20L);
+        order.ship();
+        Instant at = Instant.parse("2026-10-14T00:00:00Z");
+        order.getDelivery().applyStatus(DeliveryStatus.DELIVERY_FAILED, 2, at, "ADDRESS_ISSUE");
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(order.getRequestKey(), 10L, "MOCK", "테스트택배", "MOCK-10",
+                        at.minusSeconds(1), at.plusSeconds(2), "DELIVERED", 4L, at.plusSeconds(2), null)));
+        orderService.syncShipment(10L);
+        orderService.syncShipment(10L);
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        verify(eventWriter).append(com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_COMPLETED,
+                20L, "ORDER", "10", Map.of("orderId", 10L));
+    }
+    @Test
+    void 출고응답보다_실패콜백이_먼저_오면_조회로_출고와_실패를_함께_복구한다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        ReflectionTestUtils.setField(order.getMember(), "id", 20L);
+        Instant at = Instant.parse("2026-10-19T00:00:00Z");
+        when(orderRepository.findByRequestKeyForUpdate(order.getRequestKey())).thenReturn(Optional.of(order));
+        assertThatThrownBy(() -> orderService.applyDeliveryStatus(order.getRequestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.READY);
+        verifyNoInteractions(eventWriter);
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(order.getRequestKey(), 999L, "MOCK", "테스트택배", "MOCK-10",
+                        at.minusSeconds(1), null, "DELIVERY_FAILED", 2L, at, "ADDRESS_ISSUE")));
+        orderService.syncShipment(10L);
+        orderService.syncShipment(10L);
+        assertThat(order.getDelivery().getStatus()).isEqualTo(DeliveryStatus.DELIVERY_FAILED);
+        assertThat(order.getDelivery().getDeliveryVersion()).isEqualTo(2);
+        for (var type : List.of(com.jhg.hgpage.realtime.outbox.NotificationEventType.SHIPMENT_STARTED,
+                com.jhg.hgpage.realtime.outbox.NotificationEventType.DELIVERY_FAILED)) {
+            verify(eventWriter).append(type, 20L, "ORDER", "10", Map.of("orderId", 10L));
+        }
+        verifyNoInteractions(inventoryPort);
+    }
+
+    @Test
+    void 기존_완료주문에_버전을_도입해도_완료알림을_다시_발행하지_않는다() {
+        Order order = newOrder("회원A");
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.ship();
+        order.deliver();
+        Instant at = Instant.parse("2026-10-19T00:00:00Z");
+        order.getDelivery().recordDeliveredAt(at);
+        when(orderRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(order));
+        when(inventoryQueryPort.shipmentByRequestKey(order.getRequestKey())).thenReturn(Optional.of(
+                new InventoryQueryPort.ShipmentInfo(order.getRequestKey(), 10L, "MOCK", "테스트택배", "MOCK-10",
+                        at.minusSeconds(1), at, "DELIVERED", 2L, at, null)));
+        orderService.syncShipment(10L);
+        assertThat(order.getDelivery().getDeliveryVersion()).isEqualTo(2);
+        assertThat(order.getDelivery().getDeliveredAt()).isEqualTo(at);
+        verifyNoInteractions(eventWriter, inventoryPort);
+    }
+
+    @Test
+    void 미등록_requestKey의_배송상태는_적용하지_않는다() {
+        var key = java.util.UUID.randomUUID();
+        when(orderRepository.findByRequestKeyForUpdate(key)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> orderService.applyDeliveryStatus(key, "DELIVERY_FAILED", 2,
+                Instant.parse("2026-10-19T00:00:00Z"), "ADDRESS_ISSUE"))
+                .isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(eventWriter, inventoryPort);
+    }
+
 }

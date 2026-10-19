@@ -35,10 +35,10 @@ public class SecurityConfig {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider(users);
         provider.setPasswordEncoder(encoder);
 
-        http.securityMatcher("/api/replenishments", "/api/return-status-events", "/api/delivery-events")
+        http.securityMatcher("/api/replenishments", "/api/return-status-events", "/api/delivery-events", "/api/delivery-status-events")
                 .csrf(AbstractHttpConfigurer::disable)
                 .authenticationProvider(provider)
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> auth.anyRequest().hasRole("WMS"))
                 .httpBasic(withDefaults());
         return http.build();
     }

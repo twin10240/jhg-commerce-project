@@ -86,6 +86,9 @@ public class OrderService {
     @Transactional
     public void deliverOrder(Long orderId) {
         Order order = findOrderForUpdate(orderId);
+        if (order.getDelivery().getDeliveryVersion() > 0) {
+            throw new IllegalStateException("WMS 배송 상태를 조회 동기화해 주세요.");
+        }
         order.deliver();
         order.getDelivery().recordDeliveredAt(Instant.now());
         appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
@@ -99,12 +102,33 @@ public class OrderService {
     public void markDelivered(UUID requestKey, Instant deliveredAt) {
         Order order = orderRepository.findByRequestKeyForUpdate(requestKey)
                 .orElseThrow(() -> new IllegalStateException("Order not found: requestKey=" + requestKey));
+        if (order.getDelivery().getDeliveryVersion() > 0) return;
         DeliveryStatus previous = order.getDelivery().getStatus();
         if (previous != DeliveryStatus.DELIVERED) order.deliver();
         order.getDelivery().recordDeliveredAt(deliveredAt);
         if (previous != DeliveryStatus.DELIVERED) {
             appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
         }
+    }
+
+    @Transactional
+    public void applyDeliveryStatus(UUID requestKey, String status, long deliveryVersion, Instant occurredAt, String failureCode) {
+        Order order = orderRepository.findByRequestKeyForUpdate(requestKey)
+                .orElseThrow(() -> new IllegalStateException("Order not found: requestKey=" + requestKey));
+        applyDeliveryStatus(order, DeliveryStatus.valueOf(status), deliveryVersion, occurredAt, failureCode);
+    }
+
+    private void applyDeliveryStatus(Order order, DeliveryStatus next, long version, Instant at, String failureCode) {
+        Delivery delivery = order.getDelivery();
+        DeliveryStatus previous = delivery.getStatus();
+        if (!delivery.applyStatus(next, version, at, failureCode)) return;
+        NotificationEventType type = switch (next) {
+            case DELIVERY_FAILED -> NotificationEventType.DELIVERY_FAILED;
+            case SHIPPED -> version > 1 ? NotificationEventType.DELIVERY_RETRY_STARTED : null;
+            case DELIVERED -> previous != DeliveryStatus.DELIVERED ? NotificationEventType.DELIVERY_COMPLETED : null;
+            case READY -> null;
+        };
+        if (type != null) appendOrderEvent(order, type);
     }
 
     @Transactional
@@ -117,15 +141,14 @@ public class OrderService {
         if (delivery.getStatus() == DeliveryStatus.READY) order.ship();
         delivery.recordShipment(shipment.carrierCode(), shipment.carrierName(),
                 shipment.trackingNumber(), shipment.issuedAt());
-        if (shipment.deliveredAt() != null) {
+        if (previous == DeliveryStatus.READY) appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
+        if (shipment.deliveryVersion() != null) {
+            applyDeliveryStatus(order, DeliveryStatus.valueOf(shipment.status()), shipment.deliveryVersion(),
+                    shipment.occurredAt(), shipment.failureCode());
+        } else if (delivery.getDeliveryVersion() == 0 && shipment.deliveredAt() != null) {
             if (delivery.getStatus() == DeliveryStatus.SHIPPED) order.deliver();
             delivery.recordDeliveredAt(shipment.deliveredAt());
-        }
-        if (previous == DeliveryStatus.READY) {
-            appendOrderEvent(order, NotificationEventType.SHIPMENT_STARTED);
-        }
-        if (shipment.deliveredAt() != null && previous != DeliveryStatus.DELIVERED) {
-            appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
+            if (previous != DeliveryStatus.DELIVERED) appendOrderEvent(order, NotificationEventType.DELIVERY_COMPLETED);
         }
     }
 

@@ -84,7 +84,7 @@ class BusinessNotificationOutboxIntegrationTest {
     @Autowired ReturnSyncService returnSyncService;
     @Autowired RefundService refundService;
     @Autowired NotificationEventWriter eventWriter;
-    @Autowired NotificationOutboxRepository outboxRepository;
+    @MockitoSpyBean NotificationOutboxRepository outboxRepository;
     @MockitoSpyBean OrderRepository orderRepository;
     @Autowired TransactionTemplate transactionTemplate;
     @Autowired EntityManager em;
@@ -95,7 +95,7 @@ class BusinessNotificationOutboxIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        reset(objectMapper, inventoryQueryPort, inventoryPort);
+        reset(objectMapper, inventoryQueryPort, inventoryPort, outboxRepository);
         outboxRepository.deleteAll();
     }
 
@@ -362,6 +362,48 @@ class BusinessNotificationOutboxIntegrationTest {
             }
             return fixture;
         });
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void versioned_callback_and_concurrent_duplicate_or_sync_append_one_event(boolean sync) throws Exception {
+        OrderFixture fixture = orderFixture();
+        Instant at = Instant.parse("2026-10-19T00:00:00Z");
+        transactionTemplate.executeWithoutResult(tx -> orderRepository.findById(fixture.orderId()).orElseThrow().ship());
+        if (sync) {
+            when(inventoryQueryPort.shipmentByRequestKey(fixture.requestKey())).thenReturn(Optional.of(
+                    new InventoryQueryPort.ShipmentInfo(fixture.requestKey(), fixture.orderId(), "MOCK", "택배", "TRACK",
+                            at.minusSeconds(1), null, "DELIVERY_FAILED", 2L, at, "ADDRESS_ISSUE")));
+        }
+        var first = new java.util.concurrent.atomic.AtomicBoolean(true);
+        List<Throwable> results = runConcurrently(() -> {
+            if (!first.getAndSet(false) && sync) orderService.syncShipment(fixture.orderId());
+            else orderService.applyDeliveryStatus(fixture.requestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE");
+        });
+        assertThat(results).containsOnlyNulls();
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.DELIVERY_FAILED);
+        assertThat(transactionTemplate.<Long>execute(tx -> orderRepository.findById(fixture.orderId()).orElseThrow()
+                .getDelivery().getDeliveryVersion())).isEqualTo(2L);
+        assertThat(events(NotificationEventType.DELIVERY_FAILED)).hasSize(1);
+    }
+
+    @Test
+    void outbox_persistence_failure_rolls_back_versioned_delivery_and_allows_retry() {
+        OrderFixture fixture = orderFixture();
+        Instant at = Instant.parse("2026-10-19T00:00:00Z");
+        transactionTemplate.executeWithoutResult(tx -> orderRepository.findById(fixture.orderId()).orElseThrow().ship());
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("outbox unavailable"))
+                .when(outboxRepository).save(any(NotificationOutbox.class));
+        assertThatThrownBy(() -> orderService.applyDeliveryStatus(fixture.requestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE"))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.SHIPPED);
+        assertThat(transactionTemplate.<Long>execute(tx -> orderRepository.findById(fixture.orderId()).orElseThrow()
+                .getDelivery().getDeliveryVersion())).isZero();
+        assertThat(events(NotificationEventType.DELIVERY_FAILED)).isEmpty();
+        reset(outboxRepository);
+        orderService.applyDeliveryStatus(fixture.requestKey(), "DELIVERY_FAILED", 2, at, "ADDRESS_ISSUE");
+        assertThat(deliveryStatus(fixture.orderId())).isEqualTo(DeliveryStatus.DELIVERY_FAILED);
+        assertThat(events(NotificationEventType.DELIVERY_FAILED)).hasSize(1);
     }
 
     private OrderFixture orderFixture() {
