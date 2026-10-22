@@ -27,5 +27,12 @@ public interface InventoryQueryPort {
     Optional<ShipmentInfo> shipmentByRequestKey(UUID requestKey);
 
     record ShipmentInfo(UUID requestKey, Long orderId, String carrierCode, String carrierName,
-                        String trackingNumber, Instant issuedAt, Instant deliveredAt) {}
+                        String trackingNumber, Instant issuedAt, Instant deliveredAt,
+                        String status, Long deliveryVersion, Instant occurredAt, String failureCode) {
+        public ShipmentInfo(UUID requestKey, Long orderId, String carrierCode, String carrierName,
+                            String trackingNumber, Instant issuedAt, Instant deliveredAt) {
+            this(requestKey, orderId, carrierCode, carrierName, trackingNumber, issuedAt, deliveredAt,
+                    null, null, null, null);
+        }
+    }
 }

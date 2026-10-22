@@ -72,6 +72,7 @@ public record PaymentViewDto(
             case READY -> "재고 확보";
             case SHIPPED -> "출고 완료";
             case DELIVERED -> "배송 완료";
+            case DELIVERY_FAILED -> "배송 실패";
         };
     }
 }

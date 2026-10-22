@@ -355,4 +355,23 @@ class OrderAdminControllerMvcTest {
 
         verifyNoInteractions(paymentAdminService);
     }
+
+    @Test
+    void 배송실패_주문에는_WMS_조회복구만_보여준다() throws Exception {
+        var member = com.jhg.hgpage.oms.domain.Member.createUser("주문자A", "010-0000-0000", new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        var delivery = new com.jhg.hgpage.oms.domain.Delivery();
+        delivery.setAddress(new com.jhg.hgpage.oms.domain.Address("서울", "관악구", "500"));
+        var order = com.jhg.hgpage.oms.domain.Order.createOrder(member, delivery,
+                com.jhg.hgpage.oms.domain.OrderItem.createOrderItem(sampleProduct(), 10000, 2));
+        ReflectionTestUtils.setField(order, "id", 10L);
+        order.ship();
+        delivery.applyStatus(com.jhg.hgpage.oms.domain.enums.DeliveryStatus.DELIVERY_FAILED, 2,
+                Instant.parse("2026-10-14T00:00:00Z"), "ADDRESS_ISSUE");
+        when(orderService.findAllForAdmin()).thenReturn(List.of(AdminOrderDto.from(order)));
+        mockMvc.perform(get("/admin/orders").with(user(admin())))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("배송 실패")))
+                .andExpect(content().string(containsString("/admin/orders/10/shipment/sync")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("배송 완료(수동)"))));
+    }
 }

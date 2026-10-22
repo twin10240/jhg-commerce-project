@@ -39,10 +39,27 @@ OMS 자동 테스트 618개가 통과했고, 정상 재입고·부분 승인·�
 통합 수동 시나리오 9개도 모두 완료했습니다. 실행 절차와 증거는
 [수동 검증 시나리오](docs/manual-verification-scenarios.md#oms-v2-rma--현재-수동-검증-대상-2026-08-12)에 기록합니다.
 
-배송은 `READY → SHIPPED → DELIVERED`로 구분합니다. 관리자는
-`POST /admin/orders/ship`으로 WMS 출고를 확정하고, 이후
-`POST /admin/orders/deliver`로 배송 완료를 기록합니다. 기존 운영 데이터의 출고 완료 값은
-Flyway V5가 `SHIPPED`로 이전합니다.
+배송은 `READY → SHIPPED → DELIVERED`와 배송 시도 실패인 `DELIVERY_FAILED`를 구분합니다.
+출고는 기존 관리자 출고 경로를 사용하고, 배송 실패·재배송·완료의 정본은 WMS입니다.
+WMS 새 기능이 반영되면 `SHIPPED → DELIVERY_FAILED → SHIPPED → DELIVERED`로 진행합니다.
+실패·재배송은 같은 송장을 유지하며 재고·결제·환불을 변경하지 않습니다.
+기존 운영 데이터의 출고 완료 값은 Flyway V5가 `SHIPPED`로 이전합니다.
+
+`POST /api/delivery-status-events`는 WMS Basic 인증으로
+`{requestKey, orderId, status, deliveryVersion, occurredAt, failureCode}`를 받습니다.
+requestKey로 주문을 찾고 orderId는 양수 추적 필드로만 받습니다.
+상태는 SHIPPED/DELIVERY_FAILED/DELIVERED, 실패 코드는 RECIPIENT_UNAVAILABLE/ADDRESS_ISSUE입니다.
+높은 버전만 반영하고 동일 스냅샷 중복·낮은 버전은 200/no-op, 같은 버전 내용 충돌과
+출고 전·완료 후 불법 전이는 409, 잘못된 입력은 400입니다. 중간 버전이 빠져도 최신 상태로 수렴합니다.
+OMS 상태 변경과 알림 Outbox는 함께 커밋하며 실패·재배송 알림은 적용한 버전마다 한 번 기록합니다.
+
+새 필드가 없는 기존 WMS 송장 조회와 `/api/delivery-events` 완료 콜백을 계속 지원합니다.
+버전이 적용된 주문에는 레거시 콜백이나 OMS 직접 수동 완료로 상태를 덮어쓰지 않습니다.
+콜백이 유실되면 WMS에서 같은 액션을 재통지하거나 관리자 `WMS 송장 동기화`로 복구합니다.
+READY 상태에서 실패 콜백이 먼저 온 경우도 송장 동기화로 출고와 최신 상태를 함께 복구합니다.
+배송 버전·마지막 상태/실패 정보는 Flyway V16이 추가하며 기존 행의 버전은 0으로 유지합니다.
+`python3 docs/check-delivery-migration.py`는 임시 로컬 PostgreSQL DB에서 이전과 제약을 검사하고 정리합니다.
+공개 DB 이전과 배포는 별도 절차입니다.
 
 OMS는 배송 완료 주문의 고객 반품 신청, 품목별 신청 가능 수량, 멱등 `requestKey`, WMS 결과 동기화와
 고객 조회를 소유합니다. WMS는 RMA 접수·입고·검수·취소, `RESTOCKED` 재고 반영과

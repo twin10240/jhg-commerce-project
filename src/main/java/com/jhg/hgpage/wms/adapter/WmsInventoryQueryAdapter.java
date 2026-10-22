@@ -1,6 +1,9 @@
 package com.jhg.hgpage.wms.adapter;
 
 import com.jhg.hgpage.contract.InventoryQueryPort;
+import com.jhg.hgpage.oms.domain.Delivery;
+import com.jhg.hgpage.oms.domain.enums.DeliveryStatus;
+import java.time.temporal.ChronoUnit;
 import com.jhg.hgpage.wms.dto.InventoryRow;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -76,6 +79,21 @@ public class WmsInventoryQueryAdapter implements InventoryQueryPort {
                     || result.carrierCode() == null || result.carrierName() == null
                     || result.trackingNumber() == null || result.issuedAt() == null) {
                 throw new RestClientException("WMS 송장 조회 응답이 잘못되었습니다.");
+            }
+            boolean versioned = result.status() != null || result.deliveryVersion() != null
+                    || result.occurredAt() != null || result.failureCode() != null;
+            if (versioned) {
+                try {
+                    if (result.deliveryVersion() == null || result.status() == null) throw new IllegalArgumentException();
+                    DeliveryStatus status = DeliveryStatus.valueOf(result.status());
+                    Delivery.validateStatusEvent(status, result.deliveryVersion(), result.occurredAt(), result.failureCode());
+                    if (status == DeliveryStatus.DELIVERED
+                            ? result.deliveredAt() == null || !result.deliveredAt().truncatedTo(ChronoUnit.MICROS)
+                                .equals(result.occurredAt().truncatedTo(ChronoUnit.MICROS))
+                            : result.deliveredAt() != null) throw new IllegalArgumentException();
+                } catch (IllegalArgumentException exception) {
+                    throw new RestClientException("WMS 배송 상태 조회 응답이 잘못되었습니다.", exception);
+                }
             }
             return Optional.of(result);
         } catch (HttpClientErrorException.NotFound e) {

@@ -90,4 +90,33 @@ class WmsInventoryQueryAdapterTest {
         assertThat(adapter.shipmentByRequestKey(REQUEST_KEY)).isEmpty();
         server.verify();
     }
+
+    @Test
+    void WMS_배송실패_조회는_상태와_버전을_보존한다() {
+        server.expect(requestTo("http://wms-test/api/shipments/" + REQUEST_KEY))
+                .andRespond(withSuccess("""
+                        {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","orderId":202,
+                         "carrierCode":"MOCK","carrierName":"테스트택배","trackingNumber":"MOCK-202",
+                         "issuedAt":"2026-10-13T00:00:00Z","deliveredAt":null,
+                         "status":"DELIVERY_FAILED","deliveryVersion":2,"occurredAt":"2026-10-14T00:00:00Z",
+                         "failureCode":"ADDRESS_ISSUE"}
+                        """, MediaType.APPLICATION_JSON));
+        var shipment = adapter.shipmentByRequestKey(REQUEST_KEY).orElseThrow();
+        assertThat(shipment.status()).isEqualTo("DELIVERY_FAILED");
+        assertThat(shipment.deliveryVersion()).isEqualTo(2);
+        assertThat(shipment.failureCode()).isEqualTo("ADDRESS_ISSUE");
+    }
+
+    @Test
+    void 새_배송계약의_버전이_빠진_조회는_거부한다() {
+        server.expect(requestTo("http://wms-test/api/shipments/" + REQUEST_KEY))
+                .andRespond(withSuccess("""
+                        {"requestKey":"3f2a9c14-8b7e-4d21-9f60-0c5a1e7b4d33","orderId":202,
+                         "carrierCode":"MOCK","carrierName":"테스트택배","trackingNumber":"MOCK-202",
+                         "issuedAt":"2026-10-13T00:00:00Z","deliveredAt":null,
+                         "status":"DELIVERY_FAILED","occurredAt":"2026-10-14T00:00:00Z","failureCode":"ADDRESS_ISSUE"}
+                        """, MediaType.APPLICATION_JSON));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> adapter.shipmentByRequestKey(REQUEST_KEY))
+                .isInstanceOf(org.springframework.web.client.RestClientException.class);
+    }
 }
